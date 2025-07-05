@@ -1,15 +1,8 @@
-from machine import Pin
-from utime import sleep
+from aidriver import AIDriver
+import time
 
-pin = Pin("LED", Pin.OUT)
+# Initialize the robot with default pins
+robot = AIDriver()
 
-print("LED starts flashing...")
 while True:
-    try:
-        pin.toggle()
-        sleep(1)  # sleep 1sec
-        print("LED is ON" if pin.value() else "LED is OFF")
-    except KeyboardInterrupt:
-        break
-pin.off()
-print("Finished.")
+    #do something here
