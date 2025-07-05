@@ -1,0 +1,37 @@
+{
+  "files.autoSave": "onFocusChange",
+  "editor.formatOnPaste": true,
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter"
+  },
+  "editor.fontSize": 18,
+  "terminal.integrated.defaultProfile.windows": "Git Bash",
+  "window.restoreWindows": "preserve",
+  "workbench.editorAssociations": {
+    "*.md": "vscode.markdown.preview.editor"
+  },
+  "python.languageServer": "Pylance",
+  "python.analysis.typeCheckingMode": "basic",
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportMissingModuleSource": "none"
+  },
+  "python.terminal.activateEnvironment": false,
+  "micropico.openOnStart": true,
+  "python.analysis.typeshedPaths": ["~/.micropico-stubs/included"],
+  "python.analysis.extraPaths": [
+    "~/.micropico-stubs/included",
+    "./examples/smooth_"
+  ],
+  "micropico.syncFolder": "project",
+	"workbench.colorTheme": "Default Dark+",
+	"workbench.iconTheme": "vscode-icons",
+	"github.copilot.enable": {
+		"python": false,
+		"html": false,
+		"css": false,
+		"SQL": false
+	},
+  "chat.agent.enabled": false
+}
