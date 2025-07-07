@@ -161,7 +161,8 @@ class L298N:
 
 class AIDriver:
     """
-    Unified robot driver class with motor control and ultrasonic sensor
+    Unified robot driver class with L298NH motor control and SR-HC04 ultrasonic sensor
+    The L298NH requires L298N channels to be called simultaneously.
     """
 
     def __init__(
@@ -176,7 +177,8 @@ class AIDriver:
         echo_pin=9,  # GP9
     ):
         """
-        Initialize AIDriver with default RP2040 GPIO pins
+        Initialize RP2040 based AIDriver differential drive robot.
+
 
         Args:
             right_speed_pin: PWM pin for right motor speed (default GP2)
@@ -210,7 +212,6 @@ class AIDriver:
             return -1
         return int(distance_mm)
 
-    # Motor control methods remain unchanged
     def brake(self):
         """Stop both motors"""
         self.motor_right.stop()
