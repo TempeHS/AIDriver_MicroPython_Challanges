@@ -1,85 +1,72 @@
-#  STUDENTS SHOULD ONLY EDIT THE FILE NAME IN LINE 7
+from time import sleep
+from aidriver import AIDriver
 import sys
-from machine import Pin
 
+"""
+Runs a sequence of tests for the AIDriver class.
+The user must visually confirm the robot's behaviour.
+"""
 
-# File name of the script to import
-file_name = "v01"
-
-# Add the path to the sys.path
-sys.path.append("/py_scripts")
-
-# Create a stop pin to stop the main loop
-stop_pin = Pin(4, Pin.IN, Pin.PULL_UP)
-
-
-# Create a callback function to stop the main loop when the stop pin is pressed
-def callback(stop_pin):
-    raise KeyboardInterrupt("Stop pin button pressed")
-
-
-# Add an interrupt to the stop pin
-stop_pin.irq(trigger=Pin.IRQ_FALLING, handler=callback)
-
-# Import the v01.py script and setup exception handling
+print("Initializing AIDriver for physical test...")
 try:
-    __import__(file_name)
-except KeyboardInterrupt:
-    print("KEYBOARD INTERRUPT")
-except ImportError as e:
-    print("IMPORT ERROR")
-    print(
-        "Raised when the import statement has trouble trying to load a library or module. A common issue is that the module does not exist."
-    )
-    print(
-        "Check that the module/import exists in MicroPython or that you have added the library to the 'lib' folder"
-    )
-    print("--- Traceback ---")
-    sys.print_exception(e)
-except NameError as e:
-    print("NAME ERROR")
-    print(
-        "Raised when a local or global name is not found. This is usually a typo in the name of a variable, method or function."
-    )
-    print(
-        "Check the names of all variables, methods and functions have been typed correctly."
-    )
-    print("--- Traceback ---")
-    sys.print_exception(e)
-except SyntaxError as e:
-    print("SYNTAX ERROR")
-    print(
-        "Raised when the parser encounters a syntax error. This may be caused by a typo in the code."
-    )
-    print(
-        "Check the white space, colons, brackets and other syntax elements are correct in the code."
-    )
-    print("--- Traceback ---")
-    sys.print_exception(e)
-except TypeError as e:
-    print("TYPE ERROR")
-    print(
-        "Raised when an operation or function is applied to an object of inappropriate type. The associated value is a string giving details about the type mismatch."
-    )
-    print("Check you are performing the correct processing for the data type.")
-    print("--- Traceback ---")
-    sys.print_exception(e)
-except ValueError as e:
-    print("VALUE ERROR")
-    print(
-        "Raised when a built-in operation or function receives an argument that has the right type but an inappropriate value."
-    )
-    print("--- Traceback ---")
-    sys.print_exception(e)
-except OSError as e:
-    print("OS ERROR")
-    print("This is a system error catch all.")
-    print("You may want to check the error code or take this error to your teacher.")
-    print("--- Traceback ---")
-    sys.print_exception(e)
-except RuntimeError as e:
-    print("RUNTIME ERROR")
-    print("This is a runtime catch all error.")
-    print("You may want to check the error code or take this error to your teacher.")
-    print("--- Traceback ---")
-    sys.print_exception(e)
+    driver = AIDriver()
+except Exception as e:
+    print(f"Failed to initialize AIDriver: {e}")
+    print("Please check the aidriver.py library is in the 'lib' folder.")
+    sys.exit()
+
+print("Initialization complete. Starting tests in 5 seconds...")
+print("Ensure the robot has clear space to move.")
+sleep(5)
+
+# Test 1: Drive Forward
+print("\n--- Test 1: Drive Forward ---")
+print("Robot should move FORWARD for 2 seconds.")
+driver.drive_forward(200, 200)
+sleep(2)
+driver.brake()
+print("--> Test 1 Complete. Robot should be stopped.")
+sleep(3)
+
+# Test 2: Drive Backward
+print("\n--- Test 2: Drive Backward ---")
+print("Robot should move BACKWARD for 2 seconds.")
+driver.drive_backward(200, 200)
+sleep(2)
+driver.brake()
+print("--> Test 2 Complete. Robot should be stopped.")
+sleep(3)
+
+# Test 3: Rotate Right
+print("\n--- Test 3: Rotate Right (Clockwise) ---")
+print("Robot should rotate RIGHT for 2 seconds.")
+driver.rotate_right(200)
+sleep(2)
+driver.brake()
+print("--> Test 3 Complete. Robot should be stopped.")
+sleep(3)
+
+# Test 4: Rotate Left
+print("\n--- Test 4: Rotate Left (Counter-Clockwise) ---")
+print("Robot should rotate LEFT for 2 seconds.")
+driver.rotate_left(200)
+sleep(2)
+driver.brake()
+print("--> Test 4 Complete. Robot should be stopped.")
+sleep(3)
+
+# Test 5: Ultrasonic Sensor
+print("\n--- Test 5: Read Distance ---")
+print("Place an object 10-50cm in front of the sensor.")
+print("Taking 5 readings...")
+for i in range(5):
+    distance = driver.read_distance()
+    if distance != -1:
+        print(f"Reading {i+1}: {distance} mm")
+    else:
+        print(f"Reading {i+1}: Out of range or timeout.")
+        sleep(1)
+print("--> Test 5 Complete.")
+sleep(3)
+
+print("\n\n--- ALL PHYSICAL TESTS ARE COMPLETE ---")

@@ -6,6 +6,11 @@ In this challenge students will use the distance sensors to control how far the 
 
 My Robot moves 1m away from an object then comes to a stop.
 
+## Before You Begin
+
+1. Complete [Module 3: Asking questions and making decisions!](https://groklearning.com/learn/python-for-beginners/2/0/) to learn about asking questions and making decisions in the Python language.
+2. Complete [Blockly Level 3 to apply the run once algorythm algorithm visually](https://blockly.games/maze?lang=en&level=3&&skin=0).
+
 ## Flowchart Of The Algorithm
 
 ```mermaid
@@ -28,21 +33,28 @@ flowchart TD
     M --> N[Increment counter]
     N --> G
 
-    style A fill:#e1f5fe
-    style D fill:#ffecb3
-    style G fill:#fff3e0
-    style I fill:#ffecb3
-    style J fill:#ffecb3
-    style K fill:#e8f5e8
-    style M fill:#ffcdd2
-    style N fill:#f3e5f5
+    style A fill:#e1f5fe, color:#000000
+    style B fill:#000000, color:#ffffff
+    style C fill:#000000, color:#ffffff
+    style D fill:#ffecb3, color:#000000
+    style E fill:#000000, color:#ffffff
+    style F fill:#000000, color:#ffffff
+    style G fill:#fff3e0, color:#000000
+    style I fill:#ffecb3, color:#000000
+    style J fill:#ffecb3, color:#000000
+    style K fill:#e8f5e8, color:#000000
+    style M fill:#ffcdd2, color:#000000
+    style N fill:#f3e5f5, color:#000000
 ```
 
 ## Step 1
 
-1. Make sure your power switch is off
-2. Plug in your robot
-3. Navigate https://lab-micropython.arduino.cc/]
+1. Make sure your power switch is off.
+2. Navigate to [https://lab-micropython.arduino.cc/](https://lab-micropython.arduino.cc/).
+3. Sign in with Google (use your @education.nsw.gov.au account).
+4. Follow these instructions to connect, code and save:
+
+![Animated connection instructions](images/instructions.gif "Animated connection instructions")
 
 ## Step 2
 
