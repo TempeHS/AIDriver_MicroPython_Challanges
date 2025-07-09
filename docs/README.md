@@ -8,7 +8,7 @@ A low-cost, easy-to-assemble differential drive robot, specifically designed for
 
 All components can be purchased from [AliExpress](https://www.aliexpress.com/) and the chassis manufactured using a 3D Printer and Laser cutter.
 
-1. [Laser cut chassis] using(docs\manufacturing_files\LC_Faculty_AIDriverGluelessv2_PP.pdf) [(3mm Ply)](https://www.bunnings.com.au/2440-x-1220mm-3mm-plywood-pine-premium-bc-grade_p0340267)
+1. [Laser cut chassis](manufacturing_files/LC_Faculty_AIDriverGluelessv2_PP.pdf) using [(3mm Ply)](https://www.bunnings.com.au/2440-x-1220mm-3mm-plywood-pine-premium-bc-grade_p0340267)
 2. [3D Printed components](docs/manufacturing_files)
 3. [Ultrasonic Sensor](https://www.aliexpress.com/item/1005005636789307.html)
 4. [RP2040 Uno Development Board](https://www.aliexpress.com/item/1005009315359179.html)
@@ -40,9 +40,10 @@ Once students have assembled their robot they are to complete the programming ch
 
 1. [Challenge 1](Challenge_1.md) - Drive in a straight line
 2. [Challenge 2](Challenge_2.md) - Drive in a large circle
-3. [Challenge 3](Challenge_3.md) - Drive in a square
-4. [Challenge 4](Challenge_4.md) - Collision prevention
-5. [Challenge 5](Challenge_5.md) - Obstacle avoidance
+3. [Challenge 3](Challenge_3.md) - Autonomous Collision prevention
+4. [Challenge 4](Challenge_4.md) - Drive in a square
+5. [Challenge 5](Challenge_5.md) - Autonomous Obstacle avoidance
+6. [Challenge 6](Challenge_6.md) - Autonomous Maze Navigation
 
 ## Authors
 
