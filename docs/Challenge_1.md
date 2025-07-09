@@ -28,7 +28,7 @@ flowchart TD
 
 ## Step 1
 
-1. Make sure your power switch is off.
+1. Make sure your battery power switch is off.
 2. Navigate to [https://lab-micropython.arduino.cc/](https://lab-micropython.arduino.cc/).
 3. Sign in with Google (use your @education.nsw.gov.au account).
 4. Follow these instructions to connect, code and save:
@@ -72,8 +72,9 @@ The code `my_robot.drive_forward(200, 200)` is an instruction to drive the robot
 
 > [!Important]
 >
-> 1. You will find anything below 120 is not enough power to the wheels so they may not respond to lower values.
-> 2. high speed makes gives your system less time to make decisions and respond, you will find a speed around 200 optimal for all the challenges.
+> - Any value below 120 typically doesn't provide enough power to the wheels, so the motors may not respond reliably at lower speeds.
+> - Higher speeds give your robot less time to make decisions and react.
+> - A speed around 200 is generally optimal for completing all the challenges.
 
 ```python
 from time import sleep
@@ -88,16 +89,16 @@ while True:
 
 ## Step 5
 
-> [!CAUTION]
-> Save your `main.py` and disconnect your robot from your computer, then find some space to safely allow your robot to move, before powering it on.
+> [!Caution]
+> To avoid damaging your computer or robot, first save your main.py file. Next, disconnect your robot from your computer, then place it on the floor in an area with enough space for it to move safely before powering it on.
 
-Your challenge is to balance the motors. Because of a range of factors the motors won't equally respond to the same speed value. You task is to test the adjust the values of 200 & 200 find the optimal values to get your robot to drive in a straight line.
+Your challenge is to balance the motors. Due to various factors, the motors may not respond equally to the same speed value. Your task is to experiment with and adjust the initial values of 200 & 200 to find the optimal settings that allow your robot to drive in a straight line.
 
-> [!TIP]
+> [!Tip]
 >
-> - If your robot pulls to the right you need to either increase the right wheel speed or decrease the left wheel speed. ie `my_robot.drive_forward(200, 204)`
-> - If your robot pulls to the left you need to either increase the left wheel speed or increase the right wheel speed. ie `my_robot.drive_forward(200, 196)`
-> - Keep adjusting the speed values until your robot drives as straight as possible over a few tests.
+> - If your robot veers to the right, either increase the speed of the right wheel or decrease the speed of the left wheel (e.g., my_robot.drive_forward(200, 204)).
+> - If your robot veers to the left, either increase the speed of the left wheel or decrease the speed of the right wheel (e.g., my_robot.drive_forward(204, 200)).
+> - Continue fine-tuning the speed values and testing until your robot moves as straight as possible.
 
 ## Step 7 Save your Code
 
