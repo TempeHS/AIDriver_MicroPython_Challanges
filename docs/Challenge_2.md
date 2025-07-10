@@ -17,20 +17,20 @@ My robot moves in circle and comes to a stop.
 flowchart TD
     A[Start Program] --> B[Setup Robot]
     B --> C[Initialize variables]
-    C --> D[Increment counter by 1]
-    D --> E{Is counter less than 1?}
-    E -->|Yes| F[Drive Forward until time ends]
-    F --> G[Apply brake to stop robot]
+    C --> D{Is counter less than 1?}
+    D -->|Yes| E[Drive Forward until time ends]
+    E --> F[Apply brake to stop robot]
+    F --> G[Increment counter by 1]
     G --> D
-    E -->|No| H[End Program]
+    D -->|No| H[End Program]
 
     style A fill:#e1f5fe,color:#000000
     style B fill:#000000, color:#ffffff
     style C fill:#000000, color:#ffffff
-    style D fill:#fff3e0,color:#000000
-    style E fill:#ffecb3,color:#000000
-    style F fill:#e8f5e8,color:#000000
-    style G fill:#ffcdd2,color:#000000
+    style D fill:#ffecb3,color:#000000
+    style E fill:#e8f5e8,color:#000000
+    style F fill:#ffcdd2,color:#000000
+    style G fill:#fff3e0,color:#000000
     style H fill:#e1f5fe,color:#000000
 ```
 

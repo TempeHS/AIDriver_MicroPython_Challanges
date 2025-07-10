@@ -19,13 +19,13 @@ In this challenge students will use the distance sensors to control how far the 
 flowchart TD
     A[Start Program] --> B[Setup Robot]
     B --> C[Initialize variables]
-    C --> D[Increment counter by 1]
-    D --> E{Is counter less than target?}
+    C --> E{Is counter less than target?}
     E -->|Yes| F[Drive Forward until time ends]
     F --> G[Apply brake to stop robot]
     G --> H[Rotate Right]
     H --> I[Apply brake to stop robot]
-    I --> D
+    I --> D[Increment counter by 1]
+    D --> E
     E -->|No| J[End Program]
 
     style A fill:#e1f5fe,color:#000000
