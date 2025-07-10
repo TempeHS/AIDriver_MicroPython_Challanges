@@ -30,3 +30,22 @@ while True:
         print("Joystick X:", x, "Y:", y)
     utime.sleep_ms(100)
 ```
+
+```python
+from aidriver import AIDriver
+from gamepad_pico import GamePad
+from gamepad_driver_controller import GamepadAIDriverController
+
+from time import sleep_ms
+
+gamepad = GamePad()      # Default UART0: TX=GP0, RX=GP1
+driver = AIDriver()      # Default motor/sensor pins as per aidriver.py
+
+controller = GamepadAIDriverController(gamepad, driver)
+
+while True:
+    controller.update()
+    sleep_ms(40)  # ~25Hz update rate
+except KeyboardInterrupt:
+    driver.brake()
+```
