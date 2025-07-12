@@ -167,14 +167,14 @@ class AIDriver:
 
     def __init__(
         self,
-        right_speed_pin=2,  # GP2 (PWM capable)
-        left_speed_pin=3,  # GP3 (PWM capable)
-        right_dir_pin=5,  # GP4
-        right_brake_pin=6,  # GP5
-        left_dir_pin=7,  # GP6
+        right_speed_pin=3,  # GP2 (PWM capable)
+        left_speed_pin=11,  # GP3 (PWM capable)
+        right_dir_pin=12,  # GP4
+        right_brake_pin=9,  # GP5
+        left_dir_pin=13,  # GP6
         left_brake_pin=8,  # GP7
-        trig_pin=10,  # GP8
-        echo_pin=9,  # GP9
+        trig_pin=6,  # GP8
+        echo_pin=7,  # GP9
     ):
         """
         Initialize RP2040 based AIDriver differential drive robot.

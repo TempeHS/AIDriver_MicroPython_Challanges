@@ -4,8 +4,8 @@
 
 - Vcc -------> 3.3V or 5V
 - GND -------> GND
-- RX --------> Pin 0
-- TX --------> Pin 1
+- RX --------> Pin 1
+- TX --------> Pin 0
 
 ## Mobile GamePad App
 

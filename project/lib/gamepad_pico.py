@@ -4,30 +4,33 @@ import utime
 
 # GamePad Input IDs
 GAMEPAD_DIGITAL = 0x01
-GAMEPAD_ANALOG  = 0x02
-GAMEPAD_ACCL    = 0x03
+GAMEPAD_ANALOG = 0x02
+GAMEPAD_ACCL = 0x03
 
 # Button Bit Masks (value0, digital)
-START_BIT    = 0
-SELECT_BIT   = 1
-TRIANGLE_BIT = 2 
-CIRCLE_BIT   = 3
-CROSS_BIT    = 4
-SQUARE_BIT   = 5
+START_BIT = 0
+SELECT_BIT = 1
+TRIANGLE_BIT = 2
+CIRCLE_BIT = 3
+CROSS_BIT = 4
+SQUARE_BIT = 5
 
 # Arrow Bit Masks (value, digital)
-UP_BIT       = 0
-DOWN_BIT     = 1
-LEFT_BIT     = 2
-RIGHT_BIT    = 3
+UP_BIT = 0
+DOWN_BIT = 1
+LEFT_BIT = 2
+RIGHT_BIT = 3
 
 # Dabble protocol
 START_OF_FRAME = 0xC0
-END_OF_FRAME   = 0xC1
+END_OF_FRAME = 0xC1
+
 
 class GamePad:
     def __init__(self, uart_id=0, baudrate=115200, tx=0, rx=1):
-        self.uart = machine.UART(uart_id, baudrate=baudrate, tx=machine.Pin(tx), rx=machine.Pin(rx))
+        self.uart = machine.UART(
+            uart_id, baudrate=baudrate, tx=machine.Pin(tx), rx=machine.Pin(rx)
+        )
         self.mode = 0
         self.value0 = 0
         self.value = 0
@@ -60,25 +63,43 @@ class GamePad:
         if function_id == GAMEPAD_DIGITAL:
             self.mode = 0
             self.value0 = buf[4]
-            self.value  = buf[6]
+            self.value = buf[6]
         elif function_id in (GAMEPAD_ANALOG, GAMEPAD_ACCL):
             self.mode = 1
             self.value0 = buf[4]
-            self.value  = buf[6]
+            self.value = buf[6]
 
     # Digital buttons
-    def is_start_pressed(self):    return bool(self.value0 & (1 << START_BIT))
-    def is_select_pressed(self):   return bool(self.value0 & (1 << SELECT_BIT))
-    def is_triangle_pressed(self): return bool(self.value0 & (1 << TRIANGLE_BIT))
-    def is_circle_pressed(self):   return bool(self.value0 & (1 << CIRCLE_BIT))
-    def is_cross_pressed(self):    return bool(self.value0 & (1 << CROSS_BIT))
-    def is_square_pressed(self):   return bool(self.value0 & (1 << SQUARE_BIT))
+    def is_start_pressed(self):
+        return bool(self.value0 & (1 << START_BIT))
+
+    def is_select_pressed(self):
+        return bool(self.value0 & (1 << SELECT_BIT))
+
+    def is_triangle_pressed(self):
+        return bool(self.value0 & (1 << TRIANGLE_BIT))
+
+    def is_circle_pressed(self):
+        return bool(self.value0 & (1 << CIRCLE_BIT))
+
+    def is_cross_pressed(self):
+        return bool(self.value0 & (1 << CROSS_BIT))
+
+    def is_square_pressed(self):
+        return bool(self.value0 & (1 << SQUARE_BIT))
 
     # D-pad arrows (digital only)
-    def is_up_pressed(self):       return not self.mode and bool(self.value & (1 << UP_BIT))
-    def is_down_pressed(self):     return not self.mode and bool(self.value & (1 << DOWN_BIT))
-    def is_left_pressed(self):     return not self.mode and bool(self.value & (1 << LEFT_BIT))
-    def is_right_pressed(self):    return not self.mode and bool(self.value & (1 << RIGHT_BIT))
+    def is_up_pressed(self):
+        return not self.mode and bool(self.value & (1 << UP_BIT))
+
+    def is_down_pressed(self):
+        return not self.mode and bool(self.value & (1 << DOWN_BIT))
+
+    def is_left_pressed(self):
+        return not self.mode and bool(self.value & (1 << LEFT_BIT))
+
+    def is_right_pressed(self):
+        return not self.mode and bool(self.value & (1 << RIGHT_BIT))
 
     # Analog stick/joystick
     def get_angle(self):

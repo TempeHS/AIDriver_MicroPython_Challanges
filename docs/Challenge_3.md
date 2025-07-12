@@ -63,20 +63,20 @@ from aidriver import AIDriver
 
 my_robot = AIDriver()
 
-while driver.read_distance() == -1
+while my_robot.read_distance() == -1:
     print ("Robot too close, too far or sensor is in error state")
 
 my_counter = 0
-start_distance = driver.read_distance()
+start_distance = my_robot.read_distance()
 current_distance = start_distance
 distance_remaining = current_distance - start_distance
-wheel_speed = 200
+wheel_speed = 120
 speed_adjust = 0
 target_distance = 0
 
 while True:
     while distance_remaining < target_distance:
-        my_robot.backward(wheel_speed - speed_adjust, wheel_speed + speed_adjust)
+        my_robot.drive_backward(wheel_speed - speed_adjust, wheel_speed + speed_adjust)
         current_distance = driver.read_distance()
         sleep(0.1)
         distance_remaining = current_distance - start_distance

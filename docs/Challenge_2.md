@@ -18,7 +18,7 @@ flowchart TD
     A[Start Program] --> B[Setup Robot]
     B --> C[Initialize variables]
     C --> D{Is counter less than 1?}
-    D -->|Yes| E[Drive Forward until time ends]
+    D -->|Yes| E[Drive Backward until time ends]
     E --> F[Apply brake to stop robot]
     F --> G[Increment counter by 1]
     G --> D
@@ -58,8 +58,8 @@ wheel_speed = 180
 speed_adjust = 0
 move_time = 0
 
-while my_counter <= 1:
-    my_robot.backward(wheel_speed - speed_adjust, wheel_speed + speed_adjust)
+while my_counter < 1:
+    my_robot.drive_backward(wheel_speed - speed_adjust, wheel_speed + speed_adjust)
     sleep(move_time)
     my_robot.brake()
     sleep(1)
@@ -83,10 +83,7 @@ Your challenge is to:
 
 ## Challenge 2 Extensions, I can…
 
-1. Drive a circle both directions.
-2. Drive a circle in reverse.
+1. Drive a circle forward.
+2. Drive a clockwise and anti-clockwise circle.
 3. Drive 2, 3, 4 circles
 4. Drive a figure 8.
-5. Drive a circle in reverse.
-6. Drive 2, 3, 4 circles
-7. Drive a figure 8.
