@@ -1,5 +1,15 @@
 ## Test the Hardware
 
+1. Make sure your battery power switch is off.
+2. Navigate to [https://lab-micropython.arduino.cc/](https://lab-micropython.arduino.cc/).
+3. Sign in with Google (use your @education.nsw.gov.au account).
+4. Follow these instructions to connect:
+
+![Animated connection instructions](images/instructions.gif "Animated connection instructions")
+
+5. Copy and paste this code into `main.py`.
+6.
+
 ```python
 from time import sleep
 from aidriver import AIDriver

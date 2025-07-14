@@ -40,10 +40,11 @@ Once students have assembled their robot they are to complete the programming ch
 
 1. [Challenge 1](Challenge_1.md) - Drive in a straight line
 2. [Challenge 2](Challenge_2.md) - Drive in a large circle
-3. [Challenge 3](Challenge_3.md) - Autonomous Collision prevention
+3. [Challenge 3](Challenge_3.md) - Autonomous collision prevention
 4. [Challenge 4](Challenge_4.md) - Drive in a square
-5. [Challenge 5](Challenge_5.md) - Autonomous Obstacle avoidance
-6. [Challenge 6](Challenge_6.md) - Autonomous Maze Navigation
+5. [Challenge 5](Challenge_5.md) - Autonomous obstacle avoidance
+6. [Challenge 6](Challenge_6.md) - Autonomous maze navigation
+7. [Challenge 7](Challenge_7.md) - Remote control
 
 ## Authors
 

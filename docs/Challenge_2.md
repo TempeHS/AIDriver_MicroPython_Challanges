@@ -72,6 +72,11 @@ Your challenge is to:
 
 1. Review the math behind my_robot.drive_forward(L, R) and modify the values assigned to wheel_speed and speed_adjust so your robot moves in the desired circle size.
 2. Update the value of move_time so the robot travels for approximately the time needed to complete one full circle.
+3. Then further modify your code to:
+   1. Drive a circle forward.
+   2. Drive a clockwise and anti-clockwise circle.
+   3. Drive 2, 3, 4 circles
+   4. Drive a figure 8.
 
 > [!Caution]
 > To avoid damaging your computer or robot, first save your main.py file. Next, disconnect your robot from your computer, then place it on the floor in an area with enough space for it to move safely before powering it on.
@@ -80,10 +85,3 @@ Your challenge is to:
 
 1. Copy all your code from `main.py`.
 2. Paste it in your portfolio under "Challenge 2".
-
-## Challenge 2 Extensions, I can…
-
-1. Drive a circle forward.
-2. Drive a clockwise and anti-clockwise circle.
-3. Drive 2, 3, 4 circles
-4. Drive a figure 8.

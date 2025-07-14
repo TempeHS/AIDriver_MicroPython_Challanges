@@ -1,5 +1,13 @@
 # Challenge 7
 
+In this extension challenge, students will modify their robot to attach a Bluetooth communications module and upload code to remote control their robot.
+
+## Success Criteria
+
+I can connect to my robot via Bluetooth and control it with the _Dabble_ application.
+
+## Step 1, Add the Bluetooth Module
+
 ![HC-05 BT Module Wiring Diagram](images/HC-05.png "HC-05 BT Module Wiring Diagram")
 
 - Vcc -------> 3.3V or 5V
@@ -7,10 +15,14 @@
 - RX --------> Pin 1
 - TX --------> Pin 0
 
-## Mobile GamePad App
+## Step 2, upload the code
 
-- [Dabble for iPhone](https://apps.apple.com/us/app/dabble-bluetooth-controller/id1472734455)
-- [Dabble for Android](https://play.google.com/store/apps/details?id=io.dabbleapp&hl=en_AU)
+1. Make sure your battery power switch is off.
+2. Navigate to [https://lab-micropython.arduino.cc/](https://lab-micropython.arduino.cc/).
+3. Sign in with Google (use your @education.nsw.gov.au account).
+4. Follow these instructions to connect, code and save:
+
+![Animated connection instructions](images/instructions.gif "Animated connection instructions")
 
 ```python
 from gamepad_pico import GamePad
@@ -49,3 +61,15 @@ while True:
 except KeyboardInterrupt:
     driver.brake()
 ```
+
+## Step 3, install the Dabble Mobile GamePad App
+
+- [Dabble for iPhone](https://apps.apple.com/us/app/dabble-bluetooth-controller/id1472734455)
+- [Dabble for Android](https://play.google.com/store/apps/details?id=io.dabbleapp&hl=en_AU)
+
+## Step 4, connect your phone
+
+1. Turn on your robot
+2. Open the _Dabble_ application
+3. Click the connect icon in the top menu and select the HC-05 form the list of Bluetooth devices
+4.
