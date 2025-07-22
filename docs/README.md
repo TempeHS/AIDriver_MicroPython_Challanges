@@ -26,9 +26,10 @@ All components can be purchased from [AliExpress](https://www.aliexpress.com/) a
 > [!Note]
 > TempeHS Senior Software Engineering students have already completed these steps.
 
-1. Cutter VIN jumper on motor shield (use Precision knife) and test with multimeter
-2. Cut 9v snap and solder cables to battery pack cables (red to red & black to black) then secure with small cable tie
-3. Upload MicroPython Firmware and AIDriver Library to RP2040 Uno Development Board.
+| 1                                                                                                       | 2                                                                                                                    | 3                                                                                                         |
+| ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Using a precision knife, cut the VIN jumpers on underside of the motor shield and test with multimeter. | Cut 9v snap and solder cables to battery pack cables (red to red & black to black) then secure with small cable tie. | Fit motor shield to the headers, then upload MicroPython Firmware and AIDriver Library to the RP2040 Uno. |
+| ![Cut Vin on motorshield](images/prep_1.png "Cut Vin on motorshield")                                   | ![Solider 5.5mm jack to battery pack](images/prep_2.png "Solider 5.5mm jack to battery pack")                        | ![Fit motorshield and upload firmware](images/prep_3.png "Fit motorshield and upload firmware")           |
 
 ### Assembly & Testing
 
