@@ -77,11 +77,13 @@ target_distance = 0
 while True:
     while distance_remaining < target_distance:
         my_robot.drive_backward(wheel_speed - speed_adjust, wheel_speed + speed_adjust)
-        current_distance = driver.read_distance()
+        current_distance = my_robot.read_distance()
         sleep(0.1)
         distance_remaining = current_distance - start_distance
     my_robot.brake()
     sleep(1)
+    print(my_robot.read_distance()) #debug statement
+    sleep(0.1)
 ```
 
 ## Step 3
