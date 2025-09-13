@@ -19,9 +19,11 @@ This guide explains how to build MicroPython firmware for the Raspberry Pi Pico 
 
 ## Step 2: Prepare Your Custom Libraries and Main Script
 1. Copy your custom Python files (`aidriver.py`, `gamepad_driver_controller.py`, `gamepad_pico.py`) from `project/lib/` into the MicroPython source tree:
-   - Place them in: `/workspace/micropython/ports/rp2/modules/`
+   - Place them in: `/micropython/ports/rp2/modules/`
+   - Command: `cp /workspaces/AIDriver_MicroPython_Challanges/project/lib/*.py /micropython/ports/rp2/modules/`
 2. Copy your `main.py` from `project/` into:
-   - `/workspace/micropython/ports/rp2/modules/`
+   - `/micropython/ports/rp2/modules/`
+   - Command: `cp /workspaces/AIDriver_MicroPython_Challanges/project/main.py /micropython/ports/rp2/modules/`
 
 ---
 
@@ -29,19 +31,25 @@ This guide explains how to build MicroPython firmware for the Raspberry Pi Pico 
 1. Open a terminal in the devcontainer.
 2. Run the following commands:
    ```bash
-   cd /workspace/micropython/ports/rp2
+   cd /micropython/ports/rp2
    make submodules
    make
    ```
-3. The build process will generate a firmware file:
-   - `/workspace/micropython/ports/rp2/build/firmware.uf2`
+   **Note:** The build process may take 10-20 minutes depending on your system.
+3. Copy the built firmware to the `_Firmware` folder:
+   ```bash
+   cp build-RPI_PICO/firmware.uf2 /workspaces/AIDriver_MicroPython_Challanges/_Firmware/custom_firmware.uf2
+   ```
+4. The firmware file is now available at:
+   - `/workspaces/AIDriver_MicroPython_Challanges/_Firmware/custom_firmware.uf2`
 
 ---
 
 ## Step 4: Flash the Firmware to Your Pico
 1. Connect your Raspberry Pi Pico to your computer while holding the BOOTSEL button.
 2. It will mount as a USB drive.
-3. Copy the `firmware.uf2` file to the Pico USB drive.
+3. Copy the `custom_firmware.uf2` file from the `_Firmware` folder to the Pico USB drive:
+   - Source: `/workspaces/AIDriver_MicroPython_Challanges/_Firmware/custom_firmware.uf2`
 4. The Pico will reboot and run your integrated `main.py` and libraries automatically.
 
 ---
@@ -49,6 +57,7 @@ This guide explains how to build MicroPython firmware for the Raspberry Pi Pico 
 ## Notes
 - Any Python files in `modules/` are frozen into the firmware and available as built-in modules.
 - You can update your code by repeating steps 2 and 3, then reflashing.
+- The default build is for Raspberry Pi Pico. For other boards (Pico W, Pico 2), use `make BOARD=PICO_W` or `make BOARD=PICO2` respectively.
 - For advanced integration (C modules, custom drivers), see the [MicroPython documentation](https://github.com/micropython/micropython/tree/master/ports/rp2).
 
 ---
