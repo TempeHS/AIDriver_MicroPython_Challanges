@@ -36,20 +36,28 @@ This guide explains how to build MicroPython firmware for the Raspberry Pi Pico 
    make
    ```
    **Note:** The build process may take 10-20 minutes depending on your system.
-3. Copy the built firmware to the `_Firmware` folder:
+3. Verify the build completed successfully:
    ```bash
-   cp build-RPI_PICO/firmware.uf2 /workspaces/AIDriver_MicroPython_Challanges/_Firmware/custom_firmware.uf2
+   echo "Build exit code: $?"
+   ls -la build-RPI_PICO/firmware.uf2
    ```
-4. The firmware file is now available at:
-   - `/workspaces/AIDriver_MicroPython_Challanges/_Firmware/custom_firmware.uf2`
+   You should see:
+   - Exit code: 0 (indicating success)
+   - A firmware.uf2 file with size around 600KB
+4. Copy the built firmware to the `_Firmware` folder:
+   ```bash
+   cp build-RPI_PICO/firmware.uf2 /workspaces/AIDriver_MicroPython_Challanges/_Firmware/AI_Driver_RP2040.uf2 && echo "✅ Firmware copied successfully to _Firmware/AI_Driver_RP2040.uf2"
+   ```
+5. The firmware file is now available at:
+   - `/workspaces/AIDriver_MicroPython_Challanges/_Firmware/AI_Driver_RP2040.uf2`
 
 ---
 
 ## Step 4: Flash the Firmware to Your Pico
 1. Connect your Raspberry Pi Pico to your computer while holding the BOOTSEL button.
 2. It will mount as a USB drive.
-3. Copy the `custom_firmware.uf2` file from the `_Firmware` folder to the Pico USB drive:
-   - Source: `/workspaces/AIDriver_MicroPython_Challanges/_Firmware/custom_firmware.uf2`
+3. Copy the `AI_Driver_RP2040.uf2` file from the `_Firmware` folder to the Pico USB drive:
+   - Source: `/workspaces/AIDriver_MicroPython_Challanges/_Firmware/AI_Driver_RP2040.uf2`
 4. The Pico will reboot and run your integrated `main.py` and libraries automatically.
 
 ---
@@ -63,9 +71,17 @@ This guide explains how to build MicroPython firmware for the Raspberry Pi Pico 
 ---
 
 ## Troubleshooting
-- If the build fails, check that all dependencies are installed and your Python files are error-free.
-- If your code does not run, ensure `main.py` is correctly placed in `modules/` and named `main.py`.
-- For hardware issues, verify wiring and connections.
+- **Build Success Indicators:**
+  - Terminal shows `[100%] Built target firmware`
+  - Exit code is 0 when checked with `echo $?`
+  - `firmware.uf2` file exists and is ~600KB in size
+  - No error messages in terminal output
+
+- **Common Issues:**
+  - If the build fails, check that all dependencies are installed and your Python files are error-free.
+  - If your code does not run, ensure `main.py` is correctly placed in `modules/` and named `main.py`.
+  - For hardware issues, verify wiring and connections.
+  - If submodules fail to update, try: `git submodule update --init --recursive` from `/micropython/`
 
 ---
 
