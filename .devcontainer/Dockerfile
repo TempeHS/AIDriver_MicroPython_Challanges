@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up working directory
-WORKDIR /
+WORKDIR /project
 
 # Clone MicroPython source code
 RUN git clone https://github.com/micropython/micropython.git
@@ -23,7 +23,7 @@ RUN git clone https://github.com/micropython/micropython.git
 SHELL ["/bin/bash", "-c"]
 
 # Optionally install Python requirements (if needed for build scripts)
-COPY ../requirements.txt /workspace/requirements.txt
+COPY requirements.txt /workspace/requirements.txt
 RUN pip3 install -r /workspace/requirements.txt || true
 
 # Display build instructions on container start
