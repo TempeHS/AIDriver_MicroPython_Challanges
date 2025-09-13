@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up working directory
-WORKDIR /project
+WORKDIR /
 
 # Clone MicroPython source code
 RUN git clone https://github.com/micropython/micropython.git
