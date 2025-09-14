@@ -17,43 +17,56 @@ This guide explains how to build MicroPython firmware for the Raspberry Pi Pico 
 
 ---
 
-## Step 2: Prepare Your Custom Libraries and Main Script
-1. Copy your custom Python files (`aidriver.py`, `gamepad_driver_controller.py`, `gamepad_pico.py`) from `project/lib/` into the MicroPython source tree:
-   - Place them in: `/micropython/ports/rp2/modules/`
-   - Command: `cp /workspaces/AIDriver_MicroPython_Challanges/project/lib/*.py /micropython/ports/rp2/modules/`
-2. Copy your `main.py` from `project/` into:
-   - `/micropython/ports/rp2/modules/`
-   - Command: `cp /workspaces/AIDriver_MicroPython_Challanges/project/main.py /micropython/ports/rp2/modules/`
-
----
-
-## Step 3: Build the Firmware
+## Step 2: Build the Firmware with Automated Script
 1. Open a terminal in the devcontainer.
-2. Run the following commands:
+2. Run the automated build script:
+   ```bash
+   cd /workspaces/AIDriver_MicroPython_Challanges/.devcontainer
+   ./build_firmware.sh
+   ```
+   **Note:** This script automatically:
+   - Validates the build environment
+   - Updates MicroPython to the latest version
+   - Copies your custom Python files to the MicroPython modules directory
+   - Validates Python syntax
+   - Updates submodules
+   - Builds the firmware with parallel compilation
+   - Copies the result to the `_Firmware` folder
+   - Creates build metadata for tracking
+3. The build process may take 10-20 minutes depending on your system.
+4. Upon successful completion, you'll see:
+   ```
+   ✅ AIDriver firmware build complete!
+   📦 Firmware copied to: /workspaces/AIDriver_MicroPython_Challanges/_Firmware/AI_Driver_RP2040.uf2
+   ```
+
+### Alternative: Manual Process (Advanced Users)
+If you prefer to handle the process manually or need to customize the build:
+1. Copy your custom Python files to the MicroPython modules directory:
+   ```bash
+   # Option 1: Use the preparation script
+   cd /workspaces/AIDriver_MicroPython_Challanges/.devcontainer
+   ./prepare_modules.sh
+   
+   # Option 2: Manual copy
+   cp /workspaces/AIDriver_MicroPython_Challanges/project/lib/*.py /micropython/ports/rp2/modules/
+   cp /workspaces/AIDriver_MicroPython_Challanges/project/main.py /micropython/ports/rp2/modules/
+   ```
+2. Build manually:
    ```bash
    cd /micropython/ports/rp2
    make submodules
+   make clean
    make
    ```
-   **Note:** The build process may take 10-20 minutes depending on your system.
-3. Verify the build completed successfully:
+3. Copy the firmware:
    ```bash
-   echo "Build exit code: $?"
-   ls -la build-RPI_PICO/firmware.uf2
+   cp build-RPI_PICO/firmware.uf2 /workspaces/AIDriver_MicroPython_Challanges/_Firmware/AI_Driver_RP2040.uf2
    ```
-   You should see:
-   - Exit code: 0 (indicating success)
-   - A firmware.uf2 file with size around 600KB
-4. Copy the built firmware to the `_Firmware` folder:
-   ```bash
-   cp build-RPI_PICO/firmware.uf2 /workspaces/AIDriver_MicroPython_Challanges/_Firmware/AI_Driver_RP2040.uf2 && echo "✅ Firmware copied successfully to _Firmware/AI_Driver_RP2040.uf2"
-   ```
-5. The firmware file is now available at:
-   - `/workspaces/AIDriver_MicroPython_Challanges/_Firmware/AI_Driver_RP2040.uf2`
 
 ---
 
-## Step 4: Flash the Firmware to Your Pico
+## Step 3: Flash the Firmware to Your Pico
 1. Connect your Raspberry Pi Pico to your computer while holding the BOOTSEL button.
 2. It will mount as a USB drive.
 3. Copy the `AI_Driver_RP2040.uf2` file from the `_Firmware` folder to the Pico USB drive:
@@ -72,16 +85,44 @@ This guide explains how to build MicroPython firmware for the Raspberry Pi Pico 
 
 ## Troubleshooting
 - **Build Success Indicators:**
-  - Terminal shows `[100%] Built target firmware`
-  - Exit code is 0 when checked with `echo $?`
-  - `firmware.uf2` file exists and is ~600KB in size
+  - Terminal shows `✅ AIDriver firmware build complete!`
+  - The automated script reports successful file copying and validation
+  - `AI_Driver_RP2040.uf2` file exists in `_Firmware/` folder and is ~600KB in size
   - No error messages in terminal output
 
 - **Common Issues:**
-  - If the build fails, check that all dependencies are installed and your Python files are error-free.
-  - If your code does not run, ensure `main.py` is correctly placed in `modules/` and named `main.py`.
-  - For hardware issues, verify wiring and connections.
-  - If submodules fail to update, try: `git submodule update --init --recursive` from `/micropython/`
+  - **Script Permission Error**: Run `chmod +x /workspaces/AIDriver_MicroPython_Challanges/.devcontainer/*.sh`
+  - **Environment Issues**: The script will validate environment and show specific errors
+  - **File Not Found**: Ensure your Python files are in the correct project structure
+  - **Build Fails**: Try `./build_firmware.sh --force-clean` for a fresh build
+  - **Syntax Errors**: The script validates Python syntax and shows which files have errors
+  - **Network Issues**: Use `--skip-update` if MicroPython update fails
+  - **Hardware Issues**: Check wiring and connections on your Pico
+  - **Submodule Issues**: Script handles this automatically, or manually run: `cd /micropython/ports/rp2 && make submodules`
+
+## Quick Reference Commands
+```bash
+# Full automated build (with latest MicroPython)
+cd /workspaces/AIDriver_MicroPython_Challanges/.devcontainer
+./build_firmware.sh
+
+# Build with current MicroPython version (skip update)
+./build_firmware.sh --skip-update
+
+# Force clean build (removes build cache)
+./build_firmware.sh --force-clean
+
+# Just prepare modules (for development)
+./prepare_modules.sh
+
+# Get help for any script
+./build_firmware.sh --help
+./prepare_modules.sh --help
+
+# Manual build after preparing modules
+cd /micropython/ports/rp2
+make clean && make
+```
 
 ---
 

@@ -28,12 +28,26 @@ All components can be purchased from [AliExpress](https://www.aliexpress.com/) a
 
 | 1                                                                                                       | 2                                                                                                                    | 3                                                                                                         |
 | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| Using a precision knife, cut the VIN jumpers on underside of the motor shield and test with multimeter. | Cut 9v snap and solder cables to battery pack cables (red to red & black to black) then secure with small cable tie. | Fit motor shield to the headers, then upload MicroPython Firmware and AIDriver Library to the RP2040 Uno. |
+| Using a precision knife, cut the VIN jumpers on underside of the motor shield and test with multimeter. | Cut 9v snap and solder cables to battery pack cables (red to red & black to black) then secure with small cable tie. | Fit motor shield to the headers, then build custom MicroPython firmware with integrated AIDriver libraries using the automated build process. |
 | ![Cut Vin on motorshield](images/prep_1.png "Cut Vin on motorshield")                                   | ![Solider 5.5mm jack to battery pack](images/prep_2.png "Solider 5.5mm jack to battery pack")                        | ![Fit motorshield and upload firmware](images/prep_3.png "Fit motorshield and upload firmware")           |
 
 ### Assembly & Testing
 
-Detailed assembly instructions including hardware testing can be found in the [Assembly_Instructions.md](docs\Assembley_Instructions.md)
+Detailed assembly instructions including hardware testing can be found in the [Assembly_Instructions.md](Assembly_Instructions.md)
+
+### Building Custom Firmware
+
+Build MicroPython firmware with your custom AIDriver libraries integrated:
+
+**🚀 Quick Build (Recommended):**
+```bash
+cd /workspaces/AIDriver_MicroPython_Challanges/.devcontainer
+./build_firmware.sh
+```
+
+**📖 Detailed Instructions:**
+- [Quick Start Guide](Quick_Start_Automated_Build.md) - Fast automated build process
+- [Complete Build Guide](Build_Custom_MicroPython_Firmware.md) - Full documentation with manual options
 
 ### Challenges
 

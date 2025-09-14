@@ -36,5 +36,5 @@
       ]
     }
   },
-  "postCreateCommand": "cd /workspace/micropython/ports/rp2 && make submodules"
+  "postCreateCommand": "cd /micropython/ports/rp2 && make submodules && chmod +x /workspaces/AIDriver_MicroPython_Challanges/.devcontainer/*.sh"
 }
