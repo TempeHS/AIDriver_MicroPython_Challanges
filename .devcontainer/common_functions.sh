@@ -261,88 +261,14 @@ create_boot_with_main() {
     
     log_info "📝 Creating _boot.py with embedded main.py content..."
     
-    # Backup original _boot.py if not already backed up
-    if [[ ! -f "$boot_backup_path" ]]; then
-        cp "$boot_py_path" "$boot_backup_path"
-        log_info "📄 Backed up original _boot.py"
+    # Use Python script to properly handle the content embedding
+    if python3 "$SCRIPT_DIR/create_boot.py" "$main_py_path" "$boot_py_path" "$boot_backup_path"; then
+        log_success "✅ Created _boot.py with embedded main.py content"
+        return 0
+    else
+        log_error "❌ Failed to create _boot.py"
+        return 1
     fi
-    
-    # Start with the original boot content
-    cp "$boot_backup_path" "$boot_py_path"
-    
-    # Append our custom code header
-    cat >> "$boot_py_path" << 'EOF'
-
-# === AIDriver Custom Boot Code ===
-# This section handles main.py creation on filesystem
-# with optional recovery mode via GPIO pin 4
-
-import os
-import gc
-from machine import Pin
-
-# Embedded main.py content - this is created on first boot only
-MAIN_PY_CONTENT = """EOF
-    
-    # Read and append the actual main.py content (properly escaped)
-    python3 -c "
-import sys
-with open('$main_py_path', 'r') as f:
-    content = f.read()
-# Escape quotes and backslashes for Python string literal
-content = content.replace('\\\\', '\\\\\\\\').replace('\"', '\\\"')
-print(content, end='')
-" >> "$boot_py_path"
-    
-    # Complete the _boot.py file
-    cat >> "$boot_py_path" << 'EOF'
-"""
-
-def check_recovery_mode():
-    """Check if recovery mode is enabled (pin 4 connected to ground)"""
-    try:
-        # Configure pin 4 as input with pull-up resistor
-        recovery_pin = Pin(4, Pin.IN, Pin.PULL_UP)
-        # If pin 4 is pulled to ground, recovery mode is active
-        return recovery_pin.value() == 0
-    except Exception:
-        # If there's any error with pin configuration, assume no recovery
-        return False
-
-def create_main_py():
-    """Create main.py on filesystem if it doesn't exist or if recovery mode is active"""
-    try:
-        recovery_mode = check_recovery_mode()
-        
-        # Check if main.py already exists and recovery mode is not active
-        if 'main.py' in os.listdir('/') and not recovery_mode:
-            # File exists and no recovery requested, don't overwrite user changes
-            return
-        
-        if recovery_mode:
-            print("RECOVERY MODE: Pin 4 detected grounded - overwriting main.py with default")
-        
-        # Create or overwrite main.py with default content
-        with open('main.py', 'w') as f:
-            f.write(MAIN_PY_CONTENT)
-        
-        if recovery_mode:
-            print("Recovery complete: main.py restored to default content")
-        else:
-            print("Created main.py on filesystem (editable in IDE)")
-        
-    except Exception as e:
-        print(f"Warning: Could not create main.py: {e}")
-
-# Run the main.py creation
-create_main_py()
-
-# Clean up memory
-gc.collect()
-EOF
-    
-    log_success "✅ Created _boot.py with embedded main.py content"
-    return 0
 }
 
 # Trap function for cleanup on script exit

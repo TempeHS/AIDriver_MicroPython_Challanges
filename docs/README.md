@@ -37,7 +37,7 @@ Detailed assembly instructions including hardware testing can be found in the [A
 
 ### Building Custom Firmware
 
-Build MicroPython firmware with your custom AIDriver libraries integrated:
+Build MicroPython firmware with your custom AIDriver libraries integrated. The build system creates firmware with libraries frozen for fast loading and `main.py` on the filesystem for IDE editing.
 
 **🚀 Quick Build (Recommended):**
 ```bash
@@ -45,9 +45,9 @@ cd /workspaces/AIDriver_MicroPython_Challanges/.devcontainer
 ./build_firmware.sh
 ```
 
-**📖 Detailed Instructions:**
-- [Quick Start Guide](Quick_Start_Automated_Build.md) - Fast automated build process
-- [Complete Build Guide](Build_Custom_MicroPython_Firmware.md) - Full documentation with manual options
+**�️ Recovery Mode:** If `main.py` becomes corrupted, connect **GPIO pin 4 to ground** during boot to restore the original code.
+
+**📖 Complete Documentation:** [Build_Custom_MicroPython_Firmware.md](Build_Custom_MicroPython_Firmware.md) - Comprehensive build guide with recovery features
 
 ### Challenges
 
