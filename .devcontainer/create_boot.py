@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Script to create _boot.py with embedded main.py content
+Uses proper Python repr() for safe string embedding
 """
 
 import sys
@@ -23,15 +24,16 @@ def create_boot_with_main(main_py_path, boot_py_path, boot_backup_path):
     with open(main_py_path, 'r') as f:
         main_content = f.read()
     
-    # Escape triple quotes in the content to prevent syntax errors
-    main_content = main_content.replace('"""', '\\"\\"\\"')
-    
     # Read original boot content
     with open(boot_backup_path, 'r') as f:
         original_boot = f.read()
     
-    # Create new _boot.py content
-    boot_content = original_boot + '''
+    # Use repr() to properly escape the content for Python string literal
+    # This handles all special characters, quotes, newlines, etc. correctly
+    escaped_content = repr(main_content)
+    
+    # Create new _boot.py content with properly escaped string
+    boot_content = original_boot + f'''
 # === AIDriver Custom Boot Code ===
 # This section handles main.py creation on filesystem
 # with optional recovery mode via GPIO pin 4
@@ -40,8 +42,8 @@ import os
 import gc
 from machine import Pin
 
-# Embedded main.py content - this is created on first boot only
-MAIN_PY_CONTENT = """''' + main_content + '''"""
+# Embedded main.py content - properly escaped for Python
+MAIN_PY_CONTENT = {escaped_content}
 
 def check_recovery_mode():
     """Check if recovery mode is enabled (pin 4 connected to ground)"""
@@ -77,7 +79,7 @@ def create_main_py():
             print("Created main.py on filesystem (editable in IDE)")
         
     except Exception as e:
-        print(f"Warning: Could not create main.py: {e}")
+        print("Warning: Could not create main.py:", str(e))
 
 # Run the main.py creation
 create_main_py()
@@ -90,7 +92,7 @@ gc.collect()
     with open(boot_py_path, 'w') as f:
         f.write(boot_content)
     
-    print("Created _boot.py with embedded main.py content")
+    print("Created _boot.py with embedded main.py content using repr() for safe escaping")
     return True
 
 if __name__ == "__main__":
