@@ -252,6 +252,7 @@ ensure_firmware_dir() {
 create_boot_with_main() {
     local main_py_path="$PROJECT_DIR/main.py"
     local boot_py_path="/micropython/ports/rp2/modules/_boot.py"
+    local boot_backup_path="/micropython/ports/rp2/modules/_boot_original.py"
     
     if [[ ! -f "$main_py_path" ]]; then
         log_error "main.py not found at $main_py_path"
@@ -260,20 +261,21 @@ create_boot_with_main() {
     
     log_info "📝 Creating _boot.py with embedded main.py content..."
     
-    # Read main.py content and escape for Python string
-    local main_content
-    main_content=$(cat "$main_py_path" | sed 's/\\/\\\\/g' | sed 's/"/\\"/g')
+    # Backup original _boot.py if not already backed up
+    if [[ ! -f "$boot_backup_path" ]]; then
+        cp "$boot_py_path" "$boot_backup_path"
+        log_info "📄 Backed up original _boot.py"
+    fi
     
-    # Create _boot.py with embedded main.py
-    cat > "$boot_py_path" << 'EOF'
-# _boot.py - Custom boot script for AIDriver MicroPython firmware
-# This script runs on every boot and creates main.py on the filesystem
-# if it doesn't already exist, allowing IDE editing while preserving
-# the default content in firmware.
-#
-# RECOVERY MODE: Connect GPIO pin 4 to ground during boot to force
-# overwrite main.py with default content (useful for recovery from
-# corrupted or problematic user modifications)
+    # Start with the original boot content
+    cp "$boot_backup_path" "$boot_py_path"
+    
+    # Append our custom code header
+    cat >> "$boot_py_path" << 'EOF'
+
+# === AIDriver Custom Boot Code ===
+# This section handles main.py creation on filesystem
+# with optional recovery mode via GPIO pin 4
 
 import os
 import gc
@@ -282,8 +284,15 @@ from machine import Pin
 # Embedded main.py content - this is created on first boot only
 MAIN_PY_CONTENT = """EOF
     
-    # Append the actual main.py content
-    echo "$main_content" >> "$boot_py_path"
+    # Read and append the actual main.py content (properly escaped)
+    python3 -c "
+import sys
+with open('$main_py_path', 'r') as f:
+    content = f.read()
+# Escape quotes and backslashes for Python string literal
+content = content.replace('\\\\', '\\\\\\\\').replace('\"', '\\\"')
+print(content, end='')
+" >> "$boot_py_path"
     
     # Complete the _boot.py file
     cat >> "$boot_py_path" << 'EOF'
