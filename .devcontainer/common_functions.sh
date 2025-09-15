@@ -22,11 +22,16 @@ export MODULES_DIR="$MICROPYTHON_DIR/ports/rp2/modules"
 export BUILD_DIR="$MICROPYTHON_DIR/ports/rp2"
 export FIRMWARE_DEST="$PROJECT_BASE/_Firmware/AI_Driver_RP2040.uf2"
 
-# Custom module files to copy (centralized list)
+# Custom module files to copy to frozen modules (centralized list)
+# Note: main.py is excluded from frozen modules - it goes to filesystem instead
 export CUSTOM_FILES=(
     "$PROJECT_LIB_DIR/aidriver.py"
     "$PROJECT_LIB_DIR/gamepad_driver_controller.py"
     "$PROJECT_LIB_DIR/gamepad_pico.py"
+)
+
+# Files to copy to filesystem (not frozen)
+export FILESYSTEM_FILES=(
     "$PROJECT_MAIN"
 )
 
@@ -120,8 +125,14 @@ copy_and_validate_file() {
 clean_custom_modules() {
     log_info "🧹 Cleaning existing custom modules..."
     
-    # Clean based on the custom files list
+    # Clean frozen modules based on the custom files list
     for file_path in "${CUSTOM_FILES[@]}"; do
+        local filename="$(basename "$file_path")"
+        rm -f "$MODULES_DIR/$filename"
+    done
+    
+    # Also clean any filesystem files that might have been accidentally copied
+    for file_path in "${FILESYSTEM_FILES[@]}"; do
         local filename="$(basename "$file_path")"
         rm -f "$MODULES_DIR/$filename"
     done
@@ -131,34 +142,58 @@ clean_custom_modules() {
 
 # Function to copy all custom modules
 copy_custom_modules() {
-    log_section "Custom Module Preparation"
+    local source_dir="${PROJECT_DIR}"
+    local frozen_target_dir="/micropython/ports/rp2/modules"
+    local filesystem_target_dir="/micropython/ports/rp2/build-RPI_PICO"
+    local frozen_copy_count=0
+    local filesystem_copy_count=0
     
-    clean_custom_modules
+    log_info "Copying custom modules to MicroPython directories..."
     
-    log_info "📚 Copying custom modules..."
-    local copy_count=0
-    local total_files=${#CUSTOM_FILES[@]}
+    if [[ ! -d "$source_dir" ]]; then
+        log_error "Source directory does not exist: $source_dir"
+        return 1
+    fi
     
-    for file_path in "${CUSTOM_FILES[@]}"; do
-        if copy_and_validate_file "$file_path"; then
-            copy_count=$((copy_count + 1))
-        fi
-    done
+    mkdir -p "$frozen_target_dir"
+    mkdir -p "$filesystem_target_dir"
     
-    log_section "Module Preparation Summary"
-    log_success "✅ Successfully prepared: $copy_count/$total_files files"
-    
-    if [ $copy_count -ne $total_files ]; then
-        log_warning "⚠️  Some files were not copied. Check file paths and permissions."
-        # List which files are missing
-        for file_path in "${CUSTOM_FILES[@]}"; do
-            if [ ! -f "$file_path" ]; then
-                log_warning "   Missing: $(basename "$file_path")"
+    # Copy .py files from project root
+    if ls "$source_dir"/*.py >/dev/null 2>&1; then
+        for file in "$source_dir"/*.py; do
+            if [[ -f "$file" ]]; then
+                local filename=$(basename "$file")
+                
+                # main.py goes to filesystem, others go to frozen modules
+                if [[ "$filename" == "main.py" ]]; then
+                    echo "Copying $filename to filesystem"
+                    cp "$file" "$filesystem_target_dir/"
+                    filesystem_copy_count=$((filesystem_copy_count + 1))
+                else
+                    echo "Copying $filename to frozen modules"
+                    cp "$file" "$frozen_target_dir/"
+                    frozen_copy_count=$((frozen_copy_count + 1))
+                fi
             fi
         done
     fi
     
-    return 0  # Always return success, caller can check $copy_count if needed
+    # Copy .py files from project/lib directory (all go to frozen modules)
+    local lib_dir="$source_dir/lib"
+    if [[ -d "$lib_dir" ]] && ls "$lib_dir"/*.py >/dev/null 2>&1; then
+        for file in "$lib_dir"/*.py; do
+            if [[ -f "$file" ]]; then
+                local filename=$(basename "$file")
+                echo "Copying $filename to frozen modules"
+                cp "$file" "$frozen_target_dir/"
+                frozen_copy_count=$((frozen_copy_count + 1))
+            fi
+        done
+    fi
+    
+    log_success "Copied $frozen_copy_count modules to frozen modules directory"
+    log_success "Copied $filesystem_copy_count files to filesystem directory"
+    return 0
 }
 
 # Function to check internet connectivity
