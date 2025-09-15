@@ -123,18 +123,36 @@ copy_and_validate_file() {
 
 # Function to clean existing custom modules
 clean_custom_modules() {
+    local frozen_target_dir="/micropython/ports/rp2/modules"
+    local frozen_mpy_dir="/micropython/ports/rp2/build-RPI_PICO/frozen_mpy"
+    
     log_info "🧹 Cleaning existing custom modules..."
     
-    # Clean frozen modules based on the custom files list
-    for file_path in "${CUSTOM_FILES[@]}"; do
-        local filename="$(basename "$file_path")"
-        rm -f "$MODULES_DIR/$filename"
+    # Define module filenames to clean from frozen modules
+    local frozen_modules=("aidriver.py" "gamepad_driver_controller.py" "gamepad_pico.py")
+    local filesystem_modules=("main.py")
+    
+    # Clean frozen modules
+    for module in "${frozen_modules[@]}"; do
+        if [[ -f "$frozen_target_dir/$module" ]]; then
+            log_info "Removing frozen module: $module"
+            rm -f "$frozen_target_dir/$module"
+        fi
     done
     
-    # Also clean any filesystem files that might have been accidentally copied
-    for file_path in "${FILESYSTEM_FILES[@]}"; do
-        local filename="$(basename "$file_path")"
-        rm -f "$MODULES_DIR/$filename"
+    # Clean main.py from frozen modules (it should be filesystem only)
+    for module in "${filesystem_modules[@]}"; do
+        if [[ -f "$frozen_target_dir/$module" ]]; then
+            log_info "Removing $module from frozen modules (will be filesystem file)"
+            rm -f "$frozen_target_dir/$module"
+        fi
+        
+        # Also remove compiled .mpy files
+        local mpy_name="${module%.py}.mpy"
+        if [[ -f "$frozen_mpy_dir/$mpy_name" ]]; then
+            log_info "Removing compiled $mpy_name from frozen modules"
+            rm -f "$frozen_mpy_dir/$mpy_name"
+        fi
     done
     
     log_success "✅ Custom modules cleaned"
@@ -149,6 +167,9 @@ copy_custom_modules() {
     local filesystem_copy_count=0
     
     log_info "Copying custom modules to MicroPython directories..."
+    
+    # Clean existing modules first
+    clean_custom_modules
     
     if [[ ! -d "$source_dir" ]]; then
         log_error "Source directory does not exist: $source_dir"
