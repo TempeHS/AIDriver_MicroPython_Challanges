@@ -59,6 +59,9 @@ main() {
     # Step 1: Copy custom modules
     copy_custom_modules
     
+    # Step 1.5: Create _boot.py with embedded main.py
+    create_boot_with_main
+    
     # Step 2: Update MicroPython (if requested)
     if [ "$SKIP_UPDATE" = false ]; then
         update_micropython

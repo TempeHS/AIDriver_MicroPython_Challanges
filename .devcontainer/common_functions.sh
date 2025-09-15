@@ -248,6 +248,94 @@ ensure_firmware_dir() {
     mkdir -p "$(dirname "$FIRMWARE_DEST")"
 }
 
+# Function to create _boot.py with embedded main.py content
+create_boot_with_main() {
+    local main_py_path="$PROJECT_DIR/main.py"
+    local boot_py_path="/micropython/ports/rp2/modules/_boot.py"
+    
+    if [[ ! -f "$main_py_path" ]]; then
+        log_error "main.py not found at $main_py_path"
+        return 1
+    fi
+    
+    log_info "📝 Creating _boot.py with embedded main.py content..."
+    
+    # Read main.py content and escape for Python string
+    local main_content
+    main_content=$(cat "$main_py_path" | sed 's/\\/\\\\/g' | sed 's/"/\\"/g')
+    
+    # Create _boot.py with embedded main.py
+    cat > "$boot_py_path" << 'EOF'
+# _boot.py - Custom boot script for AIDriver MicroPython firmware
+# This script runs on every boot and creates main.py on the filesystem
+# if it doesn't already exist, allowing IDE editing while preserving
+# the default content in firmware.
+#
+# RECOVERY MODE: Connect GPIO pin 4 to ground during boot to force
+# overwrite main.py with default content (useful for recovery from
+# corrupted or problematic user modifications)
+
+import os
+import gc
+from machine import Pin
+
+# Embedded main.py content - this is created on first boot only
+MAIN_PY_CONTENT = """EOF
+    
+    # Append the actual main.py content
+    echo "$main_content" >> "$boot_py_path"
+    
+    # Complete the _boot.py file
+    cat >> "$boot_py_path" << 'EOF'
+"""
+
+def check_recovery_mode():
+    """Check if recovery mode is enabled (pin 4 connected to ground)"""
+    try:
+        # Configure pin 4 as input with pull-up resistor
+        recovery_pin = Pin(4, Pin.IN, Pin.PULL_UP)
+        # If pin 4 is pulled to ground, recovery mode is active
+        return recovery_pin.value() == 0
+    except Exception:
+        # If there's any error with pin configuration, assume no recovery
+        return False
+
+def create_main_py():
+    """Create main.py on filesystem if it doesn't exist or if recovery mode is active"""
+    try:
+        recovery_mode = check_recovery_mode()
+        
+        # Check if main.py already exists and recovery mode is not active
+        if 'main.py' in os.listdir('/') and not recovery_mode:
+            # File exists and no recovery requested, don't overwrite user changes
+            return
+        
+        if recovery_mode:
+            print("RECOVERY MODE: Pin 4 detected grounded - overwriting main.py with default")
+        
+        # Create or overwrite main.py with default content
+        with open('main.py', 'w') as f:
+            f.write(MAIN_PY_CONTENT)
+        
+        if recovery_mode:
+            print("Recovery complete: main.py restored to default content")
+        else:
+            print("Created main.py on filesystem (editable in IDE)")
+        
+    except Exception as e:
+        print(f"Warning: Could not create main.py: {e}")
+
+# Run the main.py creation
+create_main_py()
+
+# Clean up memory
+gc.collect()
+EOF
+    
+    log_success "✅ Created _boot.py with embedded main.py content"
+    return 0
+}
+
 # Trap function for cleanup on script exit
 cleanup_on_exit() {
     local exit_code=$?
