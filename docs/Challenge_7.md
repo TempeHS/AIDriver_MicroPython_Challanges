@@ -43,24 +43,32 @@ while True:
     utime.sleep_ms(100)
 ```
 
+If you get stuck with errors using this code, see `Common_Errors.md`.
+
 ```python
+import aidriver
 from aidriver import AIDriver
 from gamepad_pico import GamePad
 from gamepad_driver_controller import GamepadAIDriverController
 
 from time import sleep_ms
 
+aidriver.DEBUG_AIDRIVER = True
+
 gamepad = GamePad()      # Default UART0: TX=GP0, RX=GP1
 driver = AIDriver()      # Default motor/sensor pins as per aidriver.py
 
 controller = GamepadAIDriverController(gamepad, driver)
 
-while True:
-    controller.update()
-    sleep_ms(40)  # ~25Hz update rate
+try:
+    while True:
+        controller.update()
+        sleep_ms(40)  # ~25Hz update rate
 except KeyboardInterrupt:
     driver.brake()
 ```
+
+If you see errors about names or attributes here, check `Common_Errors.md`.
 
 ## Step 3, install the Dabble Mobile GamePad App
 

@@ -42,6 +42,11 @@ import os
 import gc
 from machine import Pin
 
+try:
+    import eventlog
+except Exception:
+    eventlog = None
+
 # Embedded main.py content - properly escaped for Python
 MAIN_PY_CONTENT = {escaped_content}
 
@@ -68,6 +73,13 @@ def create_main_py():
         
         if recovery_mode:
             print("RECOVERY MODE: Pin 4 detected grounded - overwriting main.py with default")
+            # When recovering, also clear any existing event log so that
+            # students start with a blank log file for the fresh main.py
+            if eventlog is not None:
+                try:
+                    eventlog.clear_log()
+                except Exception:
+                    pass
         
         # Create or overwrite main.py with default content
         with open('main.py', 'w') as f:
@@ -83,6 +95,14 @@ def create_main_py():
 
 # Run the main.py creation
 create_main_py()
+
+# Start a new high-level run in the event log so that
+# students always see a clear delimiter and t+0s line
+if eventlog is not None:
+    try:
+        eventlog.log_separator()
+    except Exception:
+        pass
 
 # Clean up memory
 gc.collect()

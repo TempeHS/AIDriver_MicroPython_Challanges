@@ -49,8 +49,10 @@ Because the `while True:` control loop runs forever, we need to add a logic cont
 
 ```python
 from time import sleep
+import aidriver
 from aidriver import AIDriver
 
+aidriver.DEBUG_AIDRIVER = True
 my_robot = AIDriver()
 
 my_counter = 0
@@ -66,6 +68,8 @@ while my_counter < 1:
     my_counter = my_counter + 1
 ```
 
+If you see an error while editing this code, check `Common_Errors.md`.
+
 ## Step 3
 
 Your challenge is to:
@@ -80,6 +84,18 @@ Your challenge is to:
 
 > [!Caution]
 > To avoid damaging your computer or robot, first save your main.py file. Next, disconnect your robot from your computer, then place it on the floor in an area with enough space for it to move safely before powering it on.
+
+## Debugging Tips – Test Small, Test Often
+
+- Change **one variable at a time** (e.g. `speed_adjust` or `move_time`) and test.
+- Run your code after every small change instead of writing everything at once.
+- If you are unsure whether the loop is running, add a temporary line:
+
+  ```python
+  print("Loop running")
+  ```
+
+- Start from your working Challenge 1 solution and then extend it, rather than rewriting everything.
 
 ## Step 4 Save Your Code
 

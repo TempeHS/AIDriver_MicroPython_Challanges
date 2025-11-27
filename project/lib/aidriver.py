@@ -11,6 +11,107 @@ Dependencies: machine, time modules (built into MicroPython)
 from machine import Pin, PWM, time_pulse_us
 from time import sleep_us, sleep_ms
 
+try:
+    import eventlog
+except Exception:
+    eventlog = None
+
+
+# Global debug flag for AIDriver library
+DEBUG_AIDRIVER = False
+
+
+# Onboard status LED (UNO-style RP2040: D13 → GPIO 13).
+try:
+    _STATUS_LED = Pin(13, Pin.OUT)
+except Exception:
+    _STATUS_LED = None
+
+
+def _explain_error(exc):
+    """Internal helper to add student-friendly hints for common exceptions.
+
+    This is automatically used around key AIDriver methods when DEBUG_AIDRIVER
+    is True. It never changes the actual exception behaviour; it only prints
+    extra guidance before the normal traceback.
+    """
+
+    if not DEBUG_AIDRIVER:
+        return
+
+    msg = str(exc)
+    print("[AIDriver] Extra help for error:")
+
+    # NameError hints – usually missing or mis-typed my_robot / AIDriver
+    if isinstance(exc, NameError):
+        if "my_robot" in msg:
+            print(" - You are using 'my_robot' but have not created it.")
+            print("   Make sure you have 'my_robot = AIDriver()' near the top.")
+        elif "AIDriver" in msg:
+            print(" - Python cannot find 'AIDriver'.")
+            print("   Check you wrote 'from aidriver import AIDriver' exactly.")
+        else:
+            print(" - A name in your code does not exist.")
+            print("   Check for spelling differences from the example code.")
+
+    # AttributeError hints – often wrong method name on AIDriver
+    elif isinstance(exc, AttributeError):
+        if "AIDriver" in msg or "object has no attribute" in msg:
+            print(" - You likely called a method that is not in AIDriver.")
+            print("   Valid AIDriver methods include:")
+            print("     drive_forward, drive_backward, rotate_left,")
+            print("     rotate_right, brake, read_distance")
+            print("   Compare your code with the challenge notes.")
+
+    # ImportError hints – aidriver not found
+    elif isinstance(exc, ImportError):
+        if "aidriver" in msg:
+            print(" - Python cannot import 'aidriver'.")
+            print("   Ensure 'aidriver.py' is in the 'lib/' folder ")
+            print("   in the Arduino MicroPython Lab workspace.")
+
+    # ValueError hints – often wrong speed ranges, etc.
+    elif isinstance(exc, ValueError):
+        print(" - A value passed into a function is not acceptable.")
+        print("   Check speed values are between 0 and 255,")
+        print("   and that distances or times are sensible.")
+
+    else:
+        print(" -", type(exc).__name__, msg)
+
+    print("[AIDriver] See 'Common_Errors.md' for more examples.")
+
+
+def _d(*args):
+    """Internal debug logger for the AIDriver library.
+
+    When DEBUG_AIDRIVER is True, messages are printed with an [AIDriver] prefix.
+    This is intended for teachers or advanced students diagnosing issues.
+    """
+    if DEBUG_AIDRIVER:
+        print("[AIDriver]", *args)
+
+
+def _led_heartbeat_ok():
+    """Toggle the onboard LED once per call.
+
+    Intended for use in the main control loop to show an "alive and well" state:
+
+        import aidriver
+        from aidriver import AIDriver
+
+        robot = AIDriver()
+
+        while True:
+            aidriver._led_heartbeat_ok()
+            # rest of control logic
+
+    If no onboard LED is available, this does nothing.
+    """
+    if _STATUS_LED is None:
+        return
+    _STATUS_LED.toggle()
+
 
 class UltrasonicSensor:
     """
@@ -56,7 +157,15 @@ class UltrasonicSensor:
             # Measure the duration of the echo pulse
             duration = time_pulse_us(self.echo_pin, 1, self.timeout_us)
 
-            if duration < 0:  # time_pulse_us returns -1 on timeout
+            # time_pulse_us returns -1 on timeout and -2 on invalid state
+            if duration < 0:
+                _d("Ultrasonic timeout/invalid pulse – check wiring, orientation, or distance >",
+                   self.max_distance_mm, "mm")
+                if eventlog is not None:
+                    try:
+                        eventlog.log_event("ultrasonic timeout or invalid echo")
+                    except Exception:
+                        pass
                 return -1
 
             # Calculate distance in mm: (duration * speed_of_sound) / 2
@@ -64,11 +173,33 @@ class UltrasonicSensor:
 
             # Check if the reading is within the valid range (20mm to 2000mm)
             if 20 <= distance_mm <= self.max_distance_mm:
+                _d("Ultrasonic distance:", int(distance_mm), "mm")
+                if eventlog is not None:
+                    try:
+                        eventlog.log_event("distance reading: {} mm".format(int(distance_mm)))
+                    except Exception:
+                        pass
                 return int(distance_mm)
-            else:
-                return -1  # Out of range
-        except OSError:
-            # This can occur if there's an issue with time_pulse_us
+
+            # Out of range – likely too close, too far, or pointing into open space
+            _d("Ultrasonic out of range:", int(distance_mm), "mm (valid 20-",
+               self.max_distance_mm, "mm)")
+            if eventlog is not None:
+                try:
+                    eventlog.log_event("ultrasonic out of range: {} mm".format(int(distance_mm)))
+                except Exception:
+                    pass
+            return -1
+
+        except OSError as exc:
+            # This can occur if there's an issue with time_pulse_us or pin configuration
+            _d("Ultrasonic OSError:", exc,
+               "– check echo pin, trig pin, and sensor power")
+            if eventlog is not None:
+                try:
+                    eventlog.log_event("ultrasonic OSError: {}".format(exc))
+                except Exception:
+                    pass
             return -1
 
 
@@ -117,6 +248,8 @@ class L298N:
         else:
             self._pwm_val = min(speed, 65535)
 
+            _d("L298N set_speed: raw=", speed, "pwm=", self._pwm_val)
+
     def get_speed(self):
         """
         Get current motor speed
@@ -133,6 +266,7 @@ class L298N:
         self._pin_enable.duty_u16(self._pwm_val)
         self._direction = self.FORWARD
         self._is_moving = True
+        _d("L298N forward: pwm=", self._pwm_val)
 
     def backward(self):
         """Move motor backward"""
@@ -141,6 +275,7 @@ class L298N:
         self._pin_enable.duty_u16(self._pwm_val)
         self._direction = self.BACKWARD
         self._is_moving = True
+        _d("L298N backward: pwm=", self._pwm_val)
 
     def stop(self):
         """Stop motor with brake"""
@@ -149,6 +284,7 @@ class L298N:
         self._pin_enable.duty_u16(65535)  # Short motor terminals for brake
         self._direction = self.STOP
         self._is_moving = False
+        _d("L298N stop (brake engaged)")
 
     def is_moving(self):
         """Check if motor is currently moving"""
@@ -176,9 +312,7 @@ class AIDriver:
         trig_pin=6,  # GP8
         echo_pin=7,  # GP9
     ):
-        """
-        Initialize RP2040 based AIDriver differential drive robot.
-
+        """Initialize RP2040 based AIDriver differential drive robot.
 
         Args:
             right_speed_pin: PWM pin for right motor speed (default GP2)
@@ -191,6 +325,19 @@ class AIDriver:
             echo_pin: Ultrasonic sensor echo pin (default GP9)
         """
 
+        # Library-side preflight: log pin config and attempt a quick sensor ping
+        _d(
+            "Initialising AIDriver with pins:",
+            "R_EN=", right_speed_pin,
+            "L_EN=", left_speed_pin,
+            "R_DIR=", right_dir_pin,
+            "R_BRK=", right_brake_pin,
+            "L_DIR=", left_dir_pin,
+            "L_BRK=", left_brake_pin,
+            "TRIG=", trig_pin,
+            "ECHO=", echo_pin,
+        )
+
         # Initialize motor controllers
         self.motor_right = L298N(right_speed_pin, right_dir_pin, right_brake_pin)
         self.motor_left = L298N(left_speed_pin, left_dir_pin, left_brake_pin)
@@ -198,7 +345,22 @@ class AIDriver:
         # Initialize ultrasonic sensor
         self.ultrasonic = UltrasonicSensor(trig_pin, echo_pin)
 
-        print("AIDriver initialized - Debug mode active")
+        # Silent hardware sanity ping (only visible if DEBUG_AIDRIVER is True)
+        try:
+            d = self.ultrasonic.read_distance_mm()
+            if d == -1:
+                _d(
+                    "Ultrasonic preflight: reading -1. Check wiring, aim at object 2–200cm.",
+                )
+        except Exception as exc:
+            _d(
+                "Ultrasonic preflight error:",
+                type(exc).__name__,
+                str(exc),
+                "– check TRIG/ECHO pins and sensor power.",
+            )
+
+        _d("AIDriver initialized - debug logging active")
 
     def read_distance(self):
         """
@@ -209,13 +371,20 @@ class AIDriver:
         """
         distance_mm = self.ultrasonic.read_distance_mm()
         if distance_mm == -1:
+            _d("read_distance: invalid reading (-1)")
             return -1
+        _d("read_distance:", distance_mm, "mm")
         return int(distance_mm)
 
     def brake(self):
         """Stop both motors"""
-        self.motor_right.stop()
-        self.motor_left.stop()
+        _d("AIDriver.brake()")
+        try:
+            self.motor_right.stop()
+            self.motor_left.stop()
+        except Exception as exc:
+            _explain_error(exc)
+            raise
 
     def drive_forward(self, right_wheel_speed, left_wheel_speed):
         """
@@ -225,10 +394,15 @@ class AIDriver:
             right_wheel_speed: Speed for right wheel (0-255)
             left_wheel_speed: Speed for left wheel (0-255)
         """
-        self.motor_right.set_speed(right_wheel_speed)
-        self.motor_left.set_speed(left_wheel_speed)
-        self.motor_right.backward()
-        self.motor_left.forward()
+        _d("AIDriver.drive_forward: R=", right_wheel_speed, "L=", left_wheel_speed)
+        try:
+            self.motor_right.set_speed(right_wheel_speed)
+            self.motor_left.set_speed(left_wheel_speed)
+            self.motor_right.backward()
+            self.motor_left.forward()
+        except Exception as exc:
+            _explain_error(exc)
+            raise
 
     def drive_backward(self, right_wheel_speed, left_wheel_speed):
         """
@@ -238,10 +412,15 @@ class AIDriver:
             right_wheel_speed: Speed for right wheel (0-255)
             left_wheel_speed: Speed for left wheel (0-255)
         """
-        self.motor_right.set_speed(right_wheel_speed)
-        self.motor_left.set_speed(left_wheel_speed)
-        self.motor_right.forward()
-        self.motor_left.backward()
+        _d("AIDriver.drive_backward: R=", right_wheel_speed, "L=", left_wheel_speed)
+        try:
+            self.motor_right.set_speed(right_wheel_speed)
+            self.motor_left.set_speed(left_wheel_speed)
+            self.motor_right.forward()
+            self.motor_left.backward()
+        except Exception as exc:
+            _explain_error(exc)
+            raise
 
     def rotate_right(self, turn_speed):
         """
@@ -250,10 +429,15 @@ class AIDriver:
         Args:
             turn_speed: Speed for rotation (0-255)
         """
-        self.motor_right.set_speed(turn_speed)
-        self.motor_left.set_speed(turn_speed)
-        self.motor_right.forward()
-        self.motor_left.forward()
+        _d("AIDriver.rotate_right: speed=", turn_speed)
+        try:
+            self.motor_right.set_speed(turn_speed)
+            self.motor_left.set_speed(turn_speed)
+            self.motor_right.forward()
+            self.motor_left.forward()
+        except Exception as exc:
+            _explain_error(exc)
+            raise
 
     def rotate_left(self, turn_speed):
         """
@@ -262,10 +446,15 @@ class AIDriver:
         Args:
             turn_speed: Speed for rotation (0-255)
         """
-        self.motor_right.set_speed(turn_speed)
-        self.motor_left.set_speed(turn_speed)
-        self.motor_right.backward()
-        self.motor_left.backward()
+        _d("AIDriver.rotate_left: speed=", turn_speed)
+        try:
+            self.motor_right.set_speed(turn_speed)
+            self.motor_left.set_speed(turn_speed)
+            self.motor_right.backward()
+            self.motor_left.backward()
+        except Exception as exc:
+            _explain_error(exc)
+            raise
 
     def set_motor_speeds(self, right_speed, left_speed):
         """
@@ -275,8 +464,13 @@ class AIDriver:
             right_speed: Speed for right motor (0-255)
             left_speed: Speed for left motor (0-255)
         """
-        self.motor_right.set_speed(right_speed)
-        self.motor_left.set_speed(left_speed)
+        _d("AIDriver.set_motor_speeds: R=", right_speed, "L=", left_speed)
+        try:
+            self.motor_right.set_speed(right_speed)
+            self.motor_left.set_speed(left_speed)
+        except Exception as exc:
+            _explain_error(exc)
+            raise
 
     def get_motor_speeds(self):
         """
@@ -285,7 +479,9 @@ class AIDriver:
         Returns:
             Tuple of (right_speed, left_speed)
         """
-        return (self.motor_right.get_speed(), self.motor_left.get_speed())
+        speeds = (self.motor_right.get_speed(), self.motor_left.get_speed())
+        _d("AIDriver.get_motor_speeds:", speeds)
+        return speeds
 
     def is_moving(self):
         """
@@ -294,4 +490,6 @@ class AIDriver:
         Returns:
             True if either motor is moving
         """
-        return self.motor_right.is_moving() or self.motor_left.is_moving()
+        moving = self.motor_right.is_moving() or self.motor_left.is_moving()
+        _d("AIDriver.is_moving:", moving)
+        return moving

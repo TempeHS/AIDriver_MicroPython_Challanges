@@ -43,10 +43,14 @@ In mechatronics this is called the setup routine, this is where your robot is co
 
 ```python
 from time import sleep
+import aidriver
 from aidriver import AIDriver
 
+aidriver.DEBUG_AIDRIVER = True
 my_robot = AIDriver()
 ```
+
+If you get stuck or see error messages, see `Common_Errors.md`.
 
 ## Step 3
 
@@ -56,13 +60,17 @@ In mechatronics this is called your control loop or loop.
 
 ```python
 from time import sleep
+import aidriver
 from aidriver import AIDriver
 
+aidriver.DEBUG_AIDRIVER = True
 my_robot = AIDriver()
 
 while True:
     #Write code here
 ```
+
+If you get an error you don’t recognise, check `Common_Errors.md`.
 
 ## Step 4
 
@@ -78,14 +86,18 @@ The code `my_robot.drive_forward(200, 200)` is an instruction to drive the robot
 
 ```python
 from time import sleep
+import aidriver
 from aidriver import AIDriver
 
+aidriver.DEBUG_AIDRIVER = True
 my_robot = AIDriver()
 
 while True:
     my_robot.drive_forward(200, 200)
     sleep(0.1)
 ```
+
+If the code doesn’t run or you see an error, see `Common_Errors.md`.
 
 ## Step 5
 
@@ -99,6 +111,19 @@ Your challenge is to balance the motors. Due to various factors, the motors may 
 > - If your robot veers to the right, either increase the speed of the right wheel or decrease the speed of the left wheel (e.g., my_robot.drive_forward(200, 204)).
 > - If your robot veers to the left, either increase the speed of the left wheel or decrease the speed of the right wheel (e.g., my_robot.drive_forward(204, 200)).
 > - Continue fine-tuning the speed values and testing until your robot moves as straight as possible.
+
+## Debugging Tips – Test Small, Test Often
+
+- Run your code after every **3–5 lines** you change.
+- If something confusing happens, temporarily add:
+
+  ```python
+  print("HERE 1")
+  ```
+
+  to check if that part of the code is running.
+
+- For Challenge 1, always start from your **last working version** and make small adjustments to the speeds.
 
 ## Step 7 Save your Code
 

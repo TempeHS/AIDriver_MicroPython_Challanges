@@ -51,8 +51,10 @@ Write code so your robot:
 
 ```python
 from time import sleep
+import aidriver
 from aidriver import AIDriver
 
+aidriver.DEBUG_AIDRIVER = True
 my_robot = AIDriver()
 
 my_counter = 0
@@ -63,14 +65,19 @@ turn_time = 0
 safe_distance = 0
 
 def turn_left():
-    #implement 90 degree left turn here
+    # implement 90 degree left turn here
+    pass
+
 
 def drive_forward():
-    #implement drive forward here
+    # implement drive forward here
+    pass
+
 
 def brake():
     my_robot.brake()
     sleep(3)
+
 
 while True:
     distance = my_robot.read_distance()
@@ -81,6 +88,8 @@ while True:
         drive_forward()
 ```
 
+If you get an error when running this, or the names don’t match the AIDriver functions, see `Common_Errors.md`.
+
 ## Step 3
 
 - Test and adjust the distance threshold and turn timing as needed.
@@ -90,3 +99,15 @@ while True:
 
 1. Copy all your code from `main.py`.
 2. Paste it in your portfolio under "Challenge 5".
+
+## Debugging Tips – Test Small, Test Often
+
+- First, make the robot just **drive forward** and print the distance:
+
+  ```python
+  print("distance:", my_robot.read_distance())
+  ```
+
+- Once that works, add the `if`/`else` decision to brake and turn.
+- Run your program after every small change so you know which edit caused an error.
+- If behaviour is confusing, add `print("HERE 1")`, `print("HERE 2")` inside different branches to see which path the code is taking.

@@ -65,6 +65,8 @@ Start by making your robot move forward and print the distance readings. Once yo
 
 **Tip:** Take it one step at a time. Test your code after each change so you can quickly spot and fix any problems.
 
+If you see error messages while building your maze code, check `Common_Errors.md`.
+
 ## Step 4 Save Your Code
 
 1. Copy all your code from `main.py`.

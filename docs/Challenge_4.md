@@ -58,12 +58,14 @@ Extend your code from Challenge 2 to use the ultrasonic sensor to determine whet
 
 ```python
 from time import sleep
+import aidriver
 from aidriver import AIDriver
 
+aidriver.DEBUG_AIDRIVER = True
 my_robot = AIDriver()
 
-while driver.read_distance() == -1
-    print ("Robot too close, too far or sensor is in error state")
+while my_robot.read_distance() == -1:
+   print("Robot too close, too far or sensor is in error state")
 
 my_counter = 0
 target_counter = 4
@@ -75,14 +77,17 @@ turn_time = 0
 
 while True:
    while my_counter < target_counter:
-      my_robot.backward(wheel_speed - speed_adjust, wheel_speed +  speed_adjust)
+      my_robot.drive_forward(wheel_speed - speed_adjust, wheel_speed + speed_adjust)
       sleep(forward_time)
       my_robot.brake()
       sleep(3)
-      robot.rotate_right(turn_speed)
+      my_robot.rotate_right(turn_speed)
       my_robot.brake()
+      my_counter = my_counter + 1
    sleep(1)
 ```
+
+If you see syntax or name errors while fixing this starter code, check `Common_Errors.md`.
 
 ## Step 3
 
@@ -95,6 +100,20 @@ Your challenge is to:
 
 > [!Caution]
 > To avoid damaging your computer or robot, first save your main.py file. Next, disconnect your robot from your computer, then place it on the floor in an area with enough space for it to move safely before powering it on.
+
+## Debugging Tips – Test Small, Test Often
+
+- This starter code intentionally contains **some mistakes** – fix one error at a time.
+- After each fix, run the code and read the first line of any error message.
+- Use temporary markers like:
+
+  ```python
+  print("HERE 1")
+  ```
+
+  to see which part of the program is executing.
+
+- Keep a copy of the last working version of your square, and extend from there.
 
 ## Step 4 Save Your Code
 

@@ -1,72 +1,66 @@
 from time import sleep
+import aidriver
 from aidriver import AIDriver
-import sys
 
+"""Hardware sanity test for the AIDriver robot.
+
+Runs a short sequence of movements and distance readings.
+Most details are reported via the AIDriver debug logger.
 """
-Runs a sequence of tests for the AIDriver class.
-The user must visually confirm the robot's behaviour.
-"""
 
-print("Initializing AIDriver for physical test...")
-try:
-    driver = AIDriver()
-except Exception as e:
-    print(f"Failed to initialize AIDriver: {e}")
-    print("Please check the aidriver.py library is in the 'lib' folder.")
-    sys.exit()
 
-print("Initialization complete. Starting tests in 5 seconds...")
-print("Ensure the robot has clear space to move.")
-sleep(5)
+def main():
+    aidriver.DEBUG_AIDRIVER = True
 
-# Test 1: Drive Forward
-print("\n--- Test 1: Drive Forward ---")
-print("Robot should move FORWARD for 2 seconds.")
-driver.drive_forward(200, 200)
-sleep(2)
-driver.brake()
-print("--> Test 1 Complete. Robot should be stopped.")
-sleep(3)
+    print("Initialising AIDriver hardware test...")
 
-# Test 2: Drive Backward
-print("\n--- Test 2: Drive Backward ---")
-print("Robot should move BACKWARD for 2 seconds.")
-driver.drive_backward(200, 200)
-sleep(2)
-driver.brake()
-print("--> Test 2 Complete. Robot should be stopped.")
-sleep(3)
+    try:
+        robot = AIDriver()
+    except Exception as exc:
+        print("Failed to initialise AIDriver:", exc)
+        print("Check that 'aidriver.py' is in the 'lib' folder on the device.")
+        return
 
-# Test 3: Rotate Right
-print("\n--- Test 3: Rotate Right (Clockwise) ---")
-print("Robot should rotate RIGHT for 2 seconds.")
-driver.rotate_right(200)
-sleep(2)
-driver.brake()
-print("--> Test 3 Complete. Robot should be stopped.")
-sleep(3)
+    print("Starting tests in 3 seconds. Ensure clear space around the robot.")
+    sleep(3)
 
-# Test 4: Rotate Left
-print("\n--- Test 4: Rotate Left (Counter-Clockwise) ---")
-print("Robot should rotate LEFT for 2 seconds.")
-driver.rotate_left(200)
-sleep(2)
-driver.brake()
-print("--> Test 4 Complete. Robot should be stopped.")
-sleep(3)
+    # Test 1: Drive Forward
+    print("Test 1: drive_forward")
+    robot.drive_forward(200, 200)
+    sleep(2)
+    robot.brake()
+    sleep(1)
 
-# Test 5: Ultrasonic Sensor
-print("\n--- Test 5: Read Distance ---")
-print("Place an object 10-50cm in front of the sensor.")
-print("Taking 5 readings...")
-for i in range(5):
-    distance = driver.read_distance()
-    if distance != -1:
-        print(f"Reading {i+1}: {distance} mm")
-    else:
-        print(f"Reading {i+1}: Out of range or timeout.")
-        sleep(1)
-print("--> Test 5 Complete.")
-sleep(3)
+    # Test 2: Drive Backward
+    print("Test 2: drive_backward")
+    robot.drive_backward(200, 200)
+    sleep(2)
+    robot.brake()
+    sleep(1)
 
-print("\n\n--- ALL PHYSICAL TESTS ARE COMPLETE ---")
+    # Test 3: Rotate Right
+    print("Test 3: rotate_right")
+    robot.rotate_right(200)
+    sleep(2)
+    robot.brake()
+    sleep(1)
+
+    # Test 4: Rotate Left
+    print("Test 4: rotate_left")
+    robot.rotate_left(200)
+    sleep(2)
+    robot.brake()
+    sleep(1)
+
+    # Test 5: Ultrasonic Sensor
+    print("Test 5: ultrasonic distance readings")
+    for i in range(5):
+        distance = robot.read_distance()
+        print("Reading", i + 1, ":", distance, "mm")
+        sleep(0.5)
+
+    print("All hardware tests completed.")
+
+
+if __name__ == "__main__":
+    main()

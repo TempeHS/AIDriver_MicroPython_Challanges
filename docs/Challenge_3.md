@@ -59,8 +59,10 @@ Extend your code from Challenge 2 to use the ultrasonic sensor to determine whet
 
 ```python
 from time import sleep
+import aidriver
 from aidriver import AIDriver
 
+aidriver.DEBUG_AIDRIVER = True
 my_robot = AIDriver()
 
 while my_robot.read_distance() == -1:
@@ -86,6 +88,8 @@ while True:
     sleep(0.1)
 ```
 
+If you get stuck or see strange error messages, see `Common_Errors.md`.
+
 ## Step 3
 
 Your challenge is to:
@@ -97,6 +101,18 @@ Your challenge is to:
 
 > [!Caution]
 > To avoid damaging your computer or robot, first save your main.py file. Next, disconnect your robot from your computer, then place it on the floor in an area with enough space for it to move safely before powering it on.
+
+## Debugging Tips – Test Small, Test Often
+
+- Run your code after changing only a few lines, especially around the distance maths.
+- Add temporary prints to see what the robot "thinks":
+
+  ```python
+  print("start:", start_distance, "current:", current_distance, "remaining:", distance_remaining)
+  ```
+
+- If you get stuck, compare your code line-by-line with the example in this challenge.
+- Always start from the last version that moved the robot correctly and make gradual changes.
 
 ## Step 4 Save Your Code
 
