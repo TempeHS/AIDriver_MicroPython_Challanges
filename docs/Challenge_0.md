@@ -358,3 +358,20 @@ If you finish early:
 - Explain to a partner how you used the error message and line number to find the problem.
 
 Finishing Challenge 0 means you are ready for **Challenge 1**, with a solid understanding of how to read and fix the most common syntax errors you will see while programming your robot.
+
+---
+
+## 6. Activity: Inspect the Run-Once Event Log
+
+Your robot automatically creates a file called `event_log.txt` the first time a program runs after a fresh boot or recovery.
+
+**Important:** the log is _run once_. If `event_log.txt` already contains text, new runs do not add anything until the file is cleared.
+
+Activity steps:
+
+1. After you finish Challenge 0 and the code runs, open `event_log.txt` (it sits next to `main.py`).
+2. Read the entries. Each line shows when an event happened, for example `t+0.00s : robot start` or a distance reading.
+3. Explain to a partner what those messages tell you about the code you just fixed.
+4. To capture another run, delete the contents of `event_log.txt` (or remove the file) and run your program again. The log will reappear with fresh data.
+
+Later challenges will ask you to use this log to compare _what you expected_ with _what the robot actually did_.

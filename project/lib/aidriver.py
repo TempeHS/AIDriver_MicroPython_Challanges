@@ -17,6 +17,54 @@ except Exception:
     eventlog = None
 
 
+def _speed_band(speed_value):
+    """Return a human label for a motor speed using agreed classroom bands."""
+    if speed_value <= 80:
+        return "stopped"
+    if speed_value <= 120:
+        return "very slow"
+    if speed_value <= 180:
+        return "slow"
+    if speed_value <= 220:
+        return "normal"
+    return "very fast"
+
+
+def _describe_drive(direction, right_speed, left_speed):
+    """Build an event-log sentence for forward/backward movement commands."""
+    max_speed = max(right_speed, left_speed)
+    if max_speed <= 80:
+        return (
+            f"{direction} requested with R={right_speed}, L={left_speed} – "
+            "speeds are in the stopped range so the robot may not move"
+        )
+
+    band = _speed_band(max_speed)
+    message = (
+        f"{direction} at {band} speed"
+        f" (R={right_speed}, L={left_speed})"
+    )
+
+    speed_diff = right_speed - left_speed
+    if abs(speed_diff) > 20:
+        arc_direction = "right" if speed_diff > 0 else "left"
+        message += f"; expect an arc toward the {arc_direction}"
+
+    return message
+
+
+def _describe_rotation(direction, turn_speed):
+    """Build an event-log sentence for rotate commands."""
+    if turn_speed <= 80:
+        return (
+            f"Rotate {direction} requested with speed {turn_speed} – "
+            "speed is in the stopped range so the robot may not turn"
+        )
+
+    band = _speed_band(turn_speed)
+    return f"Rotate {direction} on the spot at {band} speed ({turn_speed})"
+
+
 # Global debug flag for AIDriver library
 DEBUG_AIDRIVER = False
 
@@ -379,6 +427,11 @@ class AIDriver:
     def brake(self):
         """Stop both motors"""
         _d("AIDriver.brake()")
+        if eventlog is not None:
+            try:
+                eventlog.log_event("Brake applied; motors stopping")
+            except Exception:
+                pass
         try:
             self.motor_right.stop()
             self.motor_left.stop()
@@ -395,6 +448,13 @@ class AIDriver:
             left_wheel_speed: Speed for left wheel (0-255)
         """
         _d("AIDriver.drive_forward: R=", right_wheel_speed, "L=", left_wheel_speed)
+        if eventlog is not None:
+            try:
+                eventlog.log_event(
+                    _describe_drive("Drive forward", right_wheel_speed, left_wheel_speed)
+                )
+            except Exception:
+                pass
         try:
             self.motor_right.set_speed(right_wheel_speed)
             self.motor_left.set_speed(left_wheel_speed)
@@ -413,6 +473,13 @@ class AIDriver:
             left_wheel_speed: Speed for left wheel (0-255)
         """
         _d("AIDriver.drive_backward: R=", right_wheel_speed, "L=", left_wheel_speed)
+        if eventlog is not None:
+            try:
+                eventlog.log_event(
+                    _describe_drive("Drive backward", right_wheel_speed, left_wheel_speed)
+                )
+            except Exception:
+                pass
         try:
             self.motor_right.set_speed(right_wheel_speed)
             self.motor_left.set_speed(left_wheel_speed)
@@ -430,6 +497,11 @@ class AIDriver:
             turn_speed: Speed for rotation (0-255)
         """
         _d("AIDriver.rotate_right: speed=", turn_speed)
+        if eventlog is not None:
+            try:
+                eventlog.log_event(_describe_rotation("right", turn_speed))
+            except Exception:
+                pass
         try:
             self.motor_right.set_speed(turn_speed)
             self.motor_left.set_speed(turn_speed)
@@ -447,6 +519,11 @@ class AIDriver:
             turn_speed: Speed for rotation (0-255)
         """
         _d("AIDriver.rotate_left: speed=", turn_speed)
+        if eventlog is not None:
+            try:
+                eventlog.log_event(_describe_rotation("left", turn_speed))
+            except Exception:
+                pass
         try:
             self.motor_right.set_speed(turn_speed)
             self.motor_left.set_speed(turn_speed)

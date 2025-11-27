@@ -1,6 +1,5 @@
 import machine
 import math
-import utime
 
 # GamePad Input IDs
 GAMEPAD_DIGITAL = 0x01
