@@ -69,7 +69,7 @@ NameError: name 'driver' is not defined
 
 it usually means you:
 
-- Spelled a variable name differently from where you created it, or
+- Spelt a variable name differently from where you created it, or
 - Used a name that does not exist at all.
 
 ---
@@ -202,10 +202,10 @@ Work through these short exercises to practise fixing the **exact** mistakes you
 
 Broken code:
 
-````python
+```python
 while driver.read_distance() == -1
    print("Robot too close")
-``;
+```
 
 Tasks:
 
@@ -224,11 +224,11 @@ Broken code:
 ```python
 my_robt = AIDriver()
 my_robot.drive_forward(200, 200)
-````
+```
 
 Tasks:
 
-1. Fix the variable name so it is **spelled the same** in both lines.
+1. Fix the variable name so it is **spelt the same** in both lines.
 2. Write down what error you see **before** you fix it (it should be a `NameError`).
 3. Explain in one sentence why Python cannot find the name.
 
@@ -314,7 +314,7 @@ This code is **broken on purpose**. Do not change what it is trying to do:
 - Create a robot.
 - Drive forward in a loop.
 
-Your job is to fix the errors so that the loop runs and AIDriver prints debug messages.
+Your job is to make sure you fix the errors so that the loop runs and AIDriver prints debug messages.
 
 ---
 
@@ -339,7 +339,7 @@ Your job is to fix the errors so that the loop runs and AIDriver prints debug me
 4. **Use the AIDriver debug output.**
 
    - When the program finally runs, you should see messages like:  
-     ` [AIDriver] AIDriver initialized - debug logging active`  
+     ` [AIDriver] AIDriver initialised - debug logging active`  
      ` [AIDriver] AIDriver.drive_forward: R= 200 L= 200`
    - If you see these, **you have completed Challenge 0**.
 
@@ -353,7 +353,7 @@ Your job is to fix the errors so that the loop runs and AIDriver prints debug me
 
 If you finish early:
 
-- Intentionally break the code again (remove a colon, mis-spell a name) and see what error appears.
+- Intentionally break the code again (remove a colon, misspell a name) and see what error appears.
 - Try writing your own **tiny bug** and then fixing it.
 - Explain to a partner how you used the error message and line number to find the problem.
 
