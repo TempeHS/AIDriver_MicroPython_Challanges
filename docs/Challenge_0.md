@@ -79,6 +79,7 @@ it usually means you:
 Indentation means **how far a line is indented from the left** using spaces.
 
 ```python
+my_robot = AIDriver()
 # WRONG - body of while is not indented
 while True:
 my_robot.drive_forward(200, 200)
@@ -109,6 +110,7 @@ The AIDriver library gives you **specific** function names:
 Common mistakes:
 
 ```python
+my_robot = AIDriver()
 # WRONG
 my_robot.backward(200, 200)        # should be drive_backward
 robot.rotate_right(200)            # should be my_robot.rotate_right
@@ -140,7 +142,7 @@ Example:
 
 ```text
   File "main.py", line 12
-    while driver.read_distance() == -1
+    while my_robot.read_distance() == -1
                                       ^
 SyntaxError: invalid syntax
 ```
@@ -161,7 +163,7 @@ Strategy:
 2. Compare **line by line**.
 3. Check:
    - Do you have all the colons (`:`)?
-   - Are the names (`my_robot`, `AIDriver`) spelled the same?
+   - Are the names (`my_robot`, `AIDriver`) spelt the same?
    - Are your indents (spaces at the start of the line) the same as the example?
 
 ### 3.3 Learn the "colon rule"
@@ -203,7 +205,8 @@ Work through these short exercises to practise fixing the **exact** mistakes you
 Broken code:
 
 ```python
-while driver.read_distance() == -1
+my_robot = AIDriver()
+while my_robot.read_distance() == -1
    print("Robot too close")
 ```
 
@@ -241,6 +244,7 @@ If you’re unsure what the error means, glance at `Common_Errors.md`.
 Broken code:
 
 ```python
+my_robot = AIDriver()
 while True:
 my_robot.drive_forward(200, 200)
 ```
@@ -260,6 +264,7 @@ See `Common_Errors.md` if the error message is confusing.
 Broken code:
 
 ```python
+my_robot = AIDriver()
 my_robot.backward(200, 200)
 robot.rotate_right(200)
 my_robot.read_sensor()
