@@ -13,18 +13,15 @@ RUN apt-get update && apt-get install -y \
     unzip \
     && rm -rf /var/lib/apt/lists/*
 
-# Set up working directory
-WORKDIR /
-
-# Clone MicroPython source code
-RUN git clone https://github.com/micropython/micropython.git
+# Use /workspaces to match Codespaces defaults
+WORKDIR /workspaces
 
 # Set default shell
 SHELL ["/bin/bash", "-c"]
 
 # Optionally install Python requirements (if needed for build scripts)
-COPY requirements.txt /workspace/requirements.txt
-RUN pip3 install -r /workspace/requirements.txt || true
+COPY requirements.txt /tmp/devcontainer-requirements.txt
+RUN pip3 install -r /tmp/devcontainer-requirements.txt || true && rm -f /tmp/devcontainer-requirements.txt
 
 # Display build instructions on container start
 CMD ["bash"]

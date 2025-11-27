@@ -17,7 +17,7 @@ export PROJECT_BASE="/workspaces/AIDriver_MicroPython_Challanges"
 export PROJECT_DIR="$PROJECT_BASE/project"
 export PROJECT_LIB_DIR="$PROJECT_DIR/lib"
 export PROJECT_MAIN="$PROJECT_DIR/main.py"
-export MICROPYTHON_DIR="/micropython"
+export MICROPYTHON_DIR="$PROJECT_BASE/micropython"
 export MODULES_DIR="$MICROPYTHON_DIR/ports/rp2/modules"
 export BUILD_DIR="$MICROPYTHON_DIR/ports/rp2"
 export FIRMWARE_DEST="$PROJECT_BASE/_Firmware/AI_Driver_RP2040.uf2"
@@ -123,8 +123,8 @@ copy_and_validate_file() {
 
 # Function to clean existing custom modules
 clean_custom_modules() {
-    local frozen_target_dir="/micropython/ports/rp2/modules"
-    local frozen_mpy_dir="/micropython/ports/rp2/build-RPI_PICO/frozen_mpy"
+    local frozen_target_dir="$MODULES_DIR"
+    local frozen_mpy_dir="$BUILD_DIR/build-RPI_PICO/frozen_mpy"
     
     log_info "🧹 Cleaning existing custom modules..."
     
@@ -161,8 +161,8 @@ clean_custom_modules() {
 # Function to copy all custom modules
 copy_custom_modules() {
     local source_dir="${PROJECT_DIR}"
-    local frozen_target_dir="/micropython/ports/rp2/modules"
-    local filesystem_target_dir="/micropython/ports/rp2/build-RPI_PICO"
+    local frozen_target_dir="$MODULES_DIR"
+    local filesystem_target_dir="$BUILD_DIR/build-RPI_PICO"
     local frozen_copy_count=0
     local filesystem_copy_count=0
     
@@ -251,8 +251,8 @@ ensure_firmware_dir() {
 # Function to create _boot.py with embedded main.py content
 create_boot_with_main() {
     local main_py_path="$PROJECT_DIR/main.py"
-    local boot_py_path="/micropython/ports/rp2/modules/_boot.py"
-    local boot_backup_path="/micropython/ports/rp2/modules/_boot_original.py"
+    local boot_py_path="$MODULES_DIR/_boot.py"
+    local boot_backup_path="$MODULES_DIR/_boot_original.py"
     
     if [[ ! -f "$main_py_path" ]]; then
         log_error "main.py not found at $main_py_path"

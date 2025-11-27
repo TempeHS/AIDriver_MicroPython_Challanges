@@ -3,7 +3,7 @@
   "build": {
     "dockerfile": "Dockerfile"
   },
-  "workspaceFolder": "/",
+  "workspaceFolder": "/workspaces/AIDriver_MicroPython_Challanges",
   "customizations": {
     "vscode": {
       "settings": {
@@ -36,5 +36,5 @@
       ]
     }
   },
-  "postCreateCommand": "cd /micropython/ports/rp2 && make submodules && chmod +x /workspaces/AIDriver_MicroPython_Challanges/.devcontainer/*.sh"
+  "postCreateCommand": "bash .devcontainer/setup_environment.sh"
 }
