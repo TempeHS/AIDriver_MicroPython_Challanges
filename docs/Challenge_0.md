@@ -47,10 +47,6 @@ while my_robot.read_distance() == -1
 ```
 
 ```python
-from aidriver import AIDriver
-
-my_robot = AIDriver()
-
 # RIGHT
 while my_robot.read_distance() == -1:
    print("Robot too close")
@@ -350,7 +346,7 @@ my_robt = AIDriver()                # typo in variable name
 
 while True                         # missing colon
    my_robot.driveforward(200, 200)    # wrong function name
-   hold_state(0.5)                    # robot will not change for 0.5 seconds
+   hold_state(0.5                   # missing a parenthesis
 ```
 
 This code is **broken on purpose**. Do not change what it is trying to do:

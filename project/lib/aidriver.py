@@ -8,8 +8,8 @@ Original licenses maintained: GNU GPL for code, Creative Commons for content
 Dependencies: machine, time modules (built into MicroPython)
 """
 
-from machine import Pin, PWM, time_pulse_us
-from time import sleep_us, sleep_ms, sleep as _sleep
+from machine import Pin, PWM, time_pulse_us, Timer
+from time import sleep_us, sleep_ms, sleep as _sleep, ticks_ms, ticks_diff
 
 try:
     import eventlog
@@ -71,6 +71,52 @@ try:
     _STATUS_LED = Pin(13, Pin.OUT)
 except Exception:
     _STATUS_LED = None
+
+
+# Internal state for non-blocking heartbeat timing
+_last_heartbeat_ms = 0
+
+
+# Hardware timer for background heartbeat (initialized lazily).
+_HEARTBEAT_TIMER = None
+
+
+def _timer_heartbeat_callback(timer):
+    """Timer ISR: toggle the onboard LED.
+
+    This callback must stay extremely small and not allocate memory.
+    It is intended only for the automatic background heartbeat.
+    """
+
+    if _STATUS_LED is not None:
+        try:
+            _STATUS_LED.toggle()
+        except Exception:
+            # Never raise from an interrupt; ignore any LED issues.
+            pass
+
+
+def heartbeat(period_ms=1000):
+    """Non-blocking heartbeat helper for the onboard LED.
+
+    This function can be called frequently (for example from a main loop
+    or from the AIDriver.service() method). It only toggles the onboard
+    status LED when at least ``period_ms`` milliseconds have passed since
+    the last toggle, so it never blocks student code.
+
+    The default period is 1000 ms, giving a 1 Hz toggle rate.
+    """
+
+    if _STATUS_LED is None:
+        return
+
+    global _last_heartbeat_ms
+
+    now = ticks_ms()
+    # ticks_diff handles wrap-around of the millisecond counter.
+    if ticks_diff(now, _last_heartbeat_ms) >= period_ms:
+        _STATUS_LED.toggle()
+        _last_heartbeat_ms = now
 
 
 def _explain_error(exc):
@@ -471,6 +517,19 @@ class AIDriver:
 
         _d("AIDriver initialized - debug logging active")
 
+        # Start a hardware-timer-based heartbeat so the onboard LED
+        # blinks in the background without any changes to main.py.
+        # This is shared across all AIDriver instances.
+        global _HEARTBEAT_TIMER
+        try:
+            if _HEARTBEAT_TIMER is None and _STATUS_LED is not None:
+                _HEARTBEAT_TIMER = Timer(-1)
+                # 1000 ms period -> roughly 1 Hz LED toggle
+                _HEARTBEAT_TIMER.init(period=1000, mode=Timer.PERIODIC, callback=_timer_heartbeat_callback)
+                _d("Heartbeat timer started (1s period)")
+        except Exception as exc:
+            _d("Failed to start heartbeat timer:", exc)
+
     def read_distance(self):
         """
         Read distance from ultrasonic sensor.
@@ -499,6 +558,23 @@ class AIDriver:
         except Exception as exc:
             _explain_error(exc)
             raise
+
+    def service(self):
+        """Run background housekeeping tasks for the robot.
+
+        Currently this just advances the onboard LED heartbeat in a
+        non-blocking way when ``self._heartbeat_enabled`` is True. It is
+        safe to call frequently from a main loop and is optional for
+        simple student programs.
+        """
+
+        if not getattr(self, "_heartbeat_enabled", False):
+            return
+
+        try:
+            heartbeat()
+        except Exception as exc:
+            _explain_error(exc)
 
     def drive_forward(self, right_wheel_speed, left_wheel_speed):
         """
