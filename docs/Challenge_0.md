@@ -1,19 +1,19 @@
-# Challenge 0: Fix the Syntax and Make the Robot Talk
+# Challenge 0: Fix the Code and Make the Robot Talk
 
 In this challenge you will **fix broken Python code** so that:
 
-- Your program runs without syntax errors, and
-- The AIDriver library starts returning **debug messages** about motors and sensors.
+- Your program runs without syntax errors.
+- The AIDriver library starts printing **debug messages** about motors and sensors.
 
-You **do not** write a new program from scratch. Instead, you repair an existing one.
+You **do not** write a new program from scratch. Instead, you repair one that is already written.
 
 ---
 
 ## 1. What is a Syntax Error?
 
-Python has strict rules about how code must be written. If you break one of these rules, you get a **syntax error**.
+Python has rules about how code must be written. If you break one of these rules, you get a **syntax error**.
 
-Common messages you will see:
+Common error messages you might see:
 
 - `SyntaxError: invalid syntax`
 - `IndentationError: unexpected indent`
@@ -29,29 +29,35 @@ Your job is to use this information to find and fix the mistake.
 
 ---
 
-## 2. Typical Student Mistakes
+## 2. Common Mistakes
 
-These are all real mistakes taken from the AIDriver challenges.
+These are real mistakes that students often make in the AIDriver challenges.
 
 ### 2.1 Missing colon after `while` or `if`
 
 ```python
+from aidriver import AIDriver
+
+my_robot = AIDriver()
+
 # WRONG (no colon)
-while driver.read_distance() == -1
-    print("Robot too close")
+while my_robot.read_distance() == -1
+   print("Robot too close")
 
 # RIGHT
-while driver.read_distance() == -1:
-    print("Robot too close")
+while my_robot.read_distance() == -1:
+   print("Robot too close")
 ```
 
 **Rule:** every `if`, `while`, `for`, and `def` line must end with a **colon** (`:`).
 
 ---
 
-### 2.2 Mis-typed names vs the example code
+### 2.2 Misspelled names compared to the example code
 
 ```python
+from aidriver import AIDriver
+
 # WRONG - variable name is mis-typed
 my_robt = AIDriver()        # typo here
 my_robot.drive_forward(200, 200)  # different name here
@@ -67,18 +73,20 @@ If you see:
 NameError: name 'driver' is not defined
 ```
 
-it usually means you:
+It usually means you:
 
-- Spelt a variable name differently from where you created it, or
+- Spelled a variable name differently from where you created it, or
 - Used a name that does not exist at all.
 
 ---
 
 ### 2.3 Missing or extra indentation
 
-Indentation means **how far a line is indented from the left** using spaces.
+Indentation means **how far a line is pushed in from the left** using spaces.
 
 ```python
+from aidriver import AIDriver
+
 my_robot = AIDriver()
 # WRONG - body of while is not indented
 while True:
@@ -110,6 +118,8 @@ The AIDriver library gives you **specific** function names:
 Common mistakes:
 
 ```python
+from aidriver import AIDriver
+
 my_robot = AIDriver()
 # WRONG
 my_robot.backward(200, 200)        # should be drive_backward
@@ -132,9 +142,9 @@ it means you called a function that **does not exist** in the library. Check the
 
 ---
 
-## 3. Strategies for Fixing Syntax Errors
+## 3. How to Fix Syntax Errors
 
-When you see an error message, do this step by step.
+When you see an error message, follow these steps.
 
 ### 3.1 Read the line number aloud
 
@@ -155,7 +165,7 @@ Then look directly at **line 12** in `main.py`.
 
 ### 3.2 Compare to the example code
 
-For each challenge, you are given a **scaffold** (starting code) in the instructions.
+For each challenge, you are given **starter code** (also called a scaffold) in the instructions.
 
 Strategy:
 
@@ -163,7 +173,7 @@ Strategy:
 2. Compare **line by line**.
 3. Check:
    - Do you have all the colons (`:`)?
-   - Are the names (`my_robot`, `AIDriver`) spelt the same?
+   - Are the names (`my_robot`, `AIDriver`) spelled the same?
    - Are your indents (spaces at the start of the line) the same as the example?
 
 ### 3.3 Learn the "colon rule"
@@ -176,14 +186,18 @@ Remember:
 Example pattern:
 
 ```python
+from aidriver import AIDriver
+
+my_robot = AIDriver()
+
 while condition:
     # indented code here
-    do_something()
+   my_robot.drive_forward(200, 200)
 ```
 
 ### 3.4 Run your code often
 
-Do **not** write 50 lines and then run.
+Do **not** write 50 lines and then run the program.
 
 Instead:
 
@@ -198,13 +212,15 @@ This makes it much easier to see **which change** caused the error.
 
 ## 4. Practice Exercises
 
-Work through these short exercises to practise fixing the **exact** mistakes you will see later in the challenges.
+Work through these short exercises to practise fixing the **same** kinds of mistakes you will see later in the challenges.
 
 ### 4.1 Missing colon after `while` or `if`
 
 Broken code:
 
 ```python
+from aidriver import AIDriver
+
 my_robot = AIDriver()
 while my_robot.read_distance() == -1
    print("Robot too close")
@@ -214,7 +230,7 @@ Tasks:
 
 1. Add the missing colon.
 2. Make sure the `print` line is correctly indented.
-3. Predict: what error would you get if the colon is missing? What line number would it mention?
+3. Predict: what error would you get if the colon is missing? What line number would Python show?
 
 If you get stuck fixing these, see `Common_Errors.md` for more examples.
 
@@ -225,13 +241,15 @@ If you get stuck fixing these, see `Common_Errors.md` for more examples.
 Broken code:
 
 ```python
+from aidriver import AIDriver
+
 my_robt = AIDriver()
 my_robot.drive_forward(200, 200)
 ```
 
 Tasks:
 
-1. Fix the variable name so it is **spelt the same** in both lines.
+1. Fix the variable name so it is **spelled the same** in both lines.
 2. Write down what error you see **before** you fix it (it should be a `NameError`).
 3. Explain in one sentence why Python cannot find the name.
 
@@ -244,6 +262,8 @@ If you’re unsure what the error means, glance at `Common_Errors.md`.
 Broken code:
 
 ```python
+from aidriver import AIDriver
+
 my_robot = AIDriver()
 while True:
 my_robot.drive_forward(200, 200)
@@ -264,6 +284,8 @@ See `Common_Errors.md` if the error message is confusing.
 Broken code:
 
 ```python
+from aidriver import AIDriver
+
 my_robot = AIDriver()
 my_robot.backward(200, 200)
 robot.rotate_right(200)
@@ -280,17 +302,17 @@ If you see an error you don’t recognise, check `Common_Errors.md`.
 
 ---
 
-## 5. The Actual Challenge: Fix the Broken Code
+## 5. The Main Task: Fix the Broken Code
 
-In Challenge 0, you will be given a **broken program** that tries to use the AIDriver library, but contains syntax and naming mistakes.
+In Challenge 0, you are given a **broken program** that tries to use the AIDriver library but contains syntax and naming mistakes.
 
 Your goal is to **fix the code** so that:
 
 - It runs without syntax errors.
-- It enables AIDriver debug output.
-- You see meaningful debug messages in the console.
+- It turns on AIDriver debug output.
+- You see clear debug messages in the console.
 
-You must **not change what the robot is supposed to do**, only fix the mistakes.
+You must **not change what the robot is supposed to do**. Only fix the mistakes.
 
 ---
 
@@ -319,11 +341,11 @@ This code is **broken on purpose**. Do not change what it is trying to do:
 - Create a robot.
 - Drive forward in a loop.
 
-Your job is to make sure you fix the errors so that the loop runs and AIDriver prints debug messages.
+Your job is to fix the errors so that the loop runs and AIDriver prints debug messages.
 
 ---
 
-### 5.2 Steps to complete Challenge 0
+### 5.2 Steps to Complete Challenge 0
 
 1. **Run the broken code.**
 
@@ -333,7 +355,7 @@ Your job is to make sure you fix the errors so that the loop runs and AIDriver p
 2. **Fix one error at a time.**
 
    - Start with the first error Python shows.
-   - Compare your line to the examples in this challenge.
+   - Compare your code to the examples in this challenge.
    - Fix colons, indentation, or spelling.
 
 3. **Run again after each fix.**
@@ -341,7 +363,7 @@ Your job is to make sure you fix the errors so that the loop runs and AIDriver p
    - Don’t try to fix everything at once.
    - Let Python tell you where the next problem is.
 
-4. **Use the AIDriver debug output.**
+4. **Check the AIDriver debug output.**
 
    - When the program finally runs, you should see messages like:  
      ` [AIDriver] AIDriver initialised - debug logging active`  
@@ -354,7 +376,7 @@ Your job is to make sure you fix the errors so that the loop runs and AIDriver p
 
 ---
 
-### 5.3 Extension (optional)
+### 5.3 Extension (Optional)
 
 If you finish early:
 
