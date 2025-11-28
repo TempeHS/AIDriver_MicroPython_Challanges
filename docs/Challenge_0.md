@@ -44,6 +44,12 @@ my_robot = AIDriver()
 # WRONG (no colon)
 while my_robot.read_distance() == -1
    print("Robot too close")
+```
+
+```python
+from aidriver import AIDriver
+
+my_robot = AIDriver()
 
 # RIGHT
 while my_robot.read_distance() == -1:
@@ -62,7 +68,9 @@ from aidriver import AIDriver
 # WRONG - variable name is mis-typed
 my_robt = AIDriver()        # typo here
 my_robot.drive_forward(200, 200)  # different name here
+```
 
+```python
 # RIGHT - use the same name everywhere
 my_robot = AIDriver()
 my_robot.drive_forward(200, 200)
@@ -92,7 +100,9 @@ my_robot = AIDriver()
 # WRONG - body of while is not indented
 while True:
 my_robot.drive_forward(200, 200)
+```
 
+```python
 # RIGHT - body is indented under while
 while True:
     my_robot.drive_forward(200, 200)
@@ -126,7 +136,9 @@ my_robot = AIDriver()
 my_robot.backward(200, 200)        # should be drive_backward
 robot.rotate_right(200)            # should be my_robot.rotate_right
 my_robot.read_sensor()             # should be read_distance
+```
 
+```python
 # RIGHT
 my_robot.drive_backward(200, 200)
 my_robot.rotate_right(200)
@@ -334,7 +346,7 @@ import aidriver
 
 aidriver.DEBUG_AIDRIVER == True    # turn on debug (broken)
 
-my_robt = AIDriver(                # typo in variable name
+my_robt = AIDriver()                # typo in variable name
 
 while True                         # missing colon
    my_robot.driveforward(200, 200)    # wrong function name
