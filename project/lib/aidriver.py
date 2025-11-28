@@ -9,7 +9,7 @@ Dependencies: machine, time modules (built into MicroPython)
 """
 
 from machine import Pin, PWM, time_pulse_us
-from time import sleep_us, sleep_ms
+from time import sleep_us, sleep_ms, sleep as _sleep
 
 try:
     import eventlog
@@ -40,10 +40,7 @@ def _describe_drive(direction, right_speed, left_speed):
         )
 
     band = _speed_band(max_speed)
-    message = (
-        f"{direction} at {band} speed"
-        f" (R={right_speed}, L={left_speed})"
-    )
+    message = f"{direction} at {band} speed" f" (R={right_speed}, L={left_speed})"
 
     speed_diff = right_speed - left_speed
     if abs(speed_diff) > 20:
@@ -140,6 +137,47 @@ def _d(*args):
         print("[AIDriver]", *args)
 
 
+def hold_state(seconds):
+    """Pause the robot while recording the pause in the event log.
+
+    This is a classroom-friendly helper that replaces raw ``sleep(seconds)``.
+
+    Example usage in ``main.py``::
+
+        from aidriver import AIDriver, hold_state
+
+        my_robot = AIDriver()
+
+        my_robot.drive_forward(200, 200)
+        hold_state(1)  # robot keeps doing the same thing for 1 second
+        my_robot.brake()
+
+    The helper uses the built-in time.sleep under the hood, so timing
+    behaviour is the same as calling ``sleep(seconds)`` directly.
+    """
+
+    try:
+        seconds_float = float(seconds)
+    except (TypeError, ValueError):
+        # Fall back to 0 seconds if a bad value is passed; let MicroPython
+        # handle any deeper issues rather than raising here.
+        seconds_float = 0
+
+    if eventlog is not None:
+        try:
+            if seconds_float == 1:
+                msg = "Robot holding state for 1 second"
+            else:
+                msg = "Robot holding state for {:.2f} second(s)".format(seconds_float)
+            eventlog.log_event(msg)
+        except Exception:
+            # Never let logging break student programs.
+            pass
+
+    _d("hold_state:", seconds_float, "second(s)")
+    _sleep(seconds_float)
+
+
 def _led_heartbeat_ok():
     """Toggle the onboard LED once per call.
 
@@ -207,8 +245,11 @@ class UltrasonicSensor:
 
             # time_pulse_us returns -1 on timeout and -2 on invalid state
             if duration < 0:
-                _d("Ultrasonic timeout/invalid pulse – check wiring, orientation, or distance >",
-                   self.max_distance_mm, "mm")
+                _d(
+                    "Ultrasonic timeout/invalid pulse – check wiring, orientation, or distance >",
+                    self.max_distance_mm,
+                    "mm",
+                )
                 if eventlog is not None:
                     try:
                         eventlog.log_event("ultrasonic timeout or invalid echo")
@@ -224,25 +265,37 @@ class UltrasonicSensor:
                 _d("Ultrasonic distance:", int(distance_mm), "mm")
                 if eventlog is not None:
                     try:
-                        eventlog.log_event("distance reading: {} mm".format(int(distance_mm)))
+                        eventlog.log_event(
+                            "distance reading: {} mm".format(int(distance_mm))
+                        )
                     except Exception:
                         pass
                 return int(distance_mm)
 
             # Out of range – likely too close, too far, or pointing into open space
-            _d("Ultrasonic out of range:", int(distance_mm), "mm (valid 20-",
-               self.max_distance_mm, "mm)")
+            _d(
+                "Ultrasonic out of range:",
+                int(distance_mm),
+                "mm (valid 20-",
+                self.max_distance_mm,
+                "mm)",
+            )
             if eventlog is not None:
                 try:
-                    eventlog.log_event("ultrasonic out of range: {} mm".format(int(distance_mm)))
+                    eventlog.log_event(
+                        "ultrasonic out of range: {} mm".format(int(distance_mm))
+                    )
                 except Exception:
                     pass
             return -1
 
         except OSError as exc:
             # This can occur if there's an issue with time_pulse_us or pin configuration
-            _d("Ultrasonic OSError:", exc,
-               "– check echo pin, trig pin, and sensor power")
+            _d(
+                "Ultrasonic OSError:",
+                exc,
+                "– check echo pin, trig pin, and sensor power",
+            )
             if eventlog is not None:
                 try:
                     eventlog.log_event("ultrasonic OSError: {}".format(exc))
@@ -376,14 +429,22 @@ class AIDriver:
         # Library-side preflight: log pin config and attempt a quick sensor ping
         _d(
             "Initialising AIDriver with pins:",
-            "R_EN=", right_speed_pin,
-            "L_EN=", left_speed_pin,
-            "R_DIR=", right_dir_pin,
-            "R_BRK=", right_brake_pin,
-            "L_DIR=", left_dir_pin,
-            "L_BRK=", left_brake_pin,
-            "TRIG=", trig_pin,
-            "ECHO=", echo_pin,
+            "R_EN=",
+            right_speed_pin,
+            "L_EN=",
+            left_speed_pin,
+            "R_DIR=",
+            right_dir_pin,
+            "R_BRK=",
+            right_brake_pin,
+            "L_DIR=",
+            left_dir_pin,
+            "L_BRK=",
+            left_brake_pin,
+            "TRIG=",
+            trig_pin,
+            "ECHO=",
+            echo_pin,
         )
 
         # Initialize motor controllers
@@ -451,7 +512,9 @@ class AIDriver:
         if eventlog is not None:
             try:
                 eventlog.log_event(
-                    _describe_drive("Drive forward", right_wheel_speed, left_wheel_speed)
+                    _describe_drive(
+                        "Drive forward", right_wheel_speed, left_wheel_speed
+                    )
                 )
             except Exception:
                 pass
@@ -476,7 +539,9 @@ class AIDriver:
         if eventlog is not None:
             try:
                 eventlog.log_event(
-                    _describe_drive("Drive backward", right_wheel_speed, left_wheel_speed)
+                    _describe_drive(
+                        "Drive backward", right_wheel_speed, left_wheel_speed
+                    )
                 )
             except Exception:
                 pass

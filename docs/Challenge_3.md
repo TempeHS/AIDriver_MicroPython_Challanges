@@ -58,15 +58,15 @@ Extend your code from Challenge 2 to use the ultrasonic sensor to determine whet
 > The ultrasonic sensor will return `-1` if it is too close (less than 20mm) or too far (more that 2000mm) or in an error state.
 
 ```python
-from time import sleep
+from aidriver import AIDriver, hold_state
+
 import aidriver
-from aidriver import AIDriver
 
 aidriver.DEBUG_AIDRIVER = True
 my_robot = AIDriver()
 
 while my_robot.read_distance() == -1:
-    print ("Robot too close, too far or sensor is in error state")
+    print("Robot too close, too far or sensor is in error state")
 
 my_counter = 0
 start_distance = my_robot.read_distance()
@@ -80,13 +80,15 @@ while True:
     while distance_remaining < target_distance:
         my_robot.drive_backward(wheel_speed - speed_adjust, wheel_speed + speed_adjust)
         current_distance = my_robot.read_distance()
-        sleep(0.1)
+        hold_state(0.1)
         distance_remaining = current_distance - start_distance
     my_robot.brake()
-    sleep(1)
-    print(my_robot.read_distance()) #debug statement
-    sleep(0.1)
+    hold_state(1)
+    print(my_robot.read_distance())  # debug statement
+    hold_state(0.1)
 ```
+
+Here `hold_state(seconds)` keeps the robot doing the same thing for a short time **and** writes a matching line into `event_log.txt` so you can see when each pause happened.
 
 If you get stuck or see strange error messages, see `Common_Errors.md`.
 

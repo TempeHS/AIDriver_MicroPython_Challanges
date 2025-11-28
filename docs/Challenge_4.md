@@ -57,9 +57,9 @@ Extend your code from Challenge 2 to use the ultrasonic sensor to determine whet
 > The ultrasonic sensor will return `-1` if it is too close (less than 20mm) or too far (more that 2000mm) or in an error state.
 
 ```python
-from time import sleep
+from aidriver import AIDriver, hold_state
+
 import aidriver
-from aidriver import AIDriver
 
 aidriver.DEBUG_AIDRIVER = True
 my_robot = AIDriver()
@@ -78,14 +78,16 @@ turn_time = 0
 while True:
    while my_counter < target_counter:
       my_robot.drive_forward(wheel_speed - speed_adjust, wheel_speed + speed_adjust)
-      sleep(forward_time)
+      hold_state(forward_time)
       my_robot.brake()
-      sleep(3)
+      hold_state(3)
       my_robot.rotate_right(turn_speed)
       my_robot.brake()
       my_counter = my_counter + 1
-   sleep(1)
+   hold_state(1)
 ```
+
+Use `hold_state(seconds)` any time you want the robot to keep doing the same thing (driving, braking, or turning) for a short time and also record that pause in `event_log.txt`.
 
 If you see syntax or name errors while fixing this starter code, check `Common_Errors.md`.
 

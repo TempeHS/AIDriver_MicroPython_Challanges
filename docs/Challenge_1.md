@@ -42,9 +42,9 @@ Edit `main.py` so the top of your program imports the dependencies and instantia
 In mechatronics this is called the setup routine, this is where your robot is configured and necessary variables assigned values, ready for your control loop.
 
 ```python
-from time import sleep
+from aidriver import AIDriver, hold_state
+
 import aidriver
-from aidriver import AIDriver
 
 aidriver.DEBUG_AIDRIVER = True
 my_robot = AIDriver()
@@ -59,22 +59,22 @@ Add a `while` loop, the while loop runs forever and will contain the main progra
 In mechatronics this is called your control loop or loop.
 
 ```python
-from time import sleep
+from aidriver import AIDriver, hold_state
+
 import aidriver
-from aidriver import AIDriver
 
 aidriver.DEBUG_AIDRIVER = True
 my_robot = AIDriver()
 
 while True:
-    #Write code here
+    # Write code here
 ```
 
 If you get an error you don’t recognise, check `Common_Errors.md`.
 
 ## Step 4
 
-Add the drive forward command and a short sleep command so the processor has time to respond.
+Add the drive forward command and a short **hold_state** command so the processor has time to respond and the pause is recorded in the event log.
 
 The code `my_robot.drive_forward(200, 200)` is an instruction to drive the robot forward with a speed setting of 200 on the left wheel and a speed setting of 200 on the right wheel. You can set the speed an where between 0 (slowest) and 255 (fastest).
 
@@ -85,17 +85,22 @@ The code `my_robot.drive_forward(200, 200)` is an instruction to drive the robot
 > - A speed around 200 is generally optimal for completing all the challenges.
 
 ```python
-from time import sleep
+from aidriver import AIDriver, hold_state
+
 import aidriver
-from aidriver import AIDriver
 
 aidriver.DEBUG_AIDRIVER = True
 my_robot = AIDriver()
 
 while True:
     my_robot.drive_forward(200, 200)
-    sleep(0.1)
+    hold_state(0.1)
 ```
+
+Here `hold_state(0.1)` means:
+
+- Keep doing the same thing for 0.1 seconds.
+- Add a line to `event_log.txt` such as `Robot holding state for 0.10 second(s)`.
 
 If the code doesn’t run or you see an error, see `Common_Errors.md`.
 

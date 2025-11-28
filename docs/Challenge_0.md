@@ -4,6 +4,7 @@ In this challenge you will **fix broken Python code** so that:
 
 - Your program runs without syntax errors.
 - The AIDriver library starts printing **debug messages** about motors and sensors.
+- Your program uses a special helper called `hold_state` instead of raw `sleep`.
 
 You **do not** write a new program from scratch. Instead, you repair one that is already written.
 
@@ -186,14 +187,20 @@ Remember:
 Example pattern:
 
 ```python
-from aidriver import AIDriver
+from aidriver import AIDriver, hold_state
 
 my_robot = AIDriver()
 
 while condition:
-    # indented code here
+   # indented code here
    my_robot.drive_forward(200, 200)
+   hold_state(1)  # keep doing the same thing for 1 second
 ```
+
+`hold_state(seconds)` is part of the AIDriver library. It:
+
+- Pauses the program for the number of seconds you ask for.
+- Adds a line to `event_log.txt` like `Robot holding state for 1 second`.
 
 ### 3.4 Run your code often
 
@@ -321,8 +328,7 @@ You must **not change what the robot is supposed to do**. Only fix the mistakes.
 Copy this code into `main.py` in the Arduino MicroPython Lab:
 
 ```python
-from time import sleep
-from aidriver import AIDriver
+from aidriver import AIDriver, hold_state
 
 import aidriver
 
@@ -331,8 +337,8 @@ aidriver.DEBUG_AIDRIVER == True    # turn on debug (broken)
 my_robt = AIDriver(                # typo in variable name
 
 while True                         # missing colon
-    my_robot.driveforward(200, 200)    # wrong function name
-    sleep(0.5)
+   my_robot.driveforward(200, 200)    # wrong function name
+   hold_state(0.5)                    # robot will not change for 0.5 seconds
 ```
 
 This code is **broken on purpose**. Do not change what it is trying to do:
@@ -363,11 +369,13 @@ Your job is to fix the errors so that the loop runs and AIDriver prints debug me
    - Don’t try to fix everything at once.
    - Let Python tell you where the next problem is.
 
-4. **Check the AIDriver debug output.**
+4. **Check the AIDriver debug output and event log.**
 
    - When the program finally runs, you should see messages like:  
-     ` [AIDriver] AIDriver initialised - debug logging active`  
-     ` [AIDriver] AIDriver.drive_forward: R= 200 L= 200`
+      ` [AIDriver] AIDriver initialised - debug logging active`  
+      ` [AIDriver] AIDriver.drive_forward: R= 200 L= 200`
+   - In `event_log.txt`, you should also see lines such as:  
+      `Robot holding state for 0.50 second(s)` when `hold_state(0.5)` runs.
    - If you see these, **you have completed Challenge 0**.
 
 5. **Do not change the behaviour.**

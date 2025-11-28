@@ -48,9 +48,9 @@ flowchart TD
 Because the `while True:` control loop runs forever, we need to add a logic control structure, so it only runs once then stops.
 
 ```python
-from time import sleep
+from aidriver import AIDriver, hold_state
+
 import aidriver
-from aidriver import AIDriver
 
 aidriver.DEBUG_AIDRIVER = True
 my_robot = AIDriver()
@@ -61,12 +61,14 @@ speed_adjust = 0
 move_time = 0
 
 while my_counter < 1:
-    my_robot.drive_backward(wheel_speed - speed_adjust, wheel_speed + speed_adjust)
-    sleep(move_time)
-    my_robot.brake()
-    sleep(1)
-    my_counter = my_counter + 1
+  my_robot.drive_backward(wheel_speed - speed_adjust, wheel_speed + speed_adjust)
+  hold_state(move_time)
+  my_robot.brake()
+  hold_state(1)
+  my_counter = my_counter + 1
 ```
+
+Use `hold_state(seconds)` any time you want the robot to keep doing the same thing for a short time **and** record that pause in `event_log.txt`.
 
 If you see an error while editing this code, check `Common_Errors.md`.
 

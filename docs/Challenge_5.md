@@ -50,9 +50,9 @@ Write code so your robot:
 - If an obstacle is detected within 300mm, the robot stops, turns, and continues forward.
 
 ```python
-from time import sleep
+from aidriver import AIDriver, hold_state
+
 import aidriver
-from aidriver import AIDriver
 
 aidriver.DEBUG_AIDRIVER = True
 my_robot = AIDriver()
@@ -76,7 +76,7 @@ def drive_forward():
 
 def brake():
     my_robot.brake()
-    sleep(3)
+    hold_state(3)
 
 
 while True:
