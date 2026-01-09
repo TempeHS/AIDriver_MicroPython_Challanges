@@ -176,11 +176,11 @@ const AIDriverStub = {
 
           // read_distance()
           $loc.read_distance = new Sk.builtin.func(function (self) {
-            // Get distance from simulator
-            const distance =
-              typeof Simulator !== "undefined"
-                ? Simulator.getUltrasonicDistance()
-                : 1000;
+            // Get distance from simulator using current robot state
+            let distance = 1000;
+            if (typeof Simulator !== "undefined" && typeof App !== "undefined" && App.robot) {
+              distance = Simulator.simulateUltrasonic(App.robot);
+            }
 
             AIDriverStub.queueCommand({
               type: "read_distance",

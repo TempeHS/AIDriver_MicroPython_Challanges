@@ -205,6 +205,11 @@ function setupEventListeners() {
   App.elements.speedSlider.addEventListener("input", (e) => {
     App.speedMultiplier = parseInt(e.target.value);
     App.elements.speedValue.textContent = `${App.speedMultiplier}x`;
+
+    // Update Simulator speed
+    if (typeof Simulator !== "undefined") {
+      Simulator.setSpeed(App.speedMultiplier);
+    }
   });
 
   // Challenge selector
@@ -490,16 +495,20 @@ function stepCode() {
  * Reset robot to starting position
  */
 function resetRobot() {
-  // Reset robot state
-  App.robot = {
-    x: 1000,
-    y: 1800, // Start near bottom
-    heading: 0,
-    leftSpeed: 0,
-    rightSpeed: 0,
-    isMoving: false,
-    trail: [],
-  };
+  // Reset robot state using Simulator's initial state
+  if (typeof Simulator !== "undefined") {
+    App.robot = Simulator.getInitialRobotState();
+  } else {
+    App.robot = {
+      x: 1000,
+      y: 1800, // Start near bottom
+      heading: 0,
+      leftSpeed: 0,
+      rightSpeed: 0,
+      isMoving: false,
+      trail: [],
+    };
+  }
 
   // Clear success/failure overlay
   App.elements.canvasContainer.classList.remove("success", "failure");
@@ -576,9 +585,13 @@ function updateUltrasonicDisplay(distance) {
  * Calculate distance from robot to nearest wall/obstacle
  */
 function calculateDistance() {
-  // Simple calculation to top wall for now
-  const distanceToTop = App.robot.y;
+  // Use Simulator for accurate ultrasonic calculation
+  if (typeof Simulator !== "undefined") {
+    return Simulator.simulateUltrasonic(App.robot);
+  }
 
+  // Fallback: simple calculation to top wall
+  const distanceToTop = App.robot.y;
   if (distanceToTop < 20 || distanceToTop > 2000) {
     return -1;
   }
@@ -1002,13 +1015,25 @@ document.addEventListener("DOMContentLoaded", init);
 
 // Start animation loop
 function startAnimationLoop() {
-  function animate() {
-    if (App.robot.isMoving) {
+  let lastTime = performance.now();
+
+  function animate(currentTime) {
+    const dt = (currentTime - lastTime) / 1000; // Convert to seconds
+    lastTime = currentTime;
+
+    // Update robot using Simulator physics if moving
+    if (App.robot.isMoving || App.robot.leftSpeed !== 0 || App.robot.rightSpeed !== 0) {
+      if (typeof Simulator !== "undefined") {
+        App.robot = Simulator.step(App.robot, dt);
+      }
       render();
+      updateUltrasonicDisplay(calculateDistance());
     }
+
     requestAnimationFrame(animate);
   }
-  animate();
+
+  requestAnimationFrame(animate);
 }
 
 // Also initialize render loop
