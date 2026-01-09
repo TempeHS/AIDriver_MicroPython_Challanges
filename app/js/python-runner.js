@@ -143,6 +143,20 @@ def hold_state(seconds):
       return;
     }
 
+    // Validate code first
+    if (typeof Validator !== "undefined") {
+      const validation = Validator.validate(code);
+      if (!validation.valid) {
+        if (typeof DebugPanel !== "undefined") {
+          DebugPanel.error("Code has errors that must be fixed before running:");
+          for (const error of validation.errors) {
+            DebugPanel.error(`  Line ${error.line}: ${error.message}`);
+          }
+        }
+        throw new Error("Validation failed - fix errors before running");
+      }
+    }
+
     this.isRunning = true;
     this.shouldStop = false;
     this.stepMode = false;
