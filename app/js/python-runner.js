@@ -148,7 +148,9 @@ def hold_state(seconds):
       const validation = Validator.validate(code);
       if (!validation.valid) {
         if (typeof DebugPanel !== "undefined") {
-          DebugPanel.error("Code has errors that must be fixed before running:");
+          DebugPanel.error(
+            "Code has errors that must be fixed before running:"
+          );
           for (const error of validation.errors) {
             DebugPanel.error(`  Line ${error.line}: ${error.message}`);
           }
@@ -334,32 +336,6 @@ def hold_state(seconds):
     }
   },
 };
-
-/**
- * Debug Panel helper (if not defined elsewhere)
- */
-if (typeof DebugPanel === "undefined") {
-  var DebugPanel = {
-    log(message, type = "info") {
-      const console = document.getElementById("debugConsole");
-      if (console) {
-        const line = document.createElement("span");
-        line.className = type;
-        line.textContent = message + "\n";
-        console.appendChild(line);
-        console.scrollTop = console.scrollHeight;
-      }
-      console.log(`[${type}]`, message);
-    },
-
-    clear() {
-      const console = document.getElementById("debugConsole");
-      if (console) {
-        console.textContent = "";
-      }
-    },
-  };
-}
 
 // Export for use in other modules
 if (typeof module !== "undefined" && module.exports) {
