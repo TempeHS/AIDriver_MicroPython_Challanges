@@ -340,7 +340,8 @@ function loadChallenge(challengeId) {
   App.currentChallenge = challengeId;
 
   // Get challenge definition
-  const challenge = typeof Challenges !== "undefined" ? Challenges.get(challengeId) : null;
+  const challenge =
+    typeof Challenges !== "undefined" ? Challenges.get(challengeId) : null;
 
   // Update dropdown text
   const dropdownItems = document.querySelectorAll("[data-challenge]");
@@ -378,7 +379,9 @@ function loadChallenge(challengeId) {
 
   // Initialize session tracking
   App.session = {
-    startPosition: challenge ? { ...challenge.startPosition } : { x: 1000, y: 1800 },
+    startPosition: challenge
+      ? { ...challenge.startPosition }
+      : { x: 1000, y: 1800 },
     hasError: false,
     totalRotation: 0,
     lastHeading: 0,
@@ -416,7 +419,12 @@ function loadChallenge(challengeId) {
   updateUltrasonicDisplay(calculateDistance());
 
   // Update status
-  updateStatus(`Challenge ${challengeId}: ${challenge ? challenge.title : "Unknown"} loaded`, "info");
+  updateStatus(
+    `Challenge ${challengeId}: ${
+      challenge ? challenge.title : "Unknown"
+    } loaded`,
+    "info"
+  );
   App.elements.challengeStatus.textContent = "Ready";
   App.elements.challengeStatus.className = "badge bg-secondary";
 
@@ -460,9 +468,43 @@ function saveCode() {
  * Load a maze (for Challenge 6)
  */
 function loadMaze(mazeId) {
-  logDebug(`[App] Loading maze: ${mazeId}`);
-  // TODO: Implement maze loading in Phase 7
-  updateStatus(`Maze "${mazeId}" loaded`, "info");
+  if (typeof Mazes === "undefined") {
+    logDebug("Mazes module not available");
+    return;
+  }
+
+  const maze = Mazes.get(mazeId);
+  App.currentMaze = maze;
+
+  // Set maze walls in simulator
+  if (typeof Simulator !== "undefined") {
+    Simulator.setMazeWalls(maze.walls);
+  }
+
+  // Update robot start position
+  if (maze.startPosition) {
+    App.robot.x = maze.startPosition.x;
+    App.robot.y = maze.startPosition.y;
+    App.robot.heading = maze.startPosition.heading || 0;
+    App.robot.trail = [];
+    App.robot.leftSpeed = 0;
+    App.robot.rightSpeed = 0;
+    App.robot.isMoving = false;
+  }
+
+  // Update success criteria zone for the maze
+  if (App.currentChallengeConfig && maze.endZone) {
+    App.currentChallengeConfig.successCriteria.zone = maze.endZone;
+  }
+
+  // Re-render
+  render();
+
+  // Update ultrasonic
+  updateUltrasonicDisplay(calculateDistance());
+
+  DebugPanel.info(`Maze "${maze.name}" loaded`);
+  updateStatus(`Maze: ${maze.name} (${maze.difficulty})`, "info");
 }
 
 /**
@@ -850,12 +892,18 @@ function drawPath(ctx, scale) {
 }
 
 /**
- * Draw arena walls
+ * Draw arena walls and maze
  */
 function drawWalls(ctx, scale) {
+  // Draw arena border
   ctx.strokeStyle = "#ffffff";
   ctx.lineWidth = 4;
   ctx.strokeRect(2, 2, ctx.canvas.width - 4, ctx.canvas.height - 4);
+
+  // Draw maze walls if applicable
+  if (App.currentMaze && typeof Mazes !== "undefined") {
+    Mazes.draw(ctx, scale, App.currentMaze.id);
+  }
 }
 
 /**
@@ -1243,9 +1291,15 @@ function updateSessionTracking() {
   App.session.lastHeading = App.robot.heading;
 
   // Track center crossovers (for figure-8)
-  if (App.currentChallengeConfig && App.currentChallengeConfig.successCriteria.type === "figure_eight") {
+  if (
+    App.currentChallengeConfig &&
+    App.currentChallengeConfig.successCriteria.type === "figure_eight"
+  ) {
     const crossover = App.currentChallengeConfig.successCriteria.crossoverPoint;
-    const distToCenter = Math.hypot(App.robot.x - crossover.x, App.robot.y - crossover.y);
+    const distToCenter = Math.hypot(
+      App.robot.x - crossover.x,
+      App.robot.y - crossover.y
+    );
     if (distToCenter < 100 && !App.session.nearCenter) {
       App.session.crossoverCount++;
       App.session.nearCenter = true;
