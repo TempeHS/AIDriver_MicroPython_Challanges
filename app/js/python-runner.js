@@ -174,34 +174,36 @@ def hold_state(seconds):
     }
 
     try {
-      // Configure interrupt check
-      Sk.execLimit = null;
-      Sk.execLimitFunction = () => {
-        if (this.shouldStop) {
-          throw new Sk.builtin.KeyboardInterrupt("Execution stopped by user");
-        }
-      };
-
-      // Compile the code
-      const compiled = Sk.compile(code, "<stdin>", "exec", true);
-
-      // Create module and run
-      const module = Sk.importMainWithBody("<stdin>", false, code, true);
-
-      // Wait for execution to complete
-      this.executionPromise = Sk.misceval.asyncToPromise(() => module, {
-        "*": () => {
-          // Check if we should stop
-          if (this.shouldStop) {
-            throw new Sk.builtin.KeyboardInterrupt("Execution stopped by user");
-          }
-
-          // Process queued commands
-          this.processCommandQueue();
-        },
+      // Configure Skulpt for async execution
+      Sk.configure({
+        output: this.handleOutput.bind(this),
+        read: this.handleRead.bind(this),
+        yieldLimit: 100, // Yield every 100 ops to prevent blocking
+        execLimit: Number.MAX_SAFE_INTEGER,
+        __future__: Sk.python3,
       });
 
-      await this.executionPromise;
+      // Register the aidriver module
+      Sk.builtins["__builtinmodules__"] = Sk.builtins["__builtinmodules__"] || {};
+      Sk.builtins["__builtinmodules__"]["aidriver"] = AIDriverStub.getModule();
+
+      // Compile and run
+      const promise = Sk.misceval.asyncToPromise(
+        () => Sk.importMainWithBody("<stdin>", false, code, true),
+        {
+          "*": () => {
+            // Check if we should stop
+            if (this.shouldStop) {
+              throw new Sk.builtin.KeyboardInterrupt("Execution stopped");
+            }
+            // Process commands on each yield
+            this.processCommandQueue();
+          },
+        }
+      );
+
+      this.executionPromise = promise;
+      await promise;
 
       if (typeof DebugPanel !== "undefined") {
         DebugPanel.log("[Python] Execution completed", "success");
@@ -250,8 +252,10 @@ def hold_state(seconds):
     AIDriverStub.clearQueue();
 
     // Stop the robot
-    if (typeof Simulator !== "undefined") {
-      Simulator.brake();
+    if (typeof App !== "undefined" && App.robot) {
+      App.robot.leftSpeed = 0;
+      App.robot.rightSpeed = 0;
+      App.robot.isMoving = false;
     }
 
     if (typeof DebugPanel !== "undefined") {
@@ -268,10 +272,53 @@ def hold_state(seconds):
     while (AIDriverStub.hasCommands()) {
       const cmd = AIDriverStub.getNextCommand();
 
-      if (typeof Simulator !== "undefined") {
-        Simulator.executeCommand(cmd);
-      } else {
-        console.log("[PythonRunner] Command:", cmd);
+      // Update App.robot directly based on command
+      if (typeof App !== "undefined" && App.robot) {
+        switch (cmd.type) {
+          case "drive_forward":
+            App.robot.leftSpeed = cmd.params.leftSpeed;
+            App.robot.rightSpeed = cmd.params.rightSpeed;
+            App.robot.isMoving = true;
+            break;
+
+          case "drive_backward":
+            App.robot.leftSpeed = -cmd.params.leftSpeed;
+            App.robot.rightSpeed = -cmd.params.rightSpeed;
+            App.robot.isMoving = true;
+            break;
+
+          case "rotate_left":
+            App.robot.leftSpeed = -cmd.params.turnSpeed;
+            App.robot.rightSpeed = cmd.params.turnSpeed;
+            App.robot.isMoving = true;
+            break;
+
+          case "rotate_right":
+            App.robot.leftSpeed = cmd.params.turnSpeed;
+            App.robot.rightSpeed = -cmd.params.turnSpeed;
+            App.robot.isMoving = true;
+            break;
+
+          case "brake":
+            App.robot.leftSpeed = 0;
+            App.robot.rightSpeed = 0;
+            App.robot.isMoving = false;
+            break;
+
+          case "init":
+            // Robot initialized
+            if (typeof DebugPanel !== "undefined") {
+              DebugPanel.info("[AIDriver] Robot initialized");
+            }
+            break;
+
+          case "read_distance":
+            // Just logging, no action needed
+            break;
+
+          default:
+            console.log("[PythonRunner] Unknown command:", cmd);
+        }
       }
     }
   },
