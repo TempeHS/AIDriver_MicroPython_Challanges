@@ -122,31 +122,17 @@ function initBootstrapComponents() {
 }
 
 /**
- * Initialize ACE Editor
+ * Initialize ACE Editor using the Editor module
  */
 function initEditor() {
-    App.editor = ace.edit('editor');
-    App.editor.setTheme('ace/theme/monokai');
-    App.editor.session.setMode('ace/mode/python');
-    App.editor.setOptions({
-        fontSize: '14px',
-        showPrintMargin: false,
-        tabSize: 4,
-        useSoftTabs: true,
-        wrap: true
-    });
+    // Use the Editor module for full functionality
+    Editor.init();
+    App.editor = Editor.instance;
     
     // Set placeholder content
-    App.editor.setValue('# Select a challenge to load starter code\n', -1);
+    Editor.setCode('# Select a challenge to load starter code\n');
     
-    // Auto-save on change (debounced)
-    let saveTimeout;
-    App.editor.on('change', () => {
-        clearTimeout(saveTimeout);
-        saveTimeout = setTimeout(() => saveCode(), 1000);
-    });
-    
-    console.log('[App] ACE Editor initialized');
+    console.log('[App] ACE Editor initialized via Editor module');
 }
 
 /**
@@ -348,10 +334,13 @@ function loadChallenge(challengeId) {
     // Show/hide gamepad for Challenge 7
     App.elements.gamepadPanel.classList.toggle('d-none', challengeId !== 7);
     
+    // Clear any existing error markers
+    Editor.clearAllMarkers();
+    
     // Try to load saved code, otherwise load starter code
-    const savedCode = localStorage.getItem(`aidriver_challenge_${challengeId}_code`);
+    const savedCode = Editor.loadSavedCode(challengeId);
     if (savedCode) {
-        App.editor.setValue(savedCode, -1);
+        Editor.setCode(savedCode);
         logDebug(`[App] Loaded saved code for Challenge ${challengeId}`);
     } else {
         loadStarterCode(challengeId);
@@ -374,7 +363,7 @@ function loadChallenge(challengeId) {
 function loadStarterCode(challengeId) {
     const starterCodes = getStarterCodes();
     const code = starterCodes[challengeId] || '# No starter code available\n';
-    App.editor.setValue(code, -1);
+    Editor.setCode(code);
     logDebug(`[App] Loaded starter code for Challenge ${challengeId}`);
 }
 
@@ -382,17 +371,16 @@ function loadStarterCode(challengeId) {
  * Reset to starter code (discard changes)
  */
 function resetToStarterCode() {
-    localStorage.removeItem(`aidriver_challenge_${App.currentChallenge}_code`);
+    Editor.clearSavedCode(App.currentChallenge);
     loadStarterCode(App.currentChallenge);
     logDebug('[App] Code reset to starter code');
 }
 
 /**
- * Save code to localStorage
+ * Save code to localStorage (handled by Editor module now)
  */
 function saveCode() {
-    const code = App.editor.getValue();
-    localStorage.setItem(`aidriver_challenge_${App.currentChallenge}_code`, code);
+    Editor.saveCode();
 }
 
 /**
