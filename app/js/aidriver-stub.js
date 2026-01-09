@@ -25,6 +25,7 @@ const AIDriverStub = {
    * Add a command to the queue
    */
   queueCommand(cmd) {
+    console.log("[AIDriverStub] queueCommand:", cmd.type, cmd.params);
     this.commandQueue.push(cmd);
 
     if (this.DEBUG_AIDRIVER) {
@@ -56,6 +57,7 @@ const AIDriverStub = {
     const self = this;
 
     return function (name) {
+      console.log("[AIDriverStub] getModule called with name:", name);
       if (name !== "aidriver") return undefined;
 
       const mod = {};

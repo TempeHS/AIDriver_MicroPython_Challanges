@@ -56,13 +56,13 @@ const Challenges = (function () {
       startPosition: { x: 1000, y: 1800, heading: 0 },
       successCriteria: {
         type: "reach_zone",
-        zone: { x: 900, y: 100, width: 200, height: 200 },
+        zone: { x: 900, y: 0, width: 200, height: 150 },
         maxDeviation: 150, // Max allowed X deviation from center
       },
       path: {
         type: "line",
         start: { x: 1000, y: 1800 },
-        end: { x: 1000, y: 200 },
+        end: { x: 1000, y: 75 },
         width: 150,
       },
       obstacles: [],
@@ -82,7 +82,7 @@ const Challenges = (function () {
         "Faster right wheel = turn left",
         "Larger speed difference = tighter circle",
       ],
-      startPosition: { x: 1000, y: 1200, heading: 0 },
+      startPosition: { x: 1000, y: 1400, heading: 90 },
       successCriteria: {
         type: "complete_circle",
         centerTolerance: 300, // Must return within 300mm of start
@@ -125,63 +125,66 @@ const Challenges = (function () {
       obstacles: [],
     },
 
-    // Challenge 4: U-Turn
+    // Challenge 4: Drive a Square
     4: {
       id: 4,
-      title: "U-Turn",
-      subtitle: "Rotation Control",
+      title: "Drive a Square",
+      subtitle: "Precision Turning",
       difficulty: DIFFICULTY.MEDIUM,
-      description: "Drive forward, detect the wall, do a 180° turn, return.",
-      goal: "Complete a U-turn maneuver and return to the starting area.",
+      description: "Drive in a square pattern using 90-degree turns.",
+      goal: "Complete a square path and return to the starting position.",
       hints: [
-        "Drive forward until close to wall",
-        "rotate_left() or rotate_right() to turn",
-        "Time the rotation for 180 degrees",
-        "Drive back to start",
+        "Drive forward a set distance",
+        "Use rotate_left() or rotate_right() to turn 90 degrees",
+        "Repeat 4 times to complete the square",
+        "Timing is key for accurate turns",
       ],
-      startPosition: { x: 1000, y: 1800, heading: 0 },
+      startPosition: { x: 600, y: 1400, heading: 0 },
       successCriteria: {
-        type: "return_to_start",
-        startZone: { x: 800, y: 1600, width: 400, height: 400 },
-        mustReachTop: 400, // Must get within 400mm of top
+        type: "complete_square",
+        startZone: { x: 500, y: 1300, width: 200, height: 200 },
+        minSideLength: 600,
+        corners: 4,
       },
       path: {
-        type: "uturn",
-        startY: 1800,
-        endY: 300,
-        width: 200,
+        type: "square",
+        corner: { x: 600, y: 1400 },
+        size: 800,
+        width: 150,
       },
       obstacles: [],
     },
 
-    // Challenge 5: Figure 8
+    // Challenge 5: Obstacle Avoidance
     5: {
       id: 5,
-      title: "Figure 8",
-      subtitle: "Complex Path",
+      title: "Obstacle Avoidance",
+      subtitle: "Sensor Navigation",
       difficulty: DIFFICULTY.MEDIUM,
-      description:
-        "Drive in a figure-8 pattern combining left and right turns.",
-      goal: "Complete at least one figure-8 loop.",
+      description: "Navigate around obstacles using the ultrasonic sensor.",
+      goal: "Reach the target zone without hitting any obstacles.",
       hints: [
-        "Figure 8 = circle left, then circle right (or vice versa)",
-        "Switch wheel speed differential at the crossover",
-        "Timing and speed balance are key",
+        "Use read_distance() to detect obstacles ahead",
+        "Turn when distance is too close",
+        "Check distance frequently while moving",
+        "Plan your path around the obstacles",
       ],
-      startPosition: { x: 1000, y: 1000, heading: 0 },
+      startPosition: { x: 1000, y: 1800, heading: 0 },
       successCriteria: {
-        type: "figure_eight",
-        crossoverPoint: { x: 1000, y: 1000 },
-        crossoverCount: 2, // Must cross center twice
-        minRotation: 600, // Must rotate at least 600 degrees total
+        type: "reach_zone",
+        zone: { x: 900, y: 100, width: 200, height: 200 },
       },
       path: {
-        type: "figure_eight",
-        center: { x: 1000, y: 1000 },
-        loopRadius: 350,
-        width: 150,
+        type: "line",
+        start: { x: 1000, y: 1800 },
+        end: { x: 1000, y: 200 },
+        width: 400,
       },
-      obstacles: [],
+      obstacles: [
+        { x: 800, y: 1200, width: 200, height: 200 },
+        { x: 1100, y: 800, width: 200, height: 200 },
+        { x: 700, y: 400, width: 200, height: 200 },
+      ],
     },
 
     // Challenge 6: Maze Navigation

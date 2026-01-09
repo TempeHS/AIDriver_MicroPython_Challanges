@@ -9,7 +9,8 @@ const App = {
   currentChallenge: 0,
   isRunning: false,
   isPaused: false,
-  speedMultiplier: 5,
+  hasRun: false, // Track if code has been run (requires reset before running again)
+  speedMultiplier: 2,
 
   // ACE Editor instance
   editor: null,
@@ -221,6 +222,11 @@ function setupEventListeners() {
   document.querySelectorAll("[data-challenge]").forEach((item) => {
     item.addEventListener("click", (e) => {
       e.preventDefault();
+      // Stop any running code and reset before changing challenge
+      if (App.isRunning) {
+        stopExecution();
+      }
+      App.hasRun = false;
       const challengeId = parseInt(e.currentTarget.dataset.challenge);
       loadChallenge(challengeId);
     });
@@ -363,9 +369,25 @@ function loadChallenge(challengeId) {
   // Show/hide maze selector for Challenge 6
   App.elements.mazeSelector.classList.toggle("d-none", challengeId !== 6);
 
-  // Show/hide gamepad for Challenge 7
-  const isGamepadChallenge = challenge && challenge.gamepadEnabled;
+  // Show/hide gamepad for Challenge 7 and adjust editor height
+  const isGamepadChallenge = challenge && challenge.gamepadEnabled === true;
   App.elements.gamepadPanel.classList.toggle("d-none", !isGamepadChallenge);
+
+  // Explicitly add/remove gamepad-mode class based on challenge type
+  const editorEl = document.getElementById("editor");
+  const editorCardEl = document.getElementById("editorCard");
+  if (isGamepadChallenge) {
+    editorEl.classList.add("gamepad-mode");
+    editorCardEl.classList.add("gamepad-mode");
+  } else {
+    editorEl.classList.remove("gamepad-mode");
+    editorCardEl.classList.remove("gamepad-mode");
+  }
+
+  // Resize ACE editor when toggling gamepad mode
+  if (typeof Editor !== "undefined" && Editor.resize) {
+    setTimeout(() => Editor.resize(), 100);
+  }
 
   // Enable/disable gamepad control
   if (typeof Gamepad !== "undefined") {
@@ -398,7 +420,10 @@ function loadChallenge(challengeId) {
       : { x: 1000, y: 1800 },
     hasError: false,
     totalRotation: 0,
-    lastHeading: 0,
+    lastHeading:
+      challenge && challenge.startPosition
+        ? challenge.startPosition.heading || 0
+        : 0,
     minY: 2000,
     crossoverCount: 0,
     startTime: null,
@@ -425,6 +450,9 @@ function loadChallenge(challengeId) {
       Simulator.clearObstacles();
     }
   }
+
+  // Clear success/failure overlay from previous challenge
+  App.elements.canvasContainer.classList.remove("success", "failure");
 
   // Render initial state
   render();
@@ -529,6 +557,14 @@ function runCode() {
 
   App.isRunning = true;
   App.isPaused = false;
+  App.hasRun = true; // Track that code has been run (requires reset)
+
+  // Reset session tracking for fresh run
+  if (App.session) {
+    App.session.totalRotation = 0;
+    App.session.startTime = Date.now();
+    App.session.lastHeading = App.robot.heading;
+  }
 
   // Update UI
   App.elements.btnRun.disabled = true;
@@ -573,10 +609,10 @@ function stopExecution() {
   App.isRunning = false;
   App.isPaused = false;
 
-  // Update UI
-  App.elements.btnRun.disabled = false;
+  // Update UI - Run stays disabled until Reset
+  App.elements.btnRun.disabled = App.hasRun; // Only enable if hasn't run yet
   App.elements.btnStop.disabled = true;
-  App.elements.btnStep.disabled = false;
+  App.elements.btnStep.disabled = App.hasRun;
 
   // Stop robot
   App.robot.leftSpeed = 0;
@@ -601,8 +637,47 @@ function stepCode() {
  * Reset robot to starting position
  */
 function resetRobot() {
-  // Reset robot state using Simulator's initial state
-  if (typeof Simulator !== "undefined") {
+  // Clear hasRun flag FIRST - so stopExecution doesn't disable Run button
+  App.hasRun = false;
+
+  // Stop any running script
+  if (App.isRunning) {
+    stopExecution();
+  }
+
+  // Ensure Run button is enabled
+  App.elements.btnRun.disabled = false;
+  App.elements.btnStep.disabled = false;
+
+  // Reset session tracking
+  const challenge = App.currentChallengeConfig;
+  App.session = {
+    startPosition: challenge
+      ? { ...challenge.startPosition }
+      : { x: 1000, y: 1800 },
+    hasError: false,
+    totalRotation: 0,
+    lastHeading:
+      challenge && challenge.startPosition
+        ? challenge.startPosition.heading || 0
+        : 0,
+    minY: 2000,
+    crossoverCount: 0,
+    startTime: null,
+  };
+
+  // Reset robot state to current challenge's start position
+  if (challenge && challenge.startPosition) {
+    App.robot = {
+      x: challenge.startPosition.x,
+      y: challenge.startPosition.y,
+      heading: challenge.startPosition.heading || 0,
+      leftSpeed: 0,
+      rightSpeed: 0,
+      isMoving: false,
+      trail: [],
+    };
+  } else if (typeof Simulator !== "undefined") {
     App.robot = Simulator.getInitialRobotState();
   } else {
     App.robot = {
@@ -867,6 +942,92 @@ function drawPath(ctx, scale) {
       ctx.lineTo(1000 * scale, path.endY * scale);
       ctx.stroke();
       break;
+
+    case "square":
+      // Draw square path with lane
+      const x = path.corner.x * scale;
+      const y = path.corner.y * scale;
+      const size = path.size * scale;
+      const laneWidth = (path.width || 150) * scale;
+      const halfLane = laneWidth / 2;
+
+      // Draw center line (main path)
+      ctx.strokeStyle = "rgba(0, 255, 136, 0.6)";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x, y - size); // Up
+      ctx.lineTo(x + size, y - size); // Right
+      ctx.lineTo(x + size, y); // Down
+      ctx.lineTo(x, y); // Back to start
+      ctx.stroke();
+
+      // Draw outer lane boundary
+      ctx.strokeStyle = "rgba(0, 255, 136, 0.2)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x - halfLane, y + halfLane);
+      ctx.lineTo(x - halfLane, y - size - halfLane); // Up
+      ctx.lineTo(x + size + halfLane, y - size - halfLane); // Right
+      ctx.lineTo(x + size + halfLane, y + halfLane); // Down
+      ctx.lineTo(x - halfLane, y + halfLane); // Back to start
+      ctx.stroke();
+
+      // Draw inner lane boundary
+      ctx.beginPath();
+      ctx.moveTo(x + halfLane, y - halfLane);
+      ctx.lineTo(x + halfLane, y - size + halfLane); // Up
+      ctx.lineTo(x + size - halfLane, y - size + halfLane); // Right
+      ctx.lineTo(x + size - halfLane, y - halfLane); // Down
+      ctx.lineTo(x + halfLane, y - halfLane); // Back to start
+      ctx.stroke();
+
+      // Fill the lane area with subtle color
+      ctx.fillStyle = "rgba(0, 255, 136, 0.1)";
+      // Fill using even-odd rule by drawing outer then inner
+      ctx.beginPath();
+      // Outer square
+      ctx.moveTo(x - halfLane, y + halfLane);
+      ctx.lineTo(x - halfLane, y - size - halfLane);
+      ctx.lineTo(x + size + halfLane, y - size - halfLane);
+      ctx.lineTo(x + size + halfLane, y + halfLane);
+      ctx.closePath();
+      // Inner square (counter-clockwise for cutout)
+      ctx.moveTo(x + halfLane, y - halfLane);
+      ctx.lineTo(x + size - halfLane, y - halfLane);
+      ctx.lineTo(x + size - halfLane, y - size + halfLane);
+      ctx.lineTo(x + halfLane, y - size + halfLane);
+      ctx.closePath();
+      ctx.fill("evenodd");
+
+      // Draw corner markers
+      ctx.fillStyle = "rgba(0, 255, 136, 0.3)";
+      const markerSize = 20 * scale;
+      ctx.fillRect(
+        x - markerSize / 2,
+        y - markerSize / 2,
+        markerSize,
+        markerSize
+      );
+      ctx.fillRect(
+        x - markerSize / 2,
+        y - size - markerSize / 2,
+        markerSize,
+        markerSize
+      );
+      ctx.fillRect(
+        x + size - markerSize / 2,
+        y - size - markerSize / 2,
+        markerSize,
+        markerSize
+      );
+      ctx.fillRect(
+        x + size - markerSize / 2,
+        y - markerSize / 2,
+        markerSize,
+        markerSize
+      );
+      break;
   }
 
   ctx.setLineDash([]);
@@ -938,38 +1099,150 @@ function drawTrail(ctx, scale) {
 }
 
 /**
- * Draw the robot
+ * Draw the robot (car top-down view)
  */
 function drawRobot(ctx, scale) {
   const x = App.robot.x * scale;
   const y = App.robot.y * scale;
   const heading = (App.robot.heading * Math.PI) / 180;
 
-  // Robot dimensions (80mm x 50mm)
-  const width = 80 * scale;
-  const height = 50 * scale;
+  // Car dimensions (length x width) - rotated 90 degrees so length is along heading
+  const carLength = 100 * scale;
+  const carWidth = 50 * scale;
 
   ctx.save();
   ctx.translate(x, y);
-  ctx.rotate(heading);
+  ctx.rotate(heading - Math.PI / 2); // Rotate -90 degrees so car faces up
 
-  // Robot body
-  ctx.fillStyle = "#ff6b6b";
-  ctx.fillRect(-width / 2, -height / 2, width, height);
-
-  // Front indicator (direction arrow)
-  ctx.fillStyle = "#ffffff";
+  // Main car body (red)
+  ctx.fillStyle = "#cc0000";
   ctx.beginPath();
-  ctx.moveTo(0, -height / 2 - 10 * scale);
-  ctx.lineTo(-10 * scale, -height / 2 + 5 * scale);
-  ctx.lineTo(10 * scale, -height / 2 + 5 * scale);
+  // Rounded rectangle for car body
+  const bodyX = -carLength / 2;
+  const bodyY = -carWidth / 2;
+  const radius = 8 * scale;
+  ctx.moveTo(bodyX + radius, bodyY);
+  ctx.lineTo(bodyX + carLength - radius, bodyY);
+  ctx.quadraticCurveTo(
+    bodyX + carLength,
+    bodyY,
+    bodyX + carLength,
+    bodyY + radius
+  );
+  ctx.lineTo(bodyX + carLength, bodyY + carWidth - radius);
+  ctx.quadraticCurveTo(
+    bodyX + carLength,
+    bodyY + carWidth,
+    bodyX + carLength - radius,
+    bodyY + carWidth
+  );
+  ctx.lineTo(bodyX + radius, bodyY + carWidth);
+  ctx.quadraticCurveTo(
+    bodyX,
+    bodyY + carWidth,
+    bodyX,
+    bodyY + carWidth - radius
+  );
+  ctx.lineTo(bodyX, bodyY + radius);
+  ctx.quadraticCurveTo(bodyX, bodyY, bodyX + radius, bodyY);
   ctx.closePath();
   ctx.fill();
 
-  // Wheels
-  ctx.fillStyle = "#333333";
-  ctx.fillRect(-width / 2 - 5 * scale, -height / 3, 5 * scale, height / 1.5);
-  ctx.fillRect(width / 2, -height / 3, 5 * scale, height / 1.5);
+  // Front windshield (dark, at the front/right of car heading up)
+  ctx.fillStyle = "#3a1a1a";
+  ctx.beginPath();
+  ctx.moveTo(carLength * 0.15, -carWidth * 0.35);
+  ctx.lineTo(carLength * 0.35, -carWidth * 0.4);
+  ctx.lineTo(carLength * 0.35, carWidth * 0.4);
+  ctx.lineTo(carLength * 0.15, carWidth * 0.35);
+  ctx.closePath();
+  ctx.fill();
+
+  // Rear windshield (dark)
+  ctx.fillStyle = "#3a1a1a";
+  ctx.beginPath();
+  ctx.moveTo(-carLength * 0.15, -carWidth * 0.35);
+  ctx.lineTo(-carLength * 0.38, -carWidth * 0.38);
+  ctx.lineTo(-carLength * 0.38, carWidth * 0.38);
+  ctx.lineTo(-carLength * 0.15, carWidth * 0.35);
+  ctx.closePath();
+  ctx.fill();
+
+  // Hood vents (decorative lines on front)
+  ctx.strokeStyle = "#990000";
+  ctx.lineWidth = 1 * scale;
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.moveTo(carLength * 0.25, -carWidth * 0.15 + i * 5 * scale);
+    ctx.lineTo(carLength * 0.4, -carWidth * 0.15 + i * 5 * scale);
+    ctx.stroke();
+  }
+
+  // Headlights (front)
+  ctx.fillStyle = "#ffff99";
+  ctx.beginPath();
+  ctx.ellipse(
+    carLength * 0.45,
+    -carWidth * 0.3,
+    4 * scale,
+    3 * scale,
+    0,
+    0,
+    Math.PI * 2
+  );
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(
+    carLength * 0.45,
+    carWidth * 0.3,
+    4 * scale,
+    3 * scale,
+    0,
+    0,
+    Math.PI * 2
+  );
+  ctx.fill();
+
+  // Taillights (rear)
+  ctx.fillStyle = "#ff3333";
+  ctx.fillRect(-carLength * 0.48, -carWidth * 0.35, 4 * scale, 6 * scale);
+  ctx.fillRect(
+    -carLength * 0.48,
+    carWidth * 0.35 - 6 * scale,
+    4 * scale,
+    6 * scale
+  );
+
+  // Wheels (4 wheels at corners)
+  ctx.fillStyle = "#222222";
+  // Front left
+  ctx.fillRect(
+    carLength * 0.25,
+    -carWidth / 2 - 4 * scale,
+    12 * scale,
+    6 * scale
+  );
+  // Front right
+  ctx.fillRect(
+    carLength * 0.25,
+    carWidth / 2 - 2 * scale,
+    12 * scale,
+    6 * scale
+  );
+  // Rear left
+  ctx.fillRect(
+    -carLength * 0.37,
+    -carWidth / 2 - 4 * scale,
+    12 * scale,
+    6 * scale
+  );
+  // Rear right
+  ctx.fillRect(
+    -carLength * 0.37,
+    carWidth / 2 - 2 * scale,
+    12 * scale,
+    6 * scale
+  );
 
   ctx.restore();
 }
@@ -988,23 +1261,20 @@ function updateRobotPosition() {
   const avgSpeed = (leftSpeed + rightSpeed) / 2;
   const turnRate = (rightSpeed - leftSpeed) / 100; // Simplified turn rate
 
-  // Update heading
-  App.robot.heading += turnRate * dt * 50;
+  // Update heading - differential drive: larger speed diff = tighter turn
+  App.robot.heading += turnRate * dt * 10;
 
-  // Update position
+  // Update position: doubled for longer trail
   const headingRad = (App.robot.heading * Math.PI) / 180;
-  App.robot.x += Math.sin(headingRad) * avgSpeed * dt * 0.5;
-  App.robot.y -= Math.cos(headingRad) * avgSpeed * dt * 0.5;
+  App.robot.x += Math.sin(headingRad) * avgSpeed * dt * 0.24;
+  App.robot.y -= Math.cos(headingRad) * avgSpeed * dt * 0.24;
 
   // Clamp to arena bounds
   App.robot.x = Math.max(50, Math.min(1950, App.robot.x));
   App.robot.y = Math.max(50, Math.min(1950, App.robot.y));
 
-  // Add to trail
+  // Add to trail - keep full path (no limit)
   App.robot.trail.push({ x: App.robot.x, y: App.robot.y });
-  if (App.robot.trail.length > 500) {
-    App.robot.trail.shift();
-  }
 }
 
 /**
@@ -1328,6 +1598,12 @@ function updateSessionTracking() {
  */
 function checkChallengeSuccess() {
   if (!App.currentChallengeConfig || typeof Challenges === "undefined") return;
+
+  // Require at least 2 seconds of running before checking success
+  if (App.session && App.session.startTime) {
+    const elapsed = Date.now() - App.session.startTime;
+    if (elapsed < 2000) return; // Don't check success in first 2 seconds
+  }
 
   const result = Challenges.checkSuccess(
     App.currentChallenge,

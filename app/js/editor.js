@@ -223,9 +223,13 @@ const Editor = {
    * Run validation on current code
    */
   validateCode() {
-    if (typeof Validator === "undefined") return;
+    if (typeof Validator === "undefined") {
+      console.log("[Editor] Validator not available");
+      return;
+    }
 
     const code = this.getCode();
+    console.log("[Editor] Running validation...");
 
     // Clear previous validation markers
     this.clearAllMarkers();
@@ -233,9 +237,13 @@ const Editor = {
     // Run validation
     const result = Validator.validate(code);
 
-    // Also check method usage
+    // Also check method usage on AIDriver instances
     const methodWarnings = Validator.validateMethodUsage(code);
     result.warnings.push(...methodWarnings);
+
+    // Check for undefined function calls
+    const functionErrors = Validator.validateFunctionCalls(code);
+    result.errors.push(...functionErrors);
 
     // Mark errors
     for (const error of result.errors) {
@@ -250,16 +258,33 @@ const Editor = {
     // Update validation status in UI
     if (typeof App !== "undefined" && App.elements) {
       const statusEl = App.elements.challengeStatus;
+      const runBtn = App.elements.btnRun;
+
       if (statusEl) {
         if (result.errors.length > 0) {
           statusEl.textContent = `${result.errors.length} error(s)`;
           statusEl.className = "badge bg-danger";
+          // Disable Run button when there are errors
+          if (runBtn) {
+            runBtn.disabled = true;
+            runBtn.title = "Fix errors before running";
+          }
         } else if (result.warnings.length > 0) {
           statusEl.textContent = `${result.warnings.length} warning(s)`;
           statusEl.className = "badge bg-warning";
+          // Enable Run button for warnings (they're not blocking)
+          if (runBtn && !App.isRunning && !App.hasRun) {
+            runBtn.disabled = false;
+            runBtn.title = "Run code";
+          }
         } else {
           statusEl.textContent = "Ready";
           statusEl.className = "badge bg-success";
+          // Enable Run button when no errors
+          if (runBtn && !App.isRunning && !App.hasRun) {
+            runBtn.disabled = false;
+            runBtn.title = "Run code";
+          }
         }
       }
     }

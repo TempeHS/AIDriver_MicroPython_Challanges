@@ -21,9 +21,20 @@ body {
 /* Editor Styling */
 #editor {
   width: 100%;
-  height: calc(100vh - 200px);
+  height: 500px;
   min-height: 400px;
   font-size: 14px;
+}
+
+/* Reduced editor height for gamepad mode (Challenge 7) */
+#editor.gamepad-mode {
+  height: 250px;
+  min-height: 200px;
+}
+
+/* Editor card shrinks to fit content in gamepad mode */
+#editorCard.gamepad-mode {
+  height: auto !important;
 }
 
 /* Arena Container */

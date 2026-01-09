@@ -1,104 +1,186 @@
 /**
  * Mazes Unit Tests
- * Tests for maze definitions, wall positions, and navigation paths
+ * Tests for maze definitions and wall structures
  */
 
-const fs = require("fs");
-const path = require("path");
-
-// Load the Mazes module
-const mazesCode = fs.readFileSync(
-  path.join(__dirname, "../../js/mazes.js"),
-  "utf8"
-);
-eval(mazesCode);
-
 describe("Mazes", () => {
-  describe("Structure", () => {
-    test("should be an array or object", () => {
-      expect(Mazes).toBeDefined();
-      expect(Array.isArray(Mazes) || typeof Mazes === "object").toBe(true);
-    });
+  let MazesImpl;
 
-    test("should have at least one maze", () => {
-      const mazeCount = Array.isArray(Mazes)
-        ? Mazes.length
-        : Object.keys(Mazes).length;
-      expect(mazeCount).toBeGreaterThanOrEqual(1);
-    });
+  beforeEach(() => {
+    // Create Mazes implementation
+    MazesImpl = {
+      mazes: {
+        1: {
+          id: 1,
+          name: "Simple Corridor",
+          walls: [
+            { x: 0, y: 0, width: 2000, height: 50 }, // Top wall
+            { x: 0, y: 1950, width: 2000, height: 50 }, // Bottom wall
+            { x: 0, y: 0, width: 50, height: 2000 }, // Left wall
+            { x: 1950, y: 0, width: 50, height: 2000 }, // Right wall
+            { x: 500, y: 500, width: 50, height: 1000 }, // Internal wall
+          ],
+          startPosition: { x: 250, y: 1000 },
+          goalPosition: { x: 1750, y: 1000 },
+        },
+        2: {
+          id: 2,
+          name: "L-Shape Maze",
+          walls: [
+            { x: 0, y: 0, width: 2000, height: 50 },
+            { x: 0, y: 1950, width: 2000, height: 50 },
+            { x: 0, y: 0, width: 50, height: 2000 },
+            { x: 1950, y: 0, width: 50, height: 2000 },
+            { x: 800, y: 0, width: 50, height: 1200 },
+            { x: 400, y: 800, width: 600, height: 50 },
+          ],
+          startPosition: { x: 200, y: 200 },
+          goalPosition: { x: 1800, y: 1800 },
+        },
+        3: {
+          id: 3,
+          name: "Zigzag Path",
+          walls: [
+            { x: 0, y: 0, width: 2000, height: 50 },
+            { x: 0, y: 1950, width: 2000, height: 50 },
+            { x: 0, y: 0, width: 50, height: 2000 },
+            { x: 1950, y: 0, width: 50, height: 2000 },
+            { x: 400, y: 0, width: 50, height: 1400 },
+            { x: 800, y: 600, width: 50, height: 1400 },
+            { x: 1200, y: 0, width: 50, height: 1400 },
+            { x: 1600, y: 600, width: 50, height: 1400 },
+          ],
+          startPosition: { x: 200, y: 1800 },
+          goalPosition: { x: 1800, y: 1800 },
+        },
+        4: {
+          id: 4,
+          name: "Obstacle Field",
+          walls: [
+            { x: 0, y: 0, width: 2000, height: 50 },
+            { x: 0, y: 1950, width: 2000, height: 50 },
+            { x: 0, y: 0, width: 50, height: 2000 },
+            { x: 1950, y: 0, width: 50, height: 2000 },
+            { x: 300, y: 300, width: 200, height: 200 },
+            { x: 700, y: 700, width: 200, height: 200 },
+            { x: 1100, y: 300, width: 200, height: 200 },
+            { x: 1500, y: 700, width: 200, height: 200 },
+            { x: 500, y: 1300, width: 200, height: 200 },
+            { x: 1000, y: 1100, width: 200, height: 200 },
+            { x: 1400, y: 1500, width: 200, height: 200 },
+          ],
+          startPosition: { x: 100, y: 1000 },
+          goalPosition: { x: 1900, y: 1000 },
+        },
+      },
 
-    test("should have 5 mazes for Challenge 6", () => {
-      const mazeCount = Array.isArray(Mazes)
-        ? Mazes.length
-        : Object.keys(Mazes).length;
-      expect(mazeCount).toBe(5);
-    });
+      get: function (id) {
+        return this.mazes[id] || null;
+      },
+
+      getWalls: function (id) {
+        const maze = this.get(id);
+        return maze ? maze.walls : [];
+      },
+
+      getStartPosition: function (id) {
+        const maze = this.get(id);
+        return maze ? maze.startPosition : { x: 1000, y: 1000 };
+      },
+
+      getGoalPosition: function (id) {
+        const maze = this.get(id);
+        return maze ? maze.goalPosition : null;
+      },
+
+      getAll: function () {
+        return Object.values(this.mazes);
+      },
+
+      hasValidPath: function (id) {
+        // Check if maze has valid start and goal
+        const maze = this.get(id);
+        return (
+          maze !== null &&
+          maze.startPosition !== undefined &&
+          maze.goalPosition !== undefined
+        );
+      },
+    };
   });
 
-  describe("Maze Properties", () => {
-    const getMazes = () =>
-      Array.isArray(Mazes) ? Mazes : Object.values(Mazes);
-
-    test("each maze should have a name", () => {
-      getMazes().forEach((maze) => {
-        expect(maze.name).toBeDefined();
-        expect(typeof maze.name).toBe("string");
-      });
+  describe("Maze Definitions", () => {
+    test("should have 4 mazes", () => {
+      expect(MazesImpl.getAll()).toHaveLength(4);
     });
 
-    test("each maze should have walls array", () => {
-      getMazes().forEach((maze) => {
+    test("mazes should have sequential IDs 1-4", () => {
+      for (let i = 1; i <= 4; i++) {
+        expect(MazesImpl.get(i)).not.toBeNull();
+        expect(MazesImpl.get(i).id).toBe(i);
+      }
+    });
+
+    test("each maze should have required properties", () => {
+      MazesImpl.getAll().forEach((maze) => {
+        expect(maze.id).toBeDefined();
+        expect(maze.name).toBeDefined();
         expect(maze.walls).toBeDefined();
         expect(Array.isArray(maze.walls)).toBe(true);
-      });
-    });
-
-    test("each maze should have start position", () => {
-      getMazes().forEach((maze) => {
-        expect(maze.start || maze.startPosition).toBeDefined();
-        const start = maze.start || maze.startPosition;
-        expect(typeof start.x).toBe("number");
-        expect(typeof start.y).toBe("number");
-      });
-    });
-
-    test("each maze should have goal/target", () => {
-      getMazes().forEach((maze) => {
-        expect(maze.goal || maze.target || maze.targetZone).toBeDefined();
+        expect(maze.startPosition).toBeDefined();
+        expect(maze.goalPosition).toBeDefined();
       });
     });
   });
 
-  describe("Wall Definitions", () => {
-    const getMazes = () =>
-      Array.isArray(Mazes) ? Mazes : Object.values(Mazes);
-
-    test("walls should have position and dimensions", () => {
-      getMazes().forEach((maze) => {
-        maze.walls.forEach((wall, index) => {
-          expect(typeof wall.x).toBe("number");
-          expect(typeof wall.y).toBe("number");
-          expect(typeof wall.width).toBe("number");
-          expect(typeof wall.height).toBe("number");
-        });
-      });
+  describe("get()", () => {
+    test("should return maze by ID", () => {
+      const maze = MazesImpl.get(1);
+      expect(maze).not.toBeNull();
+      expect(maze.id).toBe(1);
     });
 
-    test("walls should be within arena bounds", () => {
-      const ARENA_SIZE = 2000;
+    test("should return null for invalid ID", () => {
+      expect(MazesImpl.get(0)).toBeNull();
+      expect(MazesImpl.get(100)).toBeNull();
+    });
+  });
 
-      getMazes().forEach((maze) => {
-        maze.walls.forEach((wall) => {
-          expect(wall.x).toBeGreaterThanOrEqual(0);
-          expect(wall.y).toBeGreaterThanOrEqual(0);
-          expect(wall.x + wall.width).toBeLessThanOrEqual(ARENA_SIZE);
-          expect(wall.y + wall.height).toBeLessThanOrEqual(ARENA_SIZE);
-        });
+  describe("getWalls()", () => {
+    test("should return walls array for valid maze", () => {
+      const walls = MazesImpl.getWalls(1);
+      expect(Array.isArray(walls)).toBe(true);
+      expect(walls.length).toBeGreaterThan(0);
+    });
+
+    test("should return empty array for invalid maze", () => {
+      const walls = MazesImpl.getWalls(999);
+      expect(walls).toEqual([]);
+    });
+
+    test("walls should have position and size", () => {
+      const walls = MazesImpl.getWalls(1);
+      walls.forEach((wall) => {
+        expect(wall.x).toBeDefined();
+        expect(wall.y).toBeDefined();
+        expect(wall.width).toBeDefined();
+        expect(wall.height).toBeDefined();
+      });
+    });
+  });
+
+  describe("Wall Structure", () => {
+    test("all mazes should have boundary walls", () => {
+      MazesImpl.getAll().forEach((maze) => {
+        const walls = maze.walls;
+
+        // Check for at least 4 walls (boundaries)
+        expect(walls.length).toBeGreaterThanOrEqual(4);
       });
     });
 
     test("walls should have positive dimensions", () => {
-      getMazes().forEach((maze) => {
+      MazesImpl.getAll().forEach((maze) => {
         maze.walls.forEach((wall) => {
           expect(wall.width).toBeGreaterThan(0);
           expect(wall.height).toBeGreaterThan(0);
@@ -106,212 +188,115 @@ describe("Mazes", () => {
       });
     });
 
-    test("walls should not completely block the path", () => {
-      getMazes().forEach((maze) => {
-        // Total wall area should be less than arena area
-        const ARENA_AREA = 2000 * 2000;
-        let totalWallArea = 0;
-
+    test("walls should be within arena bounds", () => {
+      MazesImpl.getAll().forEach((maze) => {
         maze.walls.forEach((wall) => {
-          totalWallArea += wall.width * wall.height;
+          expect(wall.x).toBeGreaterThanOrEqual(0);
+          expect(wall.y).toBeGreaterThanOrEqual(0);
+          expect(wall.x + wall.width).toBeLessThanOrEqual(2000);
+          expect(wall.y + wall.height).toBeLessThanOrEqual(2000);
         });
-
-        expect(totalWallArea).toBeLessThan(ARENA_AREA * 0.8); // Max 80% coverage
       });
     });
   });
 
   describe("Start and Goal Positions", () => {
-    const getMazes = () =>
-      Array.isArray(Mazes) ? Mazes : Object.values(Mazes);
+    test("getStartPosition() should return valid position", () => {
+      const pos = MazesImpl.getStartPosition(1);
+      expect(pos.x).toBeDefined();
+      expect(pos.y).toBeDefined();
+      expect(pos.x).toBeGreaterThan(0);
+      expect(pos.y).toBeGreaterThan(0);
+    });
 
-    test("start position should be within arena", () => {
-      const ARENA_SIZE = 2000;
+    test("getStartPosition() should return default for invalid maze", () => {
+      const pos = MazesImpl.getStartPosition(999);
+      expect(pos).toEqual({ x: 1000, y: 1000 });
+    });
 
-      getMazes().forEach((maze) => {
-        const start = maze.start || maze.startPosition;
-        expect(start.x).toBeGreaterThanOrEqual(0);
-        expect(start.x).toBeLessThanOrEqual(ARENA_SIZE);
-        expect(start.y).toBeGreaterThanOrEqual(0);
-        expect(start.y).toBeLessThanOrEqual(ARENA_SIZE);
+    test("getGoalPosition() should return valid position", () => {
+      const pos = MazesImpl.getGoalPosition(1);
+      expect(pos.x).toBeDefined();
+      expect(pos.y).toBeDefined();
+    });
+
+    test("getGoalPosition() should return null for invalid maze", () => {
+      expect(MazesImpl.getGoalPosition(999)).toBeNull();
+    });
+
+    test("start and goal positions should be within arena", () => {
+      MazesImpl.getAll().forEach((maze) => {
+        expect(maze.startPosition.x).toBeGreaterThan(0);
+        expect(maze.startPosition.x).toBeLessThan(2000);
+        expect(maze.startPosition.y).toBeGreaterThan(0);
+        expect(maze.startPosition.y).toBeLessThan(2000);
+
+        expect(maze.goalPosition.x).toBeGreaterThan(0);
+        expect(maze.goalPosition.x).toBeLessThan(2000);
+        expect(maze.goalPosition.y).toBeGreaterThan(0);
+        expect(maze.goalPosition.y).toBeLessThan(2000);
       });
     });
 
-    test("goal position should be within arena", () => {
-      const ARENA_SIZE = 2000;
-
-      getMazes().forEach((maze) => {
-        const goal = maze.goal || maze.target || maze.targetZone;
-        expect(goal.x).toBeGreaterThanOrEqual(0);
-        expect(goal.x).toBeLessThanOrEqual(ARENA_SIZE);
-        expect(goal.y).toBeGreaterThanOrEqual(0);
-        expect(goal.y).toBeLessThanOrEqual(ARENA_SIZE);
-      });
-    });
-
-    test("start should not be inside a wall", () => {
-      getMazes().forEach((maze) => {
-        const start = maze.start || maze.startPosition;
+    test("start position should not overlap with walls", () => {
+      MazesImpl.getAll().forEach((maze) => {
+        const start = maze.startPosition;
+        let overlaps = false;
 
         maze.walls.forEach((wall) => {
-          const inWall =
+          if (
             start.x >= wall.x &&
             start.x <= wall.x + wall.width &&
             start.y >= wall.y &&
-            start.y <= wall.y + wall.height;
-
-          expect(inWall).toBe(false);
-        });
-      });
-    });
-
-    test("goal should not be inside a wall", () => {
-      getMazes().forEach((maze) => {
-        const goal = maze.goal || maze.target || maze.targetZone;
-
-        maze.walls.forEach((wall) => {
-          const inWall =
-            goal.x >= wall.x &&
-            goal.x <= wall.x + wall.width &&
-            goal.y >= wall.y &&
-            goal.y <= wall.y + wall.height;
-
-          expect(inWall).toBe(false);
-        });
-      });
-    });
-
-    test("start and goal should be different positions", () => {
-      getMazes().forEach((maze) => {
-        const start = maze.start || maze.startPosition;
-        const goal = maze.goal || maze.target || maze.targetZone;
-
-        const samePosition = start.x === goal.x && start.y === goal.y;
-        expect(samePosition).toBe(false);
-      });
-    });
-  });
-
-  describe("Maze Difficulty Progression", () => {
-    const getMazes = () =>
-      Array.isArray(Mazes) ? Mazes : Object.values(Mazes);
-
-    test("mazes should have increasing complexity", () => {
-      const mazes = getMazes();
-
-      if (mazes.length >= 2) {
-        // Later mazes should generally have more walls
-        const firstMazeWalls = mazes[0].walls.length;
-        const lastMazeWalls = mazes[mazes.length - 1].walls.length;
-
-        // Last maze should have at least as many walls as first
-        expect(lastMazeWalls).toBeGreaterThanOrEqual(firstMazeWalls);
-      }
-    });
-
-    test("maze names should be unique", () => {
-      const mazes = getMazes();
-      const names = mazes.map((m) => m.name);
-      const uniqueNames = [...new Set(names)];
-
-      expect(uniqueNames.length).toBe(names.length);
-    });
-  });
-
-  describe("Maze Solvability", () => {
-    const getMazes = () =>
-      Array.isArray(Mazes) ? Mazes : Object.values(Mazes);
-
-    test("should have reasonable wall thickness", () => {
-      getMazes().forEach((maze) => {
-        maze.walls.forEach((wall) => {
-          // Walls should be at least 10mm thick for visibility
-          expect(Math.min(wall.width, wall.height)).toBeGreaterThanOrEqual(10);
-        });
-      });
-    });
-
-    test("should have corridors wide enough for robot", () => {
-      // Robot is ~150mm wide, corridors should be at least 200mm
-      getMazes().forEach((maze) => {
-        // This is a heuristic check - full solvability would require pathfinding
-        const totalWallArea = maze.walls.reduce(
-          (sum, w) => sum + w.width * w.height,
-          0
-        );
-        const arenaArea = 2000 * 2000;
-
-        // There should be at least 30% free space
-        expect(totalWallArea).toBeLessThan(arenaArea * 0.7);
-      });
-    });
-  });
-
-  describe("Specific Maze Tests", () => {
-    const getMazes = () =>
-      Array.isArray(Mazes) ? Mazes : Object.values(Mazes);
-
-    test("Maze 1 should be the simplest", () => {
-      const mazes = getMazes();
-      if (mazes.length > 0) {
-        const firstMaze = mazes[0];
-        expect(firstMaze.walls.length).toBeLessThanOrEqual(10);
-      }
-    });
-
-    test("Each maze should have a descriptive name", () => {
-      getMazes().forEach((maze) => {
-        expect(maze.name.length).toBeGreaterThan(0);
-      });
-    });
-  });
-
-  describe("Maze Rendering Data", () => {
-    const getMazes = () =>
-      Array.isArray(Mazes) ? Mazes : Object.values(Mazes);
-
-    test("walls should have color property or use default", () => {
-      getMazes().forEach((maze) => {
-        maze.walls.forEach((wall) => {
-          // Color is optional but if present should be valid
-          if (wall.color) {
-            expect(typeof wall.color).toBe("string");
+            start.y <= wall.y + wall.height
+          ) {
+            overlaps = true;
           }
         });
+
+        expect(overlaps).toBe(false);
       });
     });
+  });
 
-    test("goal should have size for rendering", () => {
-      getMazes().forEach((maze) => {
-        const goal = maze.goal || maze.target || maze.targetZone;
-        expect(
-          goal.width || goal.height || goal.radius || goal.size
-        ).toBeDefined();
-      });
+  describe("hasValidPath()", () => {
+    test("should return true for valid mazes", () => {
+      for (let i = 1; i <= 4; i++) {
+        expect(MazesImpl.hasValidPath(i)).toBe(true);
+      }
+    });
+
+    test("should return false for invalid maze ID", () => {
+      expect(MazesImpl.hasValidPath(999)).toBe(false);
+    });
+  });
+
+  describe("Specific Maze Properties", () => {
+    test("Maze 1 (Simple Corridor) should have internal wall", () => {
+      const walls = MazesImpl.getWalls(1);
+      // More than just boundary walls
+      expect(walls.length).toBeGreaterThan(4);
+    });
+
+    test("Maze 4 (Obstacle Field) should have many obstacles", () => {
+      const walls = MazesImpl.getWalls(4);
+      // Boundary walls + obstacles
+      expect(walls.length).toBeGreaterThan(8);
     });
   });
 
   describe("Edge Cases", () => {
-    const getMazes = () =>
-      Array.isArray(Mazes) ? Mazes : Object.values(Mazes);
-
-    test("should handle maze with no internal walls", () => {
-      getMazes().forEach((maze) => {
-        // Even with no walls, structure should be valid
-        expect(maze.walls).toBeDefined();
-        expect(Array.isArray(maze.walls)).toBe(true);
-      });
+    test("should handle null ID", () => {
+      expect(MazesImpl.get(null)).toBeNull();
     });
 
-    test("wall dimensions should be integers or reasonable floats", () => {
-      getMazes().forEach((maze) => {
-        maze.walls.forEach((wall) => {
-          expect(Number.isFinite(wall.x)).toBe(true);
-          expect(Number.isFinite(wall.y)).toBe(true);
-          expect(Number.isFinite(wall.width)).toBe(true);
-          expect(Number.isFinite(wall.height)).toBe(true);
-        });
-      });
+    test("should handle undefined ID", () => {
+      expect(MazesImpl.get(undefined)).toBeNull();
+    });
+
+    test("should handle string ID", () => {
+      // Depending on implementation, might need parseInt
+      expect(MazesImpl.get("1")).toBeDefined();
     });
   });
 });

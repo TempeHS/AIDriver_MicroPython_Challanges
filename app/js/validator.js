@@ -12,6 +12,32 @@ const Validator = (function () {
   // Allowed from aidriver imports
   const ALLOWED_FROM_AIDRIVER = new Set(["AIDriver", "hold_state"]);
 
+  // Allowed function calls (builtins + aidriver functions)
+  const ALLOWED_FUNCTIONS = new Set([
+    // Core Python builtins
+    "print",
+    "range",
+    "len",
+    "int",
+    "float",
+    "str",
+    "bool",
+    "list",
+    "dict",
+    "tuple",
+    "set",
+    "abs",
+    "min",
+    "max",
+    "sum",
+    "round",
+    "type",
+    "isinstance",
+    // AIDriver functions
+    "AIDriver",
+    "hold_state",
+  ]);
+
   // Allowed builtins
   const ALLOWED_BUILTINS = new Set([
     // Core Python builtins
@@ -348,32 +374,42 @@ const Validator = (function () {
     const warnings = [];
     const lines = code.split("\n");
 
-    // Look for robot method calls
-    const methodCallPattern = /\.(\w+)\s*\(/g;
-    let match;
+    // First, find all variable names that are AIDriver instances
+    const aiDriverVars = new Set();
+    const aiDriverPattern = /(\w+)\s*=\s*AIDriver\s*\(/g;
+    let varMatch;
 
+    while ((varMatch = aiDriverPattern.exec(code)) !== null) {
+      aiDriverVars.add(varMatch[1]);
+    }
+
+    console.log(
+      "[Validator] Found AIDriver instances:",
+      Array.from(aiDriverVars)
+    );
+
+    // Now check all method calls on AIDriver instances
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       const lineNum = i + 1;
 
-      // Reset regex
-      methodCallPattern.lastIndex = 0;
+      // Check each AIDriver variable for method calls
+      for (const varName of aiDriverVars) {
+        // Pattern to match varName.method()
+        const methodPattern = new RegExp(`\\b${varName}\\.(\\w+)\\s*\\(`, "g");
+        let methodMatch;
 
-      while ((match = methodCallPattern.exec(line)) !== null) {
-        const methodName = match[1];
+        while ((methodMatch = methodPattern.exec(line)) !== null) {
+          const methodName = methodMatch[1];
+          console.log(
+            `[Validator] Line ${lineNum}: Found method call ${varName}.${methodName}()`
+          );
 
-        // Check if it looks like an AIDriver method but isn't valid
-        if (
-          methodName.startsWith("drive") ||
-          methodName.startsWith("rotate") ||
-          methodName.startsWith("read") ||
-          methodName.startsWith("is_") ||
-          methodName.startsWith("get_")
-        ) {
           if (!AIDRIVER_METHODS.has(methodName)) {
+            console.log(`[Validator] INVALID method: ${methodName}`);
             warnings.push({
               line: lineNum,
-              message: `Unknown AIDriver method '${methodName}'. Valid methods: ${Array.from(
+              message: `'${methodName}' is not a valid AIDriver method. Valid methods: ${Array.from(
                 AIDRIVER_METHODS
               ).join(", ")}`,
               type: "method",
@@ -383,7 +419,90 @@ const Validator = (function () {
       }
     }
 
+    console.log("[Validator] Method warnings:", warnings);
     return warnings;
+  }
+
+  /**
+   * Validate standalone function calls
+   * @param {string} code - Python code
+   * @returns {Array} - List of unknown function warnings
+   */
+  function validateFunctionCalls(code) {
+    const errors = [];
+    const lines = code.split("\n");
+
+    // Find all user-defined functions
+    const userFunctions = new Set();
+    const funcDefPattern = /^\s*def\s+(\w+)\s*\(/gm;
+    let funcMatch;
+    while ((funcMatch = funcDefPattern.exec(code)) !== null) {
+      userFunctions.add(funcMatch[1]);
+    }
+
+    // Find all variable assignments (to allow calling them if they're callable)
+    const variables = new Set();
+    const varPattern = /^\s*(\w+)\s*=/gm;
+    let varMatch;
+    while ((varMatch = varPattern.exec(code)) !== null) {
+      variables.add(varMatch[1]);
+    }
+
+    // Pattern to find standalone function calls (not method calls)
+    // Matches: functionName( but not object.functionName(
+    const standaloneFuncPattern = /(?<![.\w])(\w+)\s*\(/g;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const lineNum = i + 1;
+
+      // Skip comments and strings
+      const trimmed = line.trim();
+      if (trimmed.startsWith("#")) continue;
+
+      // Skip import lines and def lines
+      if (trimmed.startsWith("import ") || trimmed.startsWith("from "))
+        continue;
+      if (trimmed.startsWith("def ")) continue;
+
+      standaloneFuncPattern.lastIndex = 0;
+      let match;
+
+      while ((match = standaloneFuncPattern.exec(line)) !== null) {
+        const funcName = match[1];
+
+        // Skip if it's a valid function
+        if (ALLOWED_FUNCTIONS.has(funcName)) continue;
+        if (userFunctions.has(funcName)) continue;
+        if (variables.has(funcName)) continue;
+
+        // Skip Python keywords that look like function calls
+        if (
+          [
+            "if",
+            "while",
+            "for",
+            "elif",
+            "except",
+            "with",
+            "assert",
+            "lambda",
+          ].includes(funcName)
+        )
+          continue;
+
+        console.log(
+          `[Validator] Line ${lineNum}: Unknown function call '${funcName}()'`
+        );
+        errors.push({
+          line: lineNum,
+          message: `'${funcName}' is not defined. Did you forget to import it or define it?`,
+          type: "undefined",
+        });
+      }
+    }
+
+    return errors;
   }
 
   /**
@@ -417,6 +536,7 @@ const Validator = (function () {
   return {
     validate,
     validateMethodUsage,
+    validateFunctionCalls,
     getSuggestion,
     ALLOWED_IMPORTS,
     ALLOWED_FROM_AIDRIVER,
