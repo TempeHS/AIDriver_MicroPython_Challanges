@@ -1,9 +1,12 @@
-"""Run-once event logger for AIDriver RP2040.
+"""Two-file rotating event logger for AIDriver RP2040.
 
-The first run after a fresh boot (or recovery) writes human-readable
-events to ``event_log.txt`` next to ``main.py``. If the log file already
-contains data, logging is disabled so that students can treat the log as a
-single-run snapshot. Clearing the file re-enables logging.
+Logs human-readable events to ``event_log.txt``. On each new run, the
+previous log is rotated to ``event_log_prev.txt`` so students can compare
+their current run with the previous one. Only two files are ever kept.
+
+Files:
+    event_log.txt      - Current run (written to)
+    event_log_prev.txt - Previous run (read-only reference)
 """
 
 import time
@@ -15,30 +18,66 @@ except ImportError:  # MicroPython naming
 
 
 _LOG_PATH = "event_log.txt"
+_LOG_PREV_PATH = "event_log_prev.txt"
 _start_ticks = time.ticks_ms()
 _LOG_ENABLED = True
+_initialized = False
 
 
-def _initialize_state():
-    """Disable logging if the file already exists with content."""
-    global _LOG_ENABLED
+def _rotate_logs():
+    """Rotate current log to previous, then start fresh.
+
+    This runs once on first log_event() call to ensure rotation
+    happens even if the module is imported but not immediately used.
+    """
+    global _initialized
+    if _initialized:
+        return
+    _initialized = True
+
     try:
-        # Use os.stat when available so we do not read the file into RAM.
+        # Check if current log exists and has content
+        has_current = False
         try:
             stat_result = os.stat(_LOG_PATH)
             if isinstance(stat_result, (tuple, list)) and len(stat_result) > 6:
-                has_content = stat_result[6] > 0
+                has_current = stat_result[6] > 0
             else:
-                has_content = getattr(stat_result, "st_size", 0) > 0
-        except (OSError, AttributeError):
-            # Either the file does not exist or the stat call is unsupported.
-            with open(_LOG_PATH, "r") as existing:
-                has_content = existing.read(1) != ""
-    except (OSError, Exception):
-        has_content = False
+                has_current = getattr(stat_result, "st_size", 0) > 0
+        except OSError:
+            # File doesn't exist
+            has_current = False
 
-    if has_content:
-        _LOG_ENABLED = False
+        if has_current:
+            # Remove old previous log if it exists
+            try:
+                os.remove(_LOG_PREV_PATH)
+            except OSError:
+                pass  # File didn't exist, that's fine
+
+            # Rename current to previous
+            try:
+                os.rename(_LOG_PATH, _LOG_PREV_PATH)
+            except OSError:
+                # Rename failed - try copy and delete instead
+                # (some filesystems don't support rename)
+                try:
+                    with open(_LOG_PATH, "r") as src:
+                        content = src.read()
+                    with open(_LOG_PREV_PATH, "w") as dst:
+                        dst.write(content)
+                    os.remove(_LOG_PATH)
+                except Exception:
+                    pass  # Give up on rotation, just overwrite
+
+        # Start fresh log with header
+        with open(_LOG_PATH, "w") as f:
+            f.write("===== RUN START =====\n")
+            f.write("t+0.00s : robot start\n")
+
+    except Exception:
+        # If anything fails, just continue - logging is best-effort
+        pass
 
 
 def _elapsed_s():
@@ -48,28 +87,38 @@ def _elapsed_s():
 
 
 def clear_log():
-    """Completely clear the log file and re-enable logging."""
-    global _LOG_ENABLED, _start_ticks
+    """Clear both log files and reset timing."""
+    global _start_ticks, _initialized
     try:
+        # Clear current log
         with open(_LOG_PATH, "w") as f:
             f.write("")
-        _LOG_ENABLED = True
+        # Clear previous log
+        try:
+            os.remove(_LOG_PREV_PATH)
+        except OSError:
+            pass
         _start_ticks = time.ticks_ms()
+        _initialized = False  # Allow re-initialization
     except Exception:
-        # If the filesystem is not ready, fail silently.
         pass
 
 
 def log_separator():
-    """Write a separator and reset the logical t=0 for this run."""
+    """Write a separator and reset the logical t=0 for this run.
+
+    Note: With two-file rotation, this is less commonly needed since
+    each run starts with a fresh file. Kept for compatibility.
+    """
     global _start_ticks
     if not _LOG_ENABLED:
         return
+    _rotate_logs()  # Ensure initialized
     _start_ticks = time.ticks_ms()
     try:
         with open(_LOG_PATH, "a") as f:
-            f.write("\n===== NEW RUN =====\n")
-            f.write("t+0.00s : robot start\n")
+            f.write("\n===== SEPARATOR =====\n")
+            f.write("t+0.00s : timing reset\n")
     except Exception:
         pass
 
@@ -78,12 +127,13 @@ def log_event(message):
     """Append a single-line, human-readable event to the log."""
     if not _LOG_ENABLED:
         return
+
+    # Rotate logs on first event of each run
+    _rotate_logs()
+
     t = _elapsed_s()
     try:
         with open(_LOG_PATH, "a") as f:
             f.write("t+{:.2f}s : {}\n".format(t, message))
     except Exception:
         pass
-
-
-_initialize_state()

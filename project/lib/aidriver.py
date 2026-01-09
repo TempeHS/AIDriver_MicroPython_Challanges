@@ -81,6 +81,64 @@ _last_heartbeat_ms = 0
 _HEARTBEAT_TIMER = None
 
 
+# Ultrasonic sensor inline warning state
+_ultrasonic_fail_count = 0
+_ultrasonic_last_warn_ms = 0
+_ULTRASONIC_WARN_THRESHOLD = 3  # Failures before showing warning
+_ULTRASONIC_WARN_INTERVAL_MS = 500  # How often to update the warning
+_ULTRASONIC_SPINNER = ["|", "/", "-", "\\"]  # Visual spinner characters
+
+
+def _ultrasonic_warn_inline(message):
+    """Print an in-place warning that updates on the same line.
+
+    Uses carriage return to overwrite the previous message, avoiding
+    terminal spam that can overwhelm new programmers. Only shows after
+    several consecutive failures.
+    """
+    global _ultrasonic_fail_count, _ultrasonic_last_warn_ms
+
+    _ultrasonic_fail_count += 1
+
+    # Don't warn until we hit the threshold
+    if _ultrasonic_fail_count < _ULTRASONIC_WARN_THRESHOLD:
+        return
+
+    now = ticks_ms()
+
+    # Rate limit: only update every WARN_INTERVAL
+    if ticks_diff(now, _ultrasonic_last_warn_ms) < _ULTRASONIC_WARN_INTERVAL_MS:
+        return
+
+    _ultrasonic_last_warn_ms = now
+
+    # Get spinner character based on fail count
+    spinner = _ULTRASONIC_SPINNER[_ultrasonic_fail_count % len(_ULTRASONIC_SPINNER)]
+
+    # Build the warning message (fixed width to overwrite previous)
+    warn_text = "[AIDriver] {} {} (x{})".format(
+        spinner, message, _ultrasonic_fail_count
+    )
+
+    # Pad to 70 chars to ensure we overwrite any previous longer message
+    warn_text = warn_text.ljust(70)
+
+    # Print with carriage return (no newline) to stay on same line
+    print("\r" + warn_text, end="")
+
+
+def _ultrasonic_warn_clear():
+    """Clear the inline warning and reset the failure counter."""
+    global _ultrasonic_fail_count, _ultrasonic_last_warn_ms
+
+    if _ultrasonic_fail_count >= _ULTRASONIC_WARN_THRESHOLD:
+        # Clear the line by printing spaces, then move cursor back
+        print("\r" + " " * 70 + "\r", end="")
+
+    _ultrasonic_fail_count = 0
+    _ultrasonic_last_warn_ms = 0
+
+
 def _timer_heartbeat_callback(timer):
     """Timer ISR: toggle the onboard LED.
 
@@ -291,12 +349,12 @@ class UltrasonicSensor:
 
             # time_pulse_us returns -1 on timeout and -2 on invalid state
             if duration < 0:
-                _d(
-                    "Ultrasonic timeout/invalid pulse – check wiring, orientation, or distance >",
-                    self.max_distance_mm,
-                    "mm",
-                )
-                if eventlog is not None:
+                _ultrasonic_warn_inline("Sensor error – check wiring")
+                # Only log to eventlog on first few failures to avoid log spam
+                if (
+                    _ultrasonic_fail_count <= _ULTRASONIC_WARN_THRESHOLD
+                    and eventlog is not None
+                ):
                     try:
                         eventlog.log_event("ultrasonic timeout or invalid echo")
                     except Exception:
@@ -308,6 +366,8 @@ class UltrasonicSensor:
 
             # Check if the reading is within the valid range (20mm to 2000mm)
             if 20 <= distance_mm <= self.max_distance_mm:
+                # Clear any inline warning since we got a good reading
+                _ultrasonic_warn_clear()
                 _d("Ultrasonic distance:", int(distance_mm), "mm")
                 if eventlog is not None:
                     try:
@@ -319,14 +379,12 @@ class UltrasonicSensor:
                 return int(distance_mm)
 
             # Out of range – likely too close, too far, or pointing into open space
-            _d(
-                "Ultrasonic out of range:",
-                int(distance_mm),
-                "mm (valid 20-",
-                self.max_distance_mm,
-                "mm)",
-            )
-            if eventlog is not None:
+            _ultrasonic_warn_inline("Out of range ({}mm)".format(int(distance_mm)))
+            # Only log to eventlog on first few failures to avoid log spam
+            if (
+                _ultrasonic_fail_count <= _ULTRASONIC_WARN_THRESHOLD
+                and eventlog is not None
+            ):
                 try:
                     eventlog.log_event(
                         "ultrasonic out of range: {} mm".format(int(distance_mm))
@@ -337,12 +395,12 @@ class UltrasonicSensor:
 
         except OSError as exc:
             # This can occur if there's an issue with time_pulse_us or pin configuration
-            _d(
-                "Ultrasonic OSError:",
-                exc,
-                "– check echo pin, trig pin, and sensor power",
-            )
-            if eventlog is not None:
+            _ultrasonic_warn_inline("OSError – check pins & power")
+            # Only log to eventlog on first few failures to avoid log spam
+            if (
+                _ultrasonic_fail_count <= _ULTRASONIC_WARN_THRESHOLD
+                and eventlog is not None
+            ):
                 try:
                     eventlog.log_event("ultrasonic OSError: {}".format(exc))
                 except Exception:
@@ -525,7 +583,9 @@ class AIDriver:
             if _HEARTBEAT_TIMER is None and _STATUS_LED is not None:
                 _HEARTBEAT_TIMER = Timer(-1)
                 # 1000 ms period -> roughly 1 Hz LED toggle
-                _HEARTBEAT_TIMER.init(period=1000, mode=Timer.PERIODIC, callback=_timer_heartbeat_callback)
+                _HEARTBEAT_TIMER.init(
+                    period=1000, mode=Timer.PERIODIC, callback=_timer_heartbeat_callback
+                )
                 _d("Heartbeat timer started (1s period)")
         except Exception as exc:
             _d("Failed to start heartbeat timer:", exc)
