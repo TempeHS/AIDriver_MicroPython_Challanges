@@ -184,7 +184,8 @@ def hold_state(seconds):
       });
 
       // Register the aidriver module
-      Sk.builtins["__builtinmodules__"] = Sk.builtins["__builtinmodules__"] || {};
+      Sk.builtins["__builtinmodules__"] =
+        Sk.builtins["__builtinmodules__"] || {};
       Sk.builtins["__builtinmodules__"]["aidriver"] = AIDriverStub.getModule();
 
       // Compile and run
