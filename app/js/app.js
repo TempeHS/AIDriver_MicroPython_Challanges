@@ -339,6 +339,9 @@ function handleGamepadRelease() {
 function loadChallenge(challengeId) {
   App.currentChallenge = challengeId;
 
+  // Get challenge definition
+  const challenge = typeof Challenges !== "undefined" ? Challenges.get(challengeId) : null;
+
   // Update dropdown text
   const dropdownItems = document.querySelectorAll("[data-challenge]");
   dropdownItems.forEach((item) => {
@@ -355,7 +358,8 @@ function loadChallenge(challengeId) {
   App.elements.mazeSelector.classList.toggle("d-none", challengeId !== 6);
 
   // Show/hide gamepad for Challenge 7
-  App.elements.gamepadPanel.classList.toggle("d-none", challengeId !== 7);
+  const isGamepadChallenge = challenge && challenge.gamepadEnabled;
+  App.elements.gamepadPanel.classList.toggle("d-none", !isGamepadChallenge);
 
   // Clear any existing error markers
   Editor.clearAllMarkers();
@@ -364,18 +368,64 @@ function loadChallenge(challengeId) {
   const savedCode = Editor.loadSavedCode(challengeId);
   if (savedCode) {
     Editor.setCode(savedCode);
-    logDebug(`[App] Loaded saved code for Challenge ${challengeId}`);
+    logDebug(`Loaded saved code for Challenge ${challengeId}`);
   } else {
     loadStarterCode(challengeId);
   }
 
-  // Reset robot for new challenge
-  resetRobot();
+  // Store current challenge config
+  App.currentChallengeConfig = challenge;
+
+  // Initialize session tracking
+  App.session = {
+    startPosition: challenge ? { ...challenge.startPosition } : { x: 1000, y: 1800 },
+    hasError: false,
+    totalRotation: 0,
+    lastHeading: 0,
+    minY: 2000,
+    crossoverCount: 0,
+    startTime: null,
+  };
+
+  // Set robot start position from challenge
+  if (challenge && challenge.startPosition) {
+    App.robot.x = challenge.startPosition.x;
+    App.robot.y = challenge.startPosition.y;
+    App.robot.heading = challenge.startPosition.heading || 0;
+    App.robot.trail = [];
+    App.robot.leftSpeed = 0;
+    App.robot.rightSpeed = 0;
+    App.robot.isMoving = false;
+  } else {
+    resetRobot();
+  }
+
+  // Set obstacles from challenge
+  if (typeof Simulator !== "undefined") {
+    if (challenge && challenge.obstacles) {
+      Simulator.setObstacles(challenge.obstacles);
+    } else {
+      Simulator.clearObstacles();
+    }
+  }
+
+  // Render initial state
+  render();
+
+  // Update ultrasonic display
+  updateUltrasonicDisplay(calculateDistance());
 
   // Update status
-  updateStatus(`Challenge ${challengeId} loaded`, "info");
-  App.elements.challengeStatus.textContent = "Not Started";
+  updateStatus(`Challenge ${challengeId}: ${challenge ? challenge.title : "Unknown"} loaded`, "info");
+  App.elements.challengeStatus.textContent = "Ready";
   App.elements.challengeStatus.className = "badge bg-secondary";
+
+  // Show challenge info in debug
+  if (challenge) {
+    DebugPanel.info(`=== Challenge ${challengeId}: ${challenge.title} ===`);
+    DebugPanel.info(challenge.description);
+    DebugPanel.info(`Goal: ${challenge.goal}`);
+  }
 
   console.log(`[App] Challenge ${challengeId} loaded`);
 }
@@ -662,18 +712,141 @@ function drawGrid(ctx, scale) {
  * Draw challenge path
  */
 function drawPath(ctx, scale) {
-  // TODO: Implement path drawing for each challenge in Phase 6
-  // Placeholder: draw a simple line for Challenge 1
-  if (App.currentChallenge === 1) {
+  if (!App.currentChallengeConfig || !App.currentChallengeConfig.path) return;
+
+  const path = App.currentChallengeConfig.path;
+  const criteria = App.currentChallengeConfig.successCriteria;
+
+  ctx.save();
+  ctx.strokeStyle = "rgba(0, 255, 136, 0.4)";
+  ctx.fillStyle = "rgba(0, 255, 136, 0.1)";
+  ctx.lineWidth = 2;
+  ctx.setLineDash([10, 5]);
+
+  switch (path.type) {
+    case "line":
+      // Draw a line corridor
+      const halfWidth = (path.width / 2) * scale;
+      ctx.beginPath();
+      ctx.moveTo(path.start.x * scale - halfWidth, path.start.y * scale);
+      ctx.lineTo(path.end.x * scale - halfWidth, path.end.y * scale);
+      ctx.lineTo(path.end.x * scale + halfWidth, path.end.y * scale);
+      ctx.lineTo(path.start.x * scale + halfWidth, path.start.y * scale);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Draw center line
+      ctx.strokeStyle = "rgba(0, 255, 136, 0.6)";
+      ctx.beginPath();
+      ctx.moveTo(path.start.x * scale, path.start.y * scale);
+      ctx.lineTo(path.end.x * scale, path.end.y * scale);
+      ctx.stroke();
+      break;
+
+    case "circle":
+      // Draw circle path
+      ctx.beginPath();
+      ctx.arc(
+        path.center.x * scale,
+        path.center.y * scale,
+        path.radius * scale,
+        0,
+        Math.PI * 2
+      );
+      ctx.stroke();
+
+      // Draw inner and outer bounds
+      ctx.strokeStyle = "rgba(0, 255, 136, 0.2)";
+      ctx.beginPath();
+      ctx.arc(
+        path.center.x * scale,
+        path.center.y * scale,
+        (path.radius - path.width / 2) * scale,
+        0,
+        Math.PI * 2
+      );
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(
+        path.center.x * scale,
+        path.center.y * scale,
+        (path.radius + path.width / 2) * scale,
+        0,
+        Math.PI * 2
+      );
+      ctx.stroke();
+      break;
+
+    case "figure_eight":
+      // Draw figure-8 pattern
+      const offset = path.loopRadius * scale;
+      ctx.beginPath();
+      // Left circle
+      ctx.arc(
+        (path.center.x - path.loopRadius) * scale,
+        path.center.y * scale,
+        path.loopRadius * scale,
+        0,
+        Math.PI * 2
+      );
+      ctx.stroke();
+      // Right circle
+      ctx.beginPath();
+      ctx.arc(
+        (path.center.x + path.loopRadius) * scale,
+        path.center.y * scale,
+        path.loopRadius * scale,
+        0,
+        Math.PI * 2
+      );
+      ctx.stroke();
+      break;
+
+    case "uturn":
+      // Draw U-turn path
+      ctx.strokeStyle = "rgba(0, 255, 136, 0.4)";
+      ctx.beginPath();
+      ctx.moveTo(1000 * scale, path.startY * scale);
+      ctx.lineTo(1000 * scale, path.endY * scale);
+      ctx.stroke();
+      break;
+  }
+
+  ctx.setLineDash([]);
+
+  // Draw target zone if applicable
+  if (criteria && criteria.zone) {
+    const zone = criteria.zone;
+    ctx.fillStyle = "rgba(0, 255, 136, 0.3)";
     ctx.strokeStyle = "#00ff88";
     ctx.lineWidth = 3;
-    ctx.setLineDash([10, 5]);
-    ctx.beginPath();
-    ctx.moveTo(1000 * scale, 1800 * scale);
-    ctx.lineTo(1000 * scale, 200 * scale);
-    ctx.stroke();
     ctx.setLineDash([]);
+    ctx.fillRect(
+      zone.x * scale,
+      zone.y * scale,
+      zone.width * scale,
+      zone.height * scale
+    );
+    ctx.strokeRect(
+      zone.x * scale,
+      zone.y * scale,
+      zone.width * scale,
+      zone.height * scale
+    );
+
+    // Draw "TARGET" label
+    ctx.fillStyle = "#00ff88";
+    ctx.font = `${14 * scale}px monospace`;
+    ctx.textAlign = "center";
+    ctx.fillText(
+      "TARGET",
+      (zone.x + zone.width / 2) * scale,
+      (zone.y + zone.height / 2 + 5) * scale
+    );
   }
+
+  ctx.restore();
 }
 
 /**
@@ -1022,18 +1195,87 @@ function startAnimationLoop() {
     lastTime = currentTime;
 
     // Update robot using Simulator physics if moving
-    if (App.robot.isMoving || App.robot.leftSpeed !== 0 || App.robot.rightSpeed !== 0) {
+    if (
+      App.robot.isMoving ||
+      App.robot.leftSpeed !== 0 ||
+      App.robot.rightSpeed !== 0
+    ) {
       if (typeof Simulator !== "undefined") {
         App.robot = Simulator.step(App.robot, dt);
       }
+
+      // Track session data for success checking
+      updateSessionTracking();
+
       render();
       updateUltrasonicDisplay(calculateDistance());
+
+      // Check success criteria if running
+      if (App.isRunning) {
+        checkChallengeSuccess();
+      }
     }
 
     requestAnimationFrame(animate);
   }
 
   requestAnimationFrame(animate);
+}
+
+/**
+ * Update session tracking data
+ */
+function updateSessionTracking() {
+  if (!App.session) return;
+
+  // Track minimum Y position (for U-turn challenge)
+  if (App.robot.y < App.session.minY) {
+    App.session.minY = App.robot.y;
+  }
+
+  // Track total rotation
+  const headingDelta = App.robot.heading - App.session.lastHeading;
+  // Handle wraparound
+  let normalizedDelta = headingDelta;
+  if (normalizedDelta > 180) normalizedDelta -= 360;
+  if (normalizedDelta < -180) normalizedDelta += 360;
+  App.session.totalRotation += normalizedDelta;
+  App.session.lastHeading = App.robot.heading;
+
+  // Track center crossovers (for figure-8)
+  if (App.currentChallengeConfig && App.currentChallengeConfig.successCriteria.type === "figure_eight") {
+    const crossover = App.currentChallengeConfig.successCriteria.crossoverPoint;
+    const distToCenter = Math.hypot(App.robot.x - crossover.x, App.robot.y - crossover.y);
+    if (distToCenter < 100 && !App.session.nearCenter) {
+      App.session.crossoverCount++;
+      App.session.nearCenter = true;
+    } else if (distToCenter > 200) {
+      App.session.nearCenter = false;
+    }
+  }
+}
+
+/**
+ * Check if current challenge is complete
+ */
+function checkChallengeSuccess() {
+  if (!App.currentChallengeConfig || typeof Challenges === "undefined") return;
+
+  const result = Challenges.checkSuccess(
+    App.currentChallenge,
+    App.robot,
+    App.session
+  );
+
+  if (result.success) {
+    // Success!
+    stopExecution();
+    App.elements.canvasContainer.classList.add("success");
+    App.elements.challengeStatus.textContent = "SUCCESS!";
+    App.elements.challengeStatus.className = "badge bg-success";
+    DebugPanel.success(`🎉 ${result.message}`);
+    updateStatus("Challenge Complete!", "success");
+  }
 }
 
 // Also initialize render loop
