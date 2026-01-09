@@ -1,0 +1,53 @@
+{
+  "name": "aidriver-simulator",
+  "version": "1.0.0",
+  "description": "Browser-based AIDriver robot simulator for MicroPython education",
+  "scripts": {
+    "test": "jest --coverage",
+    "test:watch": "jest --watch",
+    "test:unit": "jest --testPathPattern=unit",
+    "test:integration": "jest --testPathPattern=integration",
+    "test:verbose": "jest --coverage --verbose"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "@types/jest": "^29.5.12"
+  },
+  "jest": {
+    "testEnvironment": "jsdom",
+    "roots": [
+      "<rootDir>/tests"
+    ],
+    "collectCoverageFrom": [
+      "js/**/*.js",
+      "!js/vendor/**"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "branches": 90,
+        "functions": 90,
+        "lines": 90,
+        "statements": 90
+      }
+    },
+    "setupFilesAfterEnv": [
+      "<rootDir>/tests/setup.js"
+    ],
+    "moduleNameMapper": {
+      "^@/(.*)$": "<rootDir>/js/$1"
+    },
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
+    "verbose": true
+  },
+  "keywords": [
+    "simulator",
+    "robot",
+    "micropython",
+    "education"
+  ],
+  "author": "TempeHS",
+  "license": "MIT"
+}
