@@ -14,16 +14,16 @@ A browser-based robot simulator for the AIDriver MicroPython Challenges. This we
 
 ## Challenges
 
-| Challenge | Title | Description |
-|-----------|-------|-------------|
-| 0 | Fix the Code | Debug syntax errors in provided code |
-| 1 | Drive in a Straight Line | Balance motor speeds for straight driving |
-| 2 | Drive a Circle | Use differential drive for circular motion |
-| 3 | Detect and Stop | Use ultrasonic sensor to stop near wall |
-| 4 | U-Turn | Drive, detect wall, turn 180°, return |
-| 5 | Figure 8 | Complex path with alternating turns |
-| 6 | Maze Navigation | Autonomous maze solving |
-| 7 | Gamepad Control | Manual driving practice |
+| Challenge | Title                    | Description                                |
+| --------- | ------------------------ | ------------------------------------------ |
+| 0         | Fix the Code             | Debug syntax errors in provided code       |
+| 1         | Drive in a Straight Line | Balance motor speeds for straight driving  |
+| 2         | Drive a Circle           | Use differential drive for circular motion |
+| 3         | Detect and Stop          | Use ultrasonic sensor to stop near wall    |
+| 4         | U-Turn                   | Drive, detect wall, turn 180°, return      |
+| 5         | Figure 8                 | Complex path with alternating turns        |
+| 6         | Maze Navigation          | Autonomous maze solving                    |
+| 7         | Gamepad Control          | Manual driving practice                    |
 
 ## AIDriver API (Simulated)
 

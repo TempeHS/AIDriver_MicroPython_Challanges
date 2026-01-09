@@ -160,7 +160,8 @@ const Challenges = (function () {
       title: "Figure 8",
       subtitle: "Complex Path",
       difficulty: DIFFICULTY.MEDIUM,
-      description: "Drive in a figure-8 pattern combining left and right turns.",
+      description:
+        "Drive in a figure-8 pattern combining left and right turns.",
       goal: "Complete at least one figure-8 loop.",
       hints: [
         "Figure 8 = circle left, then circle right (or vice versa)",
@@ -307,7 +308,10 @@ const Challenges = (function () {
     const distance = Math.hypot(robot.x - startPos.x, robot.y - startPos.y);
 
     if (distance < criteria.minDistance) {
-      return { success: false, message: `Move at least ${criteria.minDistance}mm` };
+      return {
+        success: false,
+        message: `Move at least ${criteria.minDistance}mm`,
+      };
     }
 
     return { success: true, message: "Code runs correctly!" };
@@ -344,15 +348,22 @@ const Challenges = (function () {
     if (Math.abs(totalRotation) < criteria.minRotation) {
       return {
         success: false,
-        message: `Complete more rotation (${Math.abs(totalRotation).toFixed(0)}° / ${criteria.minRotation}°)`,
+        message: `Complete more rotation (${Math.abs(totalRotation).toFixed(
+          0
+        )}° / ${criteria.minRotation}°)`,
       };
     }
 
-    const distanceFromStart = Math.hypot(robot.x - startPos.x, robot.y - startPos.y);
+    const distanceFromStart = Math.hypot(
+      robot.x - startPos.x,
+      robot.y - startPos.y
+    );
     if (distanceFromStart > criteria.centerTolerance) {
       return {
         success: false,
-        message: `Return closer to start (${distanceFromStart.toFixed(0)}mm away)`,
+        message: `Return closer to start (${distanceFromStart.toFixed(
+          0
+        )}mm away)`,
       };
     }
 
@@ -426,7 +437,9 @@ const Challenges = (function () {
     if (totalRotation < criteria.minRotation) {
       return {
         success: false,
-        message: `Complete more turns (${totalRotation.toFixed(0)}° / ${criteria.minRotation}°)`,
+        message: `Complete more turns (${totalRotation.toFixed(0)}° / ${
+          criteria.minRotation
+        }°)`,
       };
     }
 

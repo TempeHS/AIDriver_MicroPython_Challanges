@@ -41,8 +41,16 @@ const Simulator = (function () {
     const rightSpeed = robot.rightSpeed;
 
     // Convert motor speed to wheel velocity (mm/s)
-    const leftVelocity = (leftSpeed / MAX_MOTOR_SPEED) * MM_PER_SPEED_UNIT * 1000 * simulationSpeed;
-    const rightVelocity = (rightSpeed / MAX_MOTOR_SPEED) * MM_PER_SPEED_UNIT * 1000 * simulationSpeed;
+    const leftVelocity =
+      (leftSpeed / MAX_MOTOR_SPEED) *
+      MM_PER_SPEED_UNIT *
+      1000 *
+      simulationSpeed;
+    const rightVelocity =
+      (rightSpeed / MAX_MOTOR_SPEED) *
+      MM_PER_SPEED_UNIT *
+      1000 *
+      simulationSpeed;
 
     // Differential drive kinematics
     // v = (vR + vL) / 2  - linear velocity
@@ -167,7 +175,12 @@ const Simulator = (function () {
     const rect2MinY = rect2.y;
     const rect2MaxY = rect2.y + rect2.height;
 
-    return !(maxX < rect2MinX || minX > rect2MaxX || maxY < rect2MinY || minY > rect2MaxY);
+    return !(
+      maxX < rect2MinX ||
+      minX > rect2MaxX ||
+      maxY < rect2MinY ||
+      minY > rect2MaxY
+    );
   }
 
   /**
