@@ -55,6 +55,11 @@ function init() {
   // Initialize Python Runner
   PythonRunner.init();
 
+  // Initialize Gamepad
+  if (typeof Gamepad !== "undefined") {
+    Gamepad.init();
+  }
+
   // Initialize ACE Editor
   initEditor();
 
@@ -361,6 +366,15 @@ function loadChallenge(challengeId) {
   // Show/hide gamepad for Challenge 7
   const isGamepadChallenge = challenge && challenge.gamepadEnabled;
   App.elements.gamepadPanel.classList.toggle("d-none", !isGamepadChallenge);
+
+  // Enable/disable gamepad control
+  if (typeof Gamepad !== "undefined") {
+    if (isGamepadChallenge) {
+      Gamepad.enable();
+    } else {
+      Gamepad.disable();
+    }
+  }
 
   // Clear any existing error markers
   Editor.clearAllMarkers();
