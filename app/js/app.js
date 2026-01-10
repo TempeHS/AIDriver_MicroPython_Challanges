@@ -74,8 +74,13 @@ function init() {
   // Load challenge from URL parameter or default to 0
   const urlParams = new URLSearchParams(window.location.search);
   const challengeParam = urlParams.get("challenge");
+  // Support both numeric and string challenge IDs (e.g., "debug")
   const initialChallenge =
-    challengeParam !== null ? parseInt(challengeParam) : 0;
+    challengeParam !== null
+      ? isNaN(parseInt(challengeParam))
+        ? challengeParam
+        : parseInt(challengeParam)
+      : 0;
   loadChallenge(initialChallenge);
 
   // Hide loading overlay
@@ -265,7 +270,11 @@ function setupEventListeners() {
         stopExecution();
       }
       App.hasRun = false;
-      const challengeId = parseInt(e.currentTarget.dataset.challenge);
+      const rawChallenge = e.currentTarget.dataset.challenge;
+      // Support both numeric and string challenge IDs
+      const challengeId = isNaN(parseInt(rawChallenge))
+        ? rawChallenge
+        : parseInt(rawChallenge);
 
       // Update URL to reflect the new challenge
       const newUrl = `simulator.html?challenge=${challengeId}`;
@@ -297,7 +306,13 @@ function setupEventListeners() {
   window.addEventListener("popstate", (e) => {
     const urlParams = new URLSearchParams(window.location.search);
     const challengeParam = urlParams.get("challenge");
-    const challengeId = challengeParam !== null ? parseInt(challengeParam) : 0;
+    // Support both numeric and string challenge IDs
+    const challengeId =
+      challengeParam !== null
+        ? isNaN(parseInt(challengeParam))
+          ? challengeParam
+          : parseInt(challengeParam)
+        : 0;
 
     if (App.isRunning) {
       stopExecution();
@@ -413,11 +428,13 @@ function loadChallenge(challengeId) {
   // Update dropdown text
   const dropdownItems = document.querySelectorAll("[data-challenge]");
   dropdownItems.forEach((item) => {
-    item.classList.toggle(
-      "active",
-      parseInt(item.dataset.challenge) === challengeId
-    );
-    if (parseInt(item.dataset.challenge) === challengeId) {
+    // Compare as strings to support both numeric and string IDs
+    const itemChallenge = item.dataset.challenge;
+    const isActive =
+      itemChallenge === String(challengeId) ||
+      parseInt(itemChallenge) === challengeId;
+    item.classList.toggle("active", isActive);
+    if (isActive) {
       App.elements.challengeDropdown.innerHTML = item.innerHTML;
     }
   });
@@ -1834,6 +1851,57 @@ function hideLoading() {
  */
 function getStarterCodes() {
   return {
+    debug: `# Debug Script: Hardware Sanity Test
+# Runs a sequence of movements and distance readings
+# This mirrors project/main.py for testing on real hardware
+
+from aidriver import AIDriver, hold_state
+import aidriver
+
+aidriver.DEBUG_AIDRIVER = True
+
+print("Initialising AIDriver hardware test...")
+my_robot = AIDriver()
+
+print("Starting tests in 3 seconds. Ensure clear space around the robot.")
+hold_state(3)
+
+# Test 1: Drive Forward
+print("Test 1: drive_forward")
+my_robot.drive_forward(200, 200)
+hold_state(2)
+my_robot.brake()
+hold_state(1)
+
+# Test 2: Drive Backward
+print("Test 2: drive_backward")
+my_robot.drive_backward(200, 200)
+hold_state(2)
+my_robot.brake()
+hold_state(1)
+
+# Test 3: Rotate Right
+print("Test 3: rotate_right")
+my_robot.rotate_right(200)
+hold_state(2)
+my_robot.brake()
+hold_state(1)
+
+# Test 4: Rotate Left
+print("Test 4: rotate_left")
+my_robot.rotate_left(200)
+hold_state(2)
+my_robot.brake()
+hold_state(1)
+
+# Test 5: Ultrasonic Sensor
+print("Test 5: ultrasonic distance readings")
+for i in range(5):
+    distance = my_robot.read_distance()
+    hold_state(0.5)
+
+print("All hardware tests completed.")
+`,
     0: `# Challenge 0: Fix the Code
 # This code has errors - can you find and fix them?
 

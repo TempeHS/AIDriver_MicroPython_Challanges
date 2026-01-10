@@ -18,6 +18,28 @@ const Challenges = (function () {
    * Challenge definitions
    */
   const definitions = {
+    // Debug Script: Hardware test from project/main.py
+    debug: {
+      id: "debug",
+      title: "Debug Script",
+      subtitle: "Hardware Test",
+      difficulty: DIFFICULTY.BEGINNER,
+      description: "Run the hardware debug script (project/main.py) to test all robot functions.",
+      goal: "Verify motors, rotation, and ultrasonic sensor are working correctly.",
+      hints: [
+        "This script tests all hardware functions",
+        "Watch the robot drive forward, backward, rotate, and read distances",
+        "Check the debug output for sensor readings",
+      ],
+      startPosition: { x: 1000, y: 1800, heading: 0 },
+      successCriteria: {
+        type: "run_without_error",
+        minDistance: 100,
+      },
+      path: null,
+      obstacles: [],
+    },
+
     // Challenge 0: Fix the Code
     0: {
       id: 0,
