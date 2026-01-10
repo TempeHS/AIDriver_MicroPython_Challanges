@@ -1,6 +1,6 @@
 /**
  * AIDriver Simulator - Debug Panel Module
- * Terminal-like output display
+ * Terminal-like output display with centralized logging
  */
 
 const DebugPanel = {
@@ -12,6 +12,9 @@ const DebugPanel = {
    */
   init() {
     this.element = document.getElementById("debugConsole");
+    if (typeof Logger !== "undefined") {
+      Logger.info("DEBUG_PANEL", "Debug panel initialized");
+    }
     console.log("[DebugPanel] Initialized");
   },
 
@@ -23,6 +26,13 @@ const DebugPanel = {
   log(message, type = "info") {
     if (!this.element) {
       this.element = document.getElementById("debugConsole");
+    }
+
+    // Also log to centralized Logger
+    if (typeof Logger !== "undefined") {
+      const logLevel =
+        type === "error" ? "error" : type === "warning" ? "warn" : "info";
+      Logger.log("DEBUG_PANEL", message, null, logLevel);
     }
 
     if (!this.element) {

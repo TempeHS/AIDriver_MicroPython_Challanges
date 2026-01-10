@@ -38,7 +38,12 @@ const PythonRunner = {
     // Register external modules FIRST (before configure)
     this.registerMicroPythonModules();
 
-    // Configure Skulpt
+    console.log(
+      "[PythonRunner] Before Sk.configure - Sk.setTimeout:",
+      typeof Sk.setTimeout
+    );
+
+    // Configure Skulpt - pass setTimeout as option (it gets reset during configure)
     Sk.configure({
       output: this.handleOutput.bind(this),
       read: this.handleRead.bind(this),
@@ -48,8 +53,21 @@ const PythonRunner = {
       execLimit: null, // No time limit (we control via shouldStop)
       killableWhile: true,
       killableFor: true,
+      // CRITICAL: Provide setTimeout for time.sleep() to work properly
+      setTimeout: function (fn, delay) {
+        console.log("[Skulpt] setTimeout called with delay:", delay);
+        return setTimeout(fn, delay);
+      },
     });
 
+    console.log(
+      "[PythonRunner] After Sk.configure - Sk.setTimeout:",
+      typeof Sk.setTimeout
+    );
+    console.log(
+      "[PythonRunner] Sk.setTimeout function:",
+      Sk.setTimeout ? Sk.setTimeout.toString().substring(0, 100) : "undefined"
+    );
     console.log("[PythonRunner] Initialized with MicroPython module mocks");
   },
 
@@ -60,15 +78,12 @@ const PythonRunner = {
     // Initialize builtin files
     Sk.builtinFiles = Sk.builtinFiles || { files: {} };
 
-    // Register aidriver as a JavaScript module (for proper suspension support)
+    // Register aidriver as a JavaScript builtin module (for proper suspension support)
     // This uses AIDriverStub.getModule() which has promiseToSuspension for hold_state
-    Sk.externalLibraries = Sk.externalLibraries || {};
-    Sk.externalLibraries["aidriver"] = {
-      path: "virtual://aidriver",
-      dependencies: [],
-    };
+    Sk.builtinModules = Sk.builtinModules || {};
+    Sk.builtinModules["aidriver"] = AIDriverStub.getModule();
 
-    console.log("[PythonRunner] Registered aidriver JS module");
+    console.log("[PythonRunner] Registered aidriver JS builtin module");
   },
 
   /**
@@ -166,6 +181,7 @@ class AIDriver:
     
     def __init__(self):
         """Initialize the robot"""
+        global DEBUG_AIDRIVER
         self._right_speed = 0
         self._left_speed = 0
         self._is_moving = False
@@ -175,6 +191,7 @@ class AIDriver:
     
     def drive_forward(self, right_speed, left_speed):
         """Drive the robot forward with specified wheel speeds"""
+        global DEBUG_AIDRIVER
         self._right_speed = int(right_speed)
         self._left_speed = int(left_speed)
         self._is_moving = True
@@ -187,6 +204,7 @@ class AIDriver:
     
     def drive_backward(self, right_speed, left_speed):
         """Drive the robot backward with specified wheel speeds"""
+        global DEBUG_AIDRIVER
         self._right_speed = int(right_speed)
         self._left_speed = int(left_speed)
         self._is_moving = True
@@ -199,6 +217,7 @@ class AIDriver:
     
     def rotate_left(self, turn_speed):
         """Rotate the robot left"""
+        global DEBUG_AIDRIVER
         self._is_moving = True
         _queue_command("rotate_left", {"turnSpeed": int(turn_speed)})
         if DEBUG_AIDRIVER:
@@ -206,6 +225,7 @@ class AIDriver:
     
     def rotate_right(self, turn_speed):
         """Rotate the robot right"""
+        global DEBUG_AIDRIVER
         self._is_moving = True
         _queue_command("rotate_right", {"turnSpeed": int(turn_speed)})
         if DEBUG_AIDRIVER:
@@ -213,6 +233,7 @@ class AIDriver:
     
     def brake(self):
         """Stop the robot"""
+        global DEBUG_AIDRIVER
         self._right_speed = 0
         self._left_speed = 0
         self._is_moving = False
@@ -222,9 +243,35 @@ class AIDriver:
     
     def read_distance(self):
         """Read ultrasonic sensor distance in mm"""
+        global DEBUG_AIDRIVER
         # This will be overridden by JavaScript
         _queue_command("read_distance")
-        return 1000
+        distance_mm = 1000  # Placeholder, JS overrides actual value
+        if DEBUG_AIDRIVER:
+            print("[AIDriver] read_distance:", distance_mm, "mm")
+        return distance_mm
+    
+    def service(self):
+        """Run background housekeeping tasks (no-op in simulator)"""
+        # In real robot this handles LED heartbeat
+        # In simulator we don't need it but provide for API compatibility
+        pass
+    
+    def set_motor_speeds(self, right_speed, left_speed):
+        """Set motor speeds directly"""
+        global DEBUG_AIDRIVER
+        self._right_speed = int(right_speed)
+        self._left_speed = int(left_speed)
+        if right_speed != 0 or left_speed != 0:
+            self._is_moving = True
+        else:
+            self._is_moving = False
+        _queue_command("set_motor_speeds", {
+            "rightSpeed": self._right_speed,
+            "leftSpeed": self._left_speed
+        })
+        if DEBUG_AIDRIVER:
+            print("[AIDriver] set_motor_speeds:", right_speed, left_speed)
     
     def is_moving(self):
         """Check if robot is moving"""
@@ -237,13 +284,17 @@ class AIDriver:
 
 def hold_state(seconds):
     """Hold the current state for specified seconds (adjusted by speed multiplier)"""
+    global DEBUG_AIDRIVER
     import time
+    print("[Python] hold_state called with seconds:", seconds)
     if DEBUG_AIDRIVER:
         print("[AIDriver] hold_state:", seconds, "seconds")
     _queue_command("hold_state", {"seconds": float(seconds)})
     # Divide sleep time by speed multiplier so faster speeds = shorter real time
     actual_sleep = float(seconds) / _SPEED_MULTIPLIER
+    print("[Python] calling time.sleep with actual_sleep:", actual_sleep)
     time.sleep(actual_sleep)
+    print("[Python] time.sleep returned for hold_state:", seconds)
 `;
   },
 
@@ -455,12 +506,18 @@ def ticks_diff(t1, t2):
       filename === "aidriver.py" ||
       filename === "src/lib/aidriver/__init__.py"
     ) {
-      console.log("[PythonRunner] Returning aidriver Python module");
+      console.log(
+        "[PythonRunner] *** RETURNING PYTHON MODULE for aidriver ***"
+      );
+      console.log(
+        "[PythonRunner] This uses time.sleep() - not the JS builtin module!"
+      );
       return this.getAIDriverPythonModule();
     }
 
     // Check builtin files
     if (Sk.builtinFiles && Sk.builtinFiles["files"][filename]) {
+      console.log("[PythonRunner] Returning builtin file:", filename);
       return Sk.builtinFiles["files"][filename];
     }
 
@@ -532,6 +589,11 @@ def ticks_diff(t1, t2):
       // Store reference to this for callbacks
       const self = this;
 
+      console.log(
+        "[PythonRunner] run() - Before Sk.configure, Sk.setTimeout:",
+        typeof Sk.setTimeout
+      );
+
       // Configure Skulpt for async execution
       Sk.configure({
         output: this.handleOutput.bind(this),
@@ -541,7 +603,25 @@ def ticks_diff(t1, t2):
         killableFor: true,
         killableWhile: true,
         __future__: Sk.python3,
+        // CRITICAL: Provide setTimeout for time.sleep() to work
+        setTimeout: function (fn, delay) {
+          console.log(
+            "[Skulpt run()] setTimeout called with delay:",
+            delay,
+            "ms"
+          );
+          return setTimeout(fn, delay);
+        },
       });
+
+      console.log(
+        "[PythonRunner] run() - After Sk.configure, Sk.setTimeout:",
+        typeof Sk.setTimeout
+      );
+      console.log(
+        "[PythonRunner] run() - Sk.setTimeout:",
+        Sk.setTimeout ? Sk.setTimeout.toString().substring(0, 80) : "undefined"
+      );
 
       // Compile and run
       const promise = Sk.misceval.asyncToPromise(
@@ -549,8 +629,16 @@ def ticks_diff(t1, t2):
         {
           // Handle time.sleep promises with pause support
           "Sk.promise": function (susp) {
+            console.log(
+              "[PythonRunner] Sk.promise handler called, susp.data:",
+              susp.data
+            );
+            console.log("[PythonRunner] susp.data.promise:", susp.data.promise);
+
             if (self.shouldStop) {
-              throw new Sk.builtin.KeyboardInterrupt("Execution stopped");
+              const err = new Error("Execution stopped");
+              err.isStopExecution = true;
+              throw err;
             }
 
             // Process any queued commands BEFORE the sleep starts
@@ -558,21 +646,49 @@ def ticks_diff(t1, t2):
 
             // If paused in step mode, wait for resume
             if (self.stepMode && self.stepPaused) {
-              return new Promise((resolve) => {
+              return new Promise((resolve, reject) => {
                 self.stepResumeResolve = () => {
-                  // After resume, continue with original promise
-                  susp.data.promise.then(resolve);
+                  // After resume, continue with original promise then call resume()
+                  susp.data.promise
+                    .then((result) => {
+                      susp.data.result = result;
+                      try {
+                        resolve(susp.resume());
+                      } catch (e) {
+                        reject(e);
+                      }
+                    })
+                    .catch(reject);
                 };
               });
             }
 
-            // Return the sleep promise - animation loop will handle physics
-            return susp.data.promise;
+            // Return a promise that waits for the sleep, then calls resume()
+            // to continue Python execution. This is critical - per Skulpt docs:
+            // "A suspension handler should return a Promise yielding the
+            // return value of susp.resume()"
+            console.log(
+              "[PythonRunner] Returning promise from Sk.promise handler"
+            );
+            return susp.data.promise.then((result) => {
+              console.log(
+                "[PythonRunner] Sleep promise resolved with:",
+                result
+              );
+              // CRITICAL: Set the result and call resume() to continue Python
+              susp.data.result = result;
+              console.log(
+                "[PythonRunner] Calling susp.resume() to continue Python execution"
+              );
+              return susp.resume();
+            });
           },
           "*": function () {
             // Check if we should stop
             if (self.shouldStop) {
-              throw new Sk.builtin.KeyboardInterrupt("Execution stopped");
+              const err = new Error("Execution stopped");
+              err.isStopExecution = true;
+              throw err;
             }
             // Process commands on each yield
             self.processCommandQueue();
@@ -759,6 +875,10 @@ def ticks_diff(t1, t2):
       execLimit: this.maxTraceTime, // Timeout for infinite loops
       killableWhile: true,
       killableFor: true,
+      // CRITICAL: Provide setTimeout for time.sleep() to work
+      setTimeout: function (fn, delay) {
+        return setTimeout(fn, delay);
+      },
     });
 
     // Inject debug calls and add trace retrieval
@@ -1032,6 +1152,9 @@ def ticks_diff(t1, t2):
    * Stop execution
    */
   stop() {
+    console.log("[PythonRunner] stop() called - stack trace:");
+    console.trace();
+
     this.shouldStop = true;
     this.isRunning = false;
     this.stepMode = false;
@@ -1209,8 +1332,18 @@ def ticks_diff(t1, t2):
         return;
       }
 
+      // Check for our custom stop execution error
+      if (error && error.isStopExecution) {
+        return;
+      }
+
       // Check for stop signal string
       if (error === "stopped" || (error && error.message === "stopped")) {
+        return;
+      }
+
+      // Check for "Execution stopped" message
+      if (error && error.message === "Execution stopped") {
         return;
       }
 

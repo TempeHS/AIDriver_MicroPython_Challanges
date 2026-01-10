@@ -43,6 +43,11 @@ const App = {
  * Initialize the application
  */
 function init() {
+  // Initialize Logger first (before anything else)
+  if (typeof Logger !== "undefined") {
+    Logger.init();
+    Logger.info("APP", "Initializing AIDriver Simulator...");
+  }
   console.log("[App] Initializing AIDriver Simulator...");
 
   // Cache DOM elements
@@ -326,7 +331,23 @@ function setupEventListeners() {
     loadChallenge(challengeId);
   });
 
+  // Download debug log button
+  const btnDownloadLog = document.getElementById("btnDownloadLog");
+  if (btnDownloadLog) {
+    btnDownloadLog.addEventListener("click", () => {
+      if (typeof Logger !== "undefined") {
+        Logger.userAction("Download debug log requested");
+        Logger.downloadReport();
+      } else {
+        DebugPanel.error("Logger not available");
+      }
+    });
+  }
+
   console.log("[App] Event listeners set up");
+  if (typeof Logger !== "undefined") {
+    Logger.info("APP", "Event listeners initialized");
+  }
 }
 
 /**
@@ -425,6 +446,11 @@ function handleGamepadRelease() {
  */
 function loadChallenge(challengeId) {
   App.currentChallenge = challengeId;
+
+  // Log challenge load event
+  if (typeof Logger !== "undefined") {
+    Logger.userAction(`Load Challenge ${challengeId}`);
+  }
 
   // Get challenge definition
   const challenge =
@@ -703,6 +729,12 @@ function runCode() {
   App.isPaused = false;
   App.hasRun = true; // Track that code has been run (requires reset)
 
+  // Log run event
+  if (typeof Logger !== "undefined") {
+    Logger.userAction(`Run code - Challenge ${App.currentChallenge}`);
+    Logger.captureAppState();
+  }
+
   // Expand debug panel with animation
   expandDebugPanel();
 
@@ -730,6 +762,9 @@ function runCode() {
   PythonRunner.run(code)
     .then(() => {
       DebugPanel.success("Execution completed");
+      if (typeof Logger !== "undefined") {
+        Logger.info("APP", "Execution completed successfully");
+      }
       if (App.isRunning) {
         stopExecution();
         updateStatus("Completed", "success");
@@ -738,7 +773,11 @@ function runCode() {
       }
     })
     .catch((err) => {
-      DebugPanel.error(`Execution error: ${err.message || err}`);
+      const errorMsg = err.message || String(err);
+      DebugPanel.error(`Execution error: ${errorMsg}`);
+      if (typeof Logger !== "undefined") {
+        Logger.error(`Python execution error: ${errorMsg}`, err.stack);
+      }
       stopExecution();
       updateStatus("Error", "danger");
       App.elements.challengeStatus.textContent = "Error";
@@ -750,6 +789,11 @@ function runCode() {
  * Stop code execution
  */
 function stopExecution() {
+  // Log stop event
+  if (typeof Logger !== "undefined") {
+    Logger.userAction("Stop execution");
+  }
+
   // Stop Python execution
   PythonRunner.stop();
 
@@ -852,6 +896,11 @@ async function stepCode() {
  * Reset robot to starting position
  */
 function resetRobot() {
+  // Log reset event
+  if (typeof Logger !== "undefined") {
+    Logger.userAction("Reset robot");
+  }
+
   // Clear hasRun flag FIRST - so stopExecution doesn't disable Run button
   App.hasRun = false;
 
@@ -2199,6 +2248,10 @@ function checkChallengeSuccess() {
     const elapsed = Date.now() - App.session.startTime;
     if (elapsed < 2000) return; // Don't check success in first 2 seconds
   }
+
+  // Don't check success while Python code is still actively running
+  // Success should only be checked after code completes naturally
+  if (PythonRunner.isRunning) return;
 
   const result = Challenges.checkSuccess(
     App.currentChallenge,

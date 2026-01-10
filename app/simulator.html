@@ -559,6 +559,19 @@
           <li><kbd>Ctrl</kbd>+<kbd>.</kbd> - Stop execution</li>
           <li><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd> - Reset robot</li>
         </ul>
+
+        <hr class="my-3" />
+        <h6>Troubleshooting</h6>
+        <p class="small text-muted">
+          Having issues? Download a debug log to share with your teacher or for
+          troubleshooting.
+        </p>
+        <button
+          class="btn btn-outline-primary btn-sm w-100"
+          id="btnDownloadLog"
+        >
+          <i class="bi bi-download me-2"></i>Download Debug Log
+        </button>
       </div>
     </div>
 
@@ -624,15 +637,16 @@
     <script src="https://cdn.jsdelivr.net/npm/skulpt@1.2.0/dist/skulpt-stdlib.js"></script>
 
     <!-- Application Scripts (order matters!) -->
-    <script src="js/debug-panel.js?v=10"></script>
+    <script src="js/logger.js?v=1"></script>
+    <script src="js/debug-panel.js?v=11"></script>
     <script src="js/validator.js?v=13"></script>
     <script src="js/simulator.js?v=10"></script>
-    <script src="js/challenges.js?v=13"></script>
+    <script src="js/challenges.js?v=15"></script>
     <script src="js/mazes.js?v=25"></script>
     <script src="js/gamepad.js?v=10"></script>
-    <script src="js/aidriver-stub.js?v=10"></script>
-    <script src="js/python-runner.js?v=43"></script>
+    <script src="js/aidriver-stub.js?v=20"></script>
+    <script src="js/python-runner.js?v=55"></script>
     <script src="js/editor.js?v=13"></script>
-    <script src="js/app.js?v=48"></script>
+    <script src="js/app.js?v=53"></script>
   </body>
 </html>

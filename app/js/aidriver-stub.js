@@ -237,6 +237,8 @@ const AIDriverStub = {
       mod.hold_state = new Sk.builtin.func(function (seconds) {
         const secs = Sk.ffi.remapToJs(seconds);
 
+        console.log("[AIDriverStub] hold_state JS called with seconds:", secs);
+
         AIDriverStub.queueCommand({
           type: "hold_state",
           params: { seconds: secs },
@@ -247,11 +249,21 @@ const AIDriverStub = {
         }
 
         // Return a suspension to pause execution
+        const scaledMs = (secs * 1000) / (App.speedMultiplier || 1);
+        console.log(
+          "[AIDriverStub] Creating promiseToSuspension with scaledMs:",
+          scaledMs
+        );
+
         return new Sk.misceval.promiseToSuspension(
           new Promise((resolve) => {
-            // Simulate the hold with scaled time
-            const scaledMs = (secs * 1000) / (App.speedMultiplier || 1);
+            console.log(
+              "[AIDriverStub] Promise created, setting setTimeout for",
+              scaledMs,
+              "ms"
+            );
             setTimeout(() => {
+              console.log("[AIDriverStub] setTimeout fired, resolving promise");
               resolve(Sk.builtin.none.none$);
             }, scaledMs);
           })
