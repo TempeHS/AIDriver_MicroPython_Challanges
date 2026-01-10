@@ -83,61 +83,42 @@ _HEARTBEAT_TIMER = None
 
 # Ultrasonic sensor inline warning state
 _ultrasonic_fail_count = 0
-_ultrasonic_last_warn_ms = 0
-_ULTRASONIC_WARN_THRESHOLD = 3  # Failures before showing warning
-_ULTRASONIC_WARN_INTERVAL_MS = 500  # How often to update the warning
-_ULTRASONIC_SPINNER = ["|", "/", "-", "\\"]  # Visual spinner characters
+_ultrasonic_warned = False  # Have we printed the initial warning?
 
 
 def _ultrasonic_warn_inline(message):
-    """Print an in-place warning that updates on the same line.
+    """Print a warning once, then add dots for each subsequent failure.
 
-    Uses carriage return to overwrite the previous message, avoiding
-    terminal spam that can overwhelm new programmers. Only shows after
-    several consecutive failures.
+    This approach works in all terminals including Arduino Lab which
+    doesn't support carriage return for in-place updates.
     """
-    global _ultrasonic_fail_count, _ultrasonic_last_warn_ms
+    global _ultrasonic_fail_count, _ultrasonic_warned
 
     _ultrasonic_fail_count += 1
 
-    # Don't warn until we hit the threshold
-    if _ultrasonic_fail_count < _ULTRASONIC_WARN_THRESHOLD:
+    # First few failures: stay silent (could be transient)
+    if _ultrasonic_fail_count < 3:
         return
 
-    now = ticks_ms()
-
-    # Rate limit: only update every WARN_INTERVAL
-    if ticks_diff(now, _ultrasonic_last_warn_ms) < _ULTRASONIC_WARN_INTERVAL_MS:
-        return
-
-    _ultrasonic_last_warn_ms = now
-
-    # Get spinner character based on fail count
-    spinner = _ULTRASONIC_SPINNER[_ultrasonic_fail_count % len(_ULTRASONIC_SPINNER)]
-
-    # Build the warning message (fixed width to overwrite previous)
-    warn_text = "[AIDriver] {} {} (x{})".format(
-        spinner, message, _ultrasonic_fail_count
-    )
-
-    # Pad to 70 chars to ensure we overwrite any previous longer message
-    # Note: MicroPython doesn't have str.ljust(), so we pad manually
-    padding = max(0, 70 - len(warn_text))
-    warn_text = warn_text + " " * padding
-
-    # Print with carriage return (no newline) to stay on same line
-    print("\r" + warn_text, end="")
+    # Print the initial warning (no newline)
+    if not _ultrasonic_warned:
+        print("[AIDriver] " + message, end="")
+        _ultrasonic_warned = True
+    else:
+        # Just add a dot for each subsequent failure
+        print(".", end="")
 
 
 def _ultrasonic_warn_clear():
-    """Clear the inline warning and reset the failure counter."""
-    global _ultrasonic_fail_count, _ultrasonic_last_warn_ms
+    """End the warning line and reset the failure counter."""
+    global _ultrasonic_fail_count, _ultrasonic_warned
 
-    if _ultrasonic_fail_count >= _ULTRASONIC_WARN_THRESHOLD:
-        # Clear the line by printing spaces, then move cursor back
-        print("\r" + " " * 70 + "\r", end="")
+    if _ultrasonic_warned:
+        # End the line with newline
+        print()  # newline
 
     _ultrasonic_fail_count = 0
+    _ultrasonic_warned = False
     _ultrasonic_last_warn_ms = 0
 
 
