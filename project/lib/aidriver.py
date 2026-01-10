@@ -86,8 +86,6 @@ _ultrasonic_fail_count = 0
 _ultrasonic_warned = False  # Have we printed the initial warning?
 
 
-import sys
-
 def _ultrasonic_warn_inline(message):
     """Print a warning once, then add dots for each subsequent failure.
 
@@ -101,12 +99,10 @@ def _ultrasonic_warn_inline(message):
     # Print the initial warning (no newline)
     if not _ultrasonic_warned:
         print("[AIDriver] " + message, end="")
-        sys.stdout.flush()
         _ultrasonic_warned = True
     else:
         # Just add a dot for each subsequent failure
         print(".", end="")
-        sys.stdout.flush()
 
 
 def _ultrasonic_warn_clear():
