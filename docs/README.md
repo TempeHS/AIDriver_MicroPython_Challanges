@@ -2,6 +2,8 @@
 
 A low-cost, easy-to-assemble differential drive robot, specifically designed for students. This platform provides hands-on experience with fundamental mechatronic components, robot construction, and introductory programming for mechatronics applications.
 
+**🎮 Try the [Web Simulator](https://tempehs.github.io/AIDriver_MicroPython_Challanges/) to test your code without hardware!**
+
 ## Build The Robot
 
 ### Components
