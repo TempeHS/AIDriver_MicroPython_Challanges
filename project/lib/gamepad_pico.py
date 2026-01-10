@@ -54,19 +54,27 @@ class GamePad:
             self._frame.append(byte)
 
     def _process_frame(self, buf):
-        # Expect: [ModuleID][FunctionID][ArgN][Len0][value0][Len1][value]...
-        # We only care about FunctionID, value0, value
-        if len(buf) < 7:
+        # Dabble frame format (after removing START/END bytes):
+        # [ModuleID][FunctionID][ArgCount][Len0][Arg0 bytes...]
+        # For GamePad: ModuleID=0x01, ArgCount=1, Len0=2, Arg0=[value0, value]
+        # So: buf[0]=ModuleID, buf[1]=FunctionID, buf[2]=ArgCount, buf[3]=Len0,
+        #     buf[4]=value0, buf[5]=value
+        if len(buf) < 6:
+            return
+        module_id = buf[0]
+        if module_id != 0x01:  # Not GamePad module (GAMEPAD_ID = 0x01)
             return
         function_id = buf[1]
+        # buf[2] = arg count (should be 1)
+        # buf[3] = arg0 length (should be 2)
         if function_id == GAMEPAD_DIGITAL:
             self.mode = 0
             self.value0 = buf[4]
-            self.value = buf[6]
+            self.value = buf[5]
         elif function_id in (GAMEPAD_ANALOG, GAMEPAD_ACCL):
             self.mode = 1
             self.value0 = buf[4]
-            self.value = buf[6]
+            self.value = buf[5]
 
     # Digital buttons
     def is_start_pressed(self):
