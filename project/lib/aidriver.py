@@ -601,7 +601,7 @@ class AIDriver:
         """
         distance_mm = self.ultrasonic.read_distance_mm()
         if distance_mm == -1:
-            _d("read_distance: invalid reading (-1)")
+            # Don't print debug here - inline warning handles user feedback
             return -1
         _d("read_distance:", distance_mm, "mm")
         return int(distance_mm)
