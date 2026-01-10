@@ -98,6 +98,8 @@ def _ultrasonic_warn_inline(message):
 
     # Print the initial warning (no newline)
     if not _ultrasonic_warned:
+        # Use separate print to ensure message appears
+        print()  # newline first to separate from previous output
         print("[AIDriver] " + message, end="")
         _ultrasonic_warned = True
     else:
