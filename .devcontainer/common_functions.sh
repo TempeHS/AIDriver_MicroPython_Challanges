@@ -27,6 +27,7 @@ export FIRMWARE_DEST="$PROJECT_BASE/_Firmware/AI_Driver_RP2040.uf2"
 export CUSTOM_FILES=(
     "$PROJECT_LIB_DIR/aidriver.py"
     "$PROJECT_LIB_DIR/gamepad_driver_controller.py"
+    "$PROJECT_LIB_DIR/hm10_controller.py"
     "$PROJECT_LIB_DIR/gamepad_pico.py"
 )
 
@@ -129,7 +130,7 @@ clean_custom_modules() {
     log_info "🧹 Cleaning existing custom modules..."
     
     # Define module filenames to clean from frozen modules
-    local frozen_modules=("aidriver.py" "gamepad_driver_controller.py" "gamepad_pico.py")
+    local frozen_modules=("aidriver.py" "gamepad_driver_controller.py" "hm10_controller.py" "gamepad_pico.py")
     local filesystem_modules=("main.py")
     
     # Clean frozen modules

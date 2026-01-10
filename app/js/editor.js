@@ -10,7 +10,8 @@ const Editor = {
   saveTimeout: null,
 
   /**
-   * Initialize the ACE editor
+   * Instantiate and configure the ACE editor, wiring auto-save and validation handlers.
+   * @returns {Editor} Fluent reference to the module for chaining.
    */
   init() {
     this.instance = ace.edit("editor");
@@ -47,7 +48,8 @@ const Editor = {
   },
 
   /**
-   * Set up custom key bindings
+   * Register application-specific keyboard shortcuts on the ACE command manager.
+   * @returns {void}
    */
   setupKeyBindings() {
     // Ctrl+Enter to run code
@@ -74,16 +76,18 @@ const Editor = {
   },
 
   /**
-   * Get the current code from the editor
+   * Retrieve the current Python source from the editor session.
+   * @returns {string} Full editor contents.
    */
   getCode() {
     return this.instance.getValue();
   },
 
   /**
-   * Set code in the editor
-   * @param {string} code - The code to set
-   * @param {boolean} moveCursor - Whether to move cursor to start (-1) or end (1)
+   * Replace the editor contents and reposition the caret as requested.
+   * @param {string} code Source text to load.
+   * @param {number} [moveCursor=-1] ACE cursor placement flag (-1 top, 1 bottom).
+   * @returns {void}
    */
   setCode(code, moveCursor = -1) {
     this.instance.setValue(code, moveCursor);
@@ -91,7 +95,8 @@ const Editor = {
   },
 
   /**
-   * Clear the editor
+   * Remove all text and markers from the editor.
+   * @returns {void}
    */
   clear() {
     this.instance.setValue("", -1);
@@ -99,9 +104,10 @@ const Editor = {
   },
 
   /**
-   * Mark an error on a specific line
-   * @param {number} line - Line number (1-indexed)
-   * @param {string} message - Error message
+   * Add an error annotation and highlight to the specified line.
+   * @param {number} line One-based line number.
+   * @param {string} message Description of the error.
+   * @returns {void}
    */
   markError(line, message) {
     const lineIndex = line - 1; // ACE uses 0-indexed lines
@@ -131,9 +137,10 @@ const Editor = {
   },
 
   /**
-   * Mark a warning on a specific line
-   * @param {number} line - Line number (1-indexed)
-   * @param {string} message - Warning message
+   * Add a warning annotation to the specified line without highlighting.
+   * @param {number} line One-based line number.
+   * @param {string} message Description of the warning.
+   * @returns {void}
    */
   markWarning(line, message) {
     const lineIndex = line - 1;
@@ -149,8 +156,9 @@ const Editor = {
   },
 
   /**
-   * Highlight the currently executing line
-   * @param {number} line - Line number (1-indexed), or null to clear
+   * Highlight a line to visualize execution progress.
+   * @param {?number} line One-based line number, or null to clear the highlight.
+   * @returns {void}
    */
   highlightExecutingLine(line) {
     // Remove previous highlight
@@ -177,22 +185,25 @@ const Editor = {
   },
 
   /**
-   * Highlight a line during step mode playback (alias for highlightExecutingLine)
-   * @param {number} line - Line number (1-indexed)
+   * Alias for highlightExecutingLine used by step-mode playback.
+   * @param {number} line One-based line number.
+   * @returns {void}
    */
   highlightLine(line) {
     this.highlightExecutingLine(line);
   },
 
   /**
-   * Clear the step mode line highlight
+   * Remove any active line highlight from the editor.
+   * @returns {void}
    */
   clearHighlight() {
     this.highlightExecutingLine(null);
   },
 
   /**
-   * Clear all error/warning markers
+   * Remove annotations, markers, and execution highlights from the session.
+   * @returns {void}
    */
   clearAllMarkers() {
     // Clear annotations
@@ -209,7 +220,8 @@ const Editor = {
   },
 
   /**
-   * Save code to localStorage (debounced)
+   * Schedule a deferred save operation to persist the editor content.
+   * @returns {void}
    */
   debouncedSave() {
     if (this.saveTimeout) {
@@ -222,7 +234,8 @@ const Editor = {
   },
 
   /**
-   * Validate code (debounced)
+   * Schedule a deferred validation pass of the editor content.
+   * @returns {void}
    */
   debouncedValidate() {
     if (this.validateTimeout) {
@@ -235,7 +248,8 @@ const Editor = {
   },
 
   /**
-   * Run validation on current code
+   * Execute validation routines and update UI markers accordingly.
+   * @returns {{errors:Array, warnings:Array}} Aggregated validator output.
    */
   validateCode() {
     if (typeof Validator === "undefined") {
@@ -310,7 +324,8 @@ const Editor = {
   validateTimeout: null,
 
   /**
-   * Save code to localStorage immediately
+   * Persist the current editor contents synchronously.
+   * @returns {void}
    */
   saveCode() {
     if (typeof App === "undefined") return;
@@ -322,9 +337,9 @@ const Editor = {
   },
 
   /**
-   * Load code from localStorage
-   * @param {number} challengeId - Challenge ID
-   * @returns {string|null} Saved code or null if none
+   * Fetch previously saved code for a challenge from localStorage.
+   * @param {number|string} challengeId Challenge identifier used in the storage key.
+   * @returns {string|null} Persisted code or null when absent.
    */
   loadSavedCode(challengeId) {
     const key = `aidriver_challenge_${challengeId}_code`;
@@ -332,8 +347,9 @@ const Editor = {
   },
 
   /**
-   * Clear saved code for a challenge
-   * @param {number} challengeId - Challenge ID
+   * Remove persisted code for the specified challenge.
+   * @param {number|string} challengeId Challenge identifier used in the storage key.
+   * @returns {void}
    */
   clearSavedCode(challengeId) {
     const key = `aidriver_challenge_${challengeId}_code`;
@@ -341,9 +357,9 @@ const Editor = {
   },
 
   /**
-   * Check if there's saved code for a challenge
-   * @param {number} challengeId - Challenge ID
-   * @returns {boolean}
+   * Determine whether saved code exists for the given challenge id.
+   * @param {number|string} challengeId Challenge identifier.
+   * @returns {boolean} True when code is present in storage.
    */
   hasSavedCode(challengeId) {
     const key = `aidriver_challenge_${challengeId}_code`;
@@ -351,39 +367,42 @@ const Editor = {
   },
 
   /**
-   * Set editor read-only state
-   * @param {boolean} readOnly
+   * Toggle the editor's read-only mode.
+   * @param {boolean} readOnly When true the editor prevents edits.
+   * @returns {void}
    */
   setReadOnly(readOnly) {
     this.instance.setReadOnly(readOnly);
   },
 
   /**
-   * Focus the editor
+   * Move focus to the editor component.
+   * @returns {void}
    */
   focus() {
     this.instance.focus();
   },
 
   /**
-   * Resize the editor (call after container size changes)
+   * Recompute editor layout after container size adjustments.
+   * @returns {void}
    */
   resize() {
     this.instance.resize();
   },
 
   /**
-   * Get total line count
-   * @returns {number}
+   * Report the total number of lines in the current buffer.
+   * @returns {number} Active line count.
    */
   getLineCount() {
     return this.instance.session.getLength();
   },
 
   /**
-   * Get text of a specific line
-   * @param {number} line - Line number (1-indexed)
-   * @returns {string}
+   * Retrieve the text content for a specific line.
+   * @param {number} line One-based line number.
+   * @returns {string} Line contents without trailing newline.
    */
   getLine(line) {
     return this.instance.session.getLine(line - 1);

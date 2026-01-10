@@ -31,10 +31,14 @@ const Simulator = (function () {
   let mazeWalls = [];
 
   /**
-   * Update robot position based on differential drive kinematics
-   * @param {object} robot - Robot state { x, y, heading, leftSpeed, rightSpeed }
-   * @param {number} dt - Time delta in seconds
-   * @returns {object} Updated robot state
+   * Integrate a single timestep of differential-drive motion for the supplied
+   * robot state. Converts discrete motor speed values into linear and angular
+   * velocities, updates the heading, and returns a new state without mutating
+   * the original reference.
+   *
+   * @param {{x:number,y:number,heading:number,leftSpeed:number,rightSpeed:number}} robot Current robot pose and wheel speeds.
+   * @param {number} dt Elapsed time in seconds since the previous update.
+   * @returns {{x:number,y:number,heading:number,leftSpeed:number,rightSpeed:number}} Fresh state snapshot after applying kinematics.
    */
   function updateKinematics(robot, dt) {
     const leftSpeed = robot.leftSpeed;
@@ -92,9 +96,12 @@ const Simulator = (function () {
   }
 
   /**
-   * Apply boundary constraints to robot position
-   * @param {object} robot - Robot state
-   * @returns {object} Constrained robot state
+   * Clamp the robot position so it remains entirely within the rectangular
+   * arena. Accounts for the robot footprint rather than just its centre point
+   * to prevent clipping through walls when positioned near an edge.
+   *
+   * @param {{x:number,y:number}} robot Robot state to constrain.
+   * @returns {{x:number,y:number}} New state with x/y clamped to arena bounds.
    */
   function applyBoundaryConstraints(robot) {
     const halfWidth = ROBOT_WIDTH / 2;
@@ -109,10 +116,13 @@ const Simulator = (function () {
   }
 
   /**
-   * Check collision with obstacles
-   * @param {object} robot - Robot state
-   * @param {Array} obstacles - List of obstacle rectangles
-   * @returns {boolean} True if collision
+   * Determine whether the robot intersects any supplied obstacle rectangles.
+   * Robot geometry is approximated as a rotated rectangle while obstacles are
+   * treated as axis-aligned boxes.
+   *
+   * @param {{x:number,y:number,heading:number}} robot Robot pose to test.
+   * @param {Array<{x:number,y:number,width:number,height:number}>} obstacles List of potential collision boxes.
+   * @returns {boolean} True if any overlap is detected.
    */
   function checkCollision(robot, obstacles) {
     const robotCorners = getRobotCorners(robot);
@@ -127,9 +137,11 @@ const Simulator = (function () {
   }
 
   /**
-   * Get robot corner points
-   * @param {object} robot - Robot state
-   * @returns {Array} Corner points [{ x, y }, ...]
+   * Compute the four world-space corner coordinates of the robot chassis using
+   * its current heading. The result feeds collision and rendering routines.
+   *
+   * @param {{x:number,y:number,heading:number}} robot Current robot pose.
+   * @returns {Array<{x:number,y:number}>} Ordered corner list starting at front-left and rotating clockwise.
    */
   function getRobotCorners(robot) {
     const halfWidth = ROBOT_WIDTH / 2;
@@ -155,10 +167,13 @@ const Simulator = (function () {
   }
 
   /**
-   * Check if two rectangles overlap (simplified AABB check)
-   * @param {Array} corners1 - First rectangle corners
-   * @param {object} rect2 - Second rectangle { x, y, width, height }
-   * @returns {boolean} True if overlapping
+   * Test whether the axis-aligned bounding box of a rotated robot overlaps a
+   * second, axis-aligned rectangle. Used as a coarse but efficient collision
+   * check.
+   *
+   * @param {Array<{x:number,y:number}>} corners1 Rotated rectangle corners in world space.
+   * @param {{x:number,y:number,width:number,height:number}} rect2 Static axis-aligned rectangle to compare against.
+   * @returns {boolean} True when bounding boxes intersect.
    */
   function rectanglesOverlap(corners1, rect2) {
     // Get AABB of rotated robot
@@ -184,9 +199,13 @@ const Simulator = (function () {
   }
 
   /**
-   * Simulate ultrasonic sensor reading
-   * @param {object} robot - Robot state
-   * @returns {number} Distance in mm (-1 for out of range/error)
+   * Simulate the front-facing ultrasonic sensor, tracing a ray from the robot
+   * nose outwards and returning the closest hit among arena walls, obstacles,
+   * and maze segments. Adds small random noise and reports -1 when outside the
+   * measurable range.
+   *
+   * @param {{x:number,y:number,heading:number}} robot Robot pose to sample.
+   * @returns {number} Millimetres to the nearest surface or -1 when no valid reading.
    */
   function simulateUltrasonic(robot) {
     const headingRad = (robot.heading * Math.PI) / 180;
@@ -282,8 +301,18 @@ const Simulator = (function () {
   }
 
   /**
-   * Ray-box intersection test
-   * @returns {number|null} Distance to intersection or null
+   * Compute the parametric distance from a ray origin to an axis-aligned box.
+   * Returns null when the ray misses or faces away from the volume.
+   *
+   * @param {number} rayX Ray origin X coordinate.
+   * @param {number} rayY Ray origin Y coordinate.
+   * @param {number} dirX Normalised ray direction X component.
+   * @param {number} dirY Normalised ray direction Y component.
+   * @param {number} boxX Box minimum X.
+   * @param {number} boxY Box minimum Y.
+   * @param {number} boxW Box width.
+   * @param {number} boxH Box height.
+   * @returns {number|null} Parametric distance to first intersection, or null if no hit.
    */
   function rayBoxIntersection(rayX, rayY, dirX, dirY, boxX, boxY, boxW, boxH) {
     let tmin = 0;
@@ -317,10 +346,13 @@ const Simulator = (function () {
   }
 
   /**
-   * Run one simulation step
-   * @param {object} robot - Current robot state
-   * @param {number} dt - Time delta in seconds
-   * @returns {object} Updated robot state
+   * Advance the simulator by one frame, applying kinematics, boundary
+   * clamping, collision detection, and trail bookkeeping. Stops the robot when
+   * a collision is detected and logs the event to the debug panel.
+   *
+   * @param {{isMoving:boolean,leftSpeed:number,rightSpeed:number,trail:Array<object>}} robot Current robot state snapshot.
+   * @param {number} dt Delta time in seconds since the previous frame.
+   * @returns {object} New robot state with updated pose, speeds, and trail samples.
    */
   function step(robot, dt) {
     if (!robot.isMoving && robot.leftSpeed === 0 && robot.rightSpeed === 0) {
@@ -355,31 +387,35 @@ const Simulator = (function () {
   }
 
   /**
-   * Set simulation speed multiplier
-   * @param {number} speed - Speed multiplier (1.0 = normal)
+   * Set the global simulation speed multiplier, constraining values to a safe
+   * range so physics remain stable.
+   *
+   * @param {number} speed Desired speed factor where 1.0 represents real time.
    */
   function setSpeed(speed) {
     simulationSpeed = Math.max(0.1, Math.min(5.0, speed));
   }
 
   /**
-   * Set obstacles for collision detection
-   * @param {Array} obstacleList - List of { x, y, width, height }
+   * Replace the current obstacle list used for collision detection.
+   *
+   * @param {Array<{x:number,y:number,width:number,height:number}>} obstacleList Obstacles to track; falsy values clear the list.
    */
   function setObstacles(obstacleList) {
     obstacles = obstacleList || [];
   }
 
   /**
-   * Set maze walls for collision detection
-   * @param {Array} walls - List of { x, y, width, height }
+   * Replace the maze wall collection, typically supplied by challenge data.
+   *
+   * @param {Array<{x:number,y:number,width:number,height:number}>} walls Walls to enable; falsy values clear the wall list.
    */
   function setMazeWalls(walls) {
     mazeWalls = walls || [];
   }
 
   /**
-   * Clear all obstacles and walls
+   * Remove every obstacle and maze wall, restoring an empty arena.
    */
   function clearObstacles() {
     obstacles = [];
@@ -387,8 +423,10 @@ const Simulator = (function () {
   }
 
   /**
-   * Get initial robot state
-   * @returns {object} Default robot state
+   * Generate the canonical starting robot state positioned near the arena
+   * bottom, facing upward, with no motion or trail history.
+   *
+   * @returns {{x:number,y:number,heading:number,leftSpeed:number,rightSpeed:number,isMoving:boolean,trail:Array<object>}} Default robot state snapshot.
    */
   function getInitialRobotState() {
     return {

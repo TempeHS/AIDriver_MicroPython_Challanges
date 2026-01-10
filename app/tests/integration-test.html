@@ -8,6 +8,7 @@
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
       rel="stylesheet"
     />
+    <link rel="stylesheet" href="../css/style.css" />
     <style>
       body {
         background: #1a1a2e;
@@ -218,6 +219,107 @@
             </div>
           </div>
         </div>
+
+        <div class="col-lg-12 mt-4">
+          <div class="card bg-dark border-secondary">
+            <div class="card-header bg-secondary text-white">
+              BLE Gamepad Module Demo
+            </div>
+            <div class="card-body">
+              <div
+                id="gamepadPanel"
+                class="bg-dark text-light border border-secondary rounded-3 p-3"
+              >
+                <div
+                  id="bleUnsupported"
+                  class="alert alert-warning d-none"
+                  role="alert"
+                >
+                  Web Bluetooth is not available in this browser. Use a
+                  supported browser such as Chrome on desktop or Android.
+                </div>
+
+                <div
+                  class="gamepad-status d-flex flex-wrap align-items-center justify-content-between mb-3"
+                >
+                  <div class="d-flex align-items-center gap-2">
+                    <span id="bleStatusText">Disconnected</span>
+                    <span class="badge bg-secondary" id="bleStateBadge"
+                      >Idle</span
+                    >
+                  </div>
+                  <div class="d-flex gap-2">
+                    <button class="btn btn-primary" id="btnBleConnect">
+                      Connect
+                    </button>
+                    <button
+                      class="btn btn-outline-light d-none"
+                      id="btnBleDisconnect"
+                    >
+                      Disconnect
+                    </button>
+                  </div>
+                </div>
+
+                <div class="gamepad-layout">
+                  <div class="joystick-column">
+                    <div class="joystick-wrapper">
+                      <div class="joystick-track" id="joystickTrack">
+                        <div class="joystick-deadzone"></div>
+                        <div class="joystick-handle" id="joystickHandle"></div>
+                      </div>
+                    </div>
+                    <div class="text-center mt-3">
+                      <span class="badge bg-dark text-light" id="joystickDebug"
+                        >0 · 0</span
+                      >
+                    </div>
+                    <p class="text-muted small mt-2 text-center">
+                      Drag the joystick or use arrow / WASD keys to simulate
+                      driving.
+                    </p>
+                  </div>
+
+                  <div class="status-column">
+                    <div class="info-panel">
+                      <div class="info-heading">Telemetry</div>
+                      <div class="info-value" id="gamepadUltrasonic">
+                        --- mm
+                      </div>
+                      <div class="info-subtle" id="telemetryTimestamp">
+                        Waiting for data
+                      </div>
+                    </div>
+
+                    <div class="info-panel mt-3">
+                      <div
+                        class="d-flex align-items-center justify-content-between"
+                      >
+                        <span class="info-heading mb-0">Brake</span>
+                        <span class="badge bg-secondary" id="brakeBadge"
+                          >Released</span
+                        >
+                      </div>
+                      <div
+                        class="d-flex align-items-center justify-content-between mt-2"
+                      >
+                        <span class="info-heading mb-0">Motor Speeds</span>
+                        <span class="info-value small" id="motorSpeeds"
+                          >0 | 0</span
+                        >
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="text-muted small mt-3" id="bleHint">
+                  Requires a browser with Web Bluetooth support. Use the buttons
+                  above to pair with an HM-10 module when available.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -230,6 +332,7 @@
     <script src="../js/aidriver-stub.js"></script>
     <script src="../js/python-runner.js"></script>
     <script src="../js/challenges.js"></script>
+    <script src="../js/gamepad.js"></script>
 
     <script>
       // ============================================
@@ -248,6 +351,7 @@
         passed: 0,
         failed: 0,
         startTime: null,
+        gamepadReady: false,
 
         init() {
           this.canvas = document.getElementById("testCanvas");
@@ -448,6 +552,79 @@
                   "Sk.configure missing"
                 );
                 return "Skulpt Python engine loaded";
+              },
+            },
+
+            // ========== BLE GAMEPAD TESTS ==========
+            {
+              name: "BLE: Gamepad module initializes",
+              run: async () => {
+                this.ensureGamepadReady();
+                const panel = document.getElementById("gamepadPanel");
+                this.assert(panel, "Gamepad panel missing");
+                const debugBadge = document.getElementById("joystickDebug");
+                this.assert(debugBadge, "Joystick debug badge missing");
+                return "Gamepad module initialized";
+              },
+            },
+            {
+              name: "BLE: Joystick mapping outputs differential speeds",
+              run: async () => {
+                this.ensureGamepadReady();
+                const speeds = Gamepad.calculateMotorSpeeds(0.45, 0.85);
+                this.assert(
+                  speeds.left > speeds.right,
+                  "Expected left speed to exceed right when steering right"
+                );
+                this.assert(
+                  speeds.left <= 255 && speeds.right <= 255,
+                  "Motor speeds exceed allowable range"
+                );
+                this.assert(
+                  !speeds.brake,
+                  "Brake should be released while moving"
+                );
+                return `Speeds: L=${speeds.left}, R=${speeds.right}`;
+              },
+            },
+            {
+              name: "BLE: Support notice matches capability",
+              run: async () => {
+                this.ensureGamepadReady();
+                const alert = document.getElementById("bleUnsupported");
+                this.assert(alert, "BLE unsupported alert missing");
+                if ("bluetooth" in navigator) {
+                  this.assert(
+                    alert.classList.contains("d-none"),
+                    "Alert should be hidden when Web Bluetooth is available"
+                  );
+                  return "Web Bluetooth available";
+                }
+                this.assert(
+                  !alert.classList.contains("d-none"),
+                  "Alert should be visible when Web Bluetooth is unavailable"
+                );
+                return "Web Bluetooth unavailable";
+              },
+            },
+            {
+              name: "BLE: Disable resets simulator state",
+              run: async () => {
+                this.ensureGamepadReady();
+                this.resetRobot(250, 400, 0);
+                App.robot.leftSpeed = 120;
+                App.robot.rightSpeed = 80;
+                App.robot.isMoving = true;
+                Gamepad.disable();
+                this.assert(
+                  !Gamepad.isActive(),
+                  "Gamepad should be inactive after disable"
+                );
+                this.assert(
+                  App.robot.leftSpeed === 0 && App.robot.rightSpeed === 0,
+                  "Simulator speeds were not reset"
+                );
+                return "Gamepad disable resets robot state";
               },
             },
 
@@ -1009,6 +1186,20 @@ my_robot.brake()
         // ============================================
         // TEST HELPERS
         // ============================================
+
+        ensureGamepadReady() {
+          this.assert(
+            typeof Gamepad !== "undefined",
+            "Gamepad module is not loaded"
+          );
+          if (!this.gamepadReady) {
+            Gamepad.init();
+            this.gamepadReady = true;
+          }
+          if (!Gamepad.isActive()) {
+            Gamepad.enable();
+          }
+        },
 
         assert(condition, message) {
           if (!condition) {

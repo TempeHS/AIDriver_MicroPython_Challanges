@@ -8,199 +8,143 @@ def load_controller_module():
     return sys.modules["gamepad_driver_controller"]
 
 
+class FakeMotor:
+    def __init__(self):
+        self.last_speed = None
+        self.direction = None
+        self.stopped = True
+
+    def set_speed(self, speed):
+        self.last_speed = speed
+
+    def forward(self):
+        self.direction = "forward"
+        self.stopped = False
+
+    def backward(self):
+        self.direction = "backward"
+        self.stopped = False
+
+    def stop(self):
+        self.direction = "stop"
+        self.stopped = True
+
+
 class FakeDriver:
     def __init__(self):
-        self.calls = []
+        self.motor_left = FakeMotor()
+        self.motor_right = FakeMotor()
+        self.brake_calls = 0
+        self.distance = 500
 
     def brake(self):
-        self.calls.append(("brake", ()))
+        self.brake_calls += 1
+        self.motor_left.stop()
+        self.motor_right.stop()
 
-    def drive_forward(self, right, left):
-        self.calls.append(("drive_forward", (right, left)))
-
-    def drive_backward(self, right, left):
-        self.calls.append(("drive_backward", (right, left)))
-
-    def rotate_left(self, speed):
-        self.calls.append(("rotate_left", (speed,)))
-
-    def rotate_right(self, speed):
-        self.calls.append(("rotate_right", (speed,)))
-
-
-class FakeGamePad:
-    def __init__(self):
-        self.mode = 0
-        self.start = False
-        self.up = False
-        self.down = False
-        self.left = False
-        self.right = False
-        self.angle = 0
-        self.radius = 0
-
-    def poll(self):
+    def service(self):
         pass
 
-    def is_start_pressed(self):
-        return self.start
+    def read_distance(self):
+        return self.distance
 
-    def is_select_pressed(self):  # unused but kept for completeness
-        return False
 
-    def is_triangle_pressed(self):
-        return False
+class FakeHM10:
+    def __init__(self):
+        self.flags = 0
+        self.left_speed = 0
+        self.right_speed = 0
+        self.stale = False
+        self.poll_calls = 0
+        self.telemetry = []
 
-    def is_circle_pressed(self):
-        return False
+    def poll(self):
+        self.poll_calls += 1
+        return True
 
-    def is_cross_pressed(self):
-        return False
+    def is_stale(self):
+        return self.stale
 
-    def is_square_pressed(self):
-        return False
+    def is_brake_requested(self):
+        return bool(self.flags & 0x01)
 
-    def is_up_pressed(self):
-        return self.up
-
-    def is_down_pressed(self):
-        return self.down
-
-    def is_left_pressed(self):
-        return self.left
-
-    def is_right_pressed(self):
-        return self.right
-
-    def get_angle(self):
-        return self.angle
-
-    def get_radius(self):
-        return self.radius
+    def send_ultrasonic(self, distance):
+        self.telemetry.append(distance)
 
 
 def make_controller():
     module = load_controller_module()
-    gamepad = FakeGamePad()
+    hm10 = FakeHM10()
     driver = FakeDriver()
-    controller = module.GamepadAIDriverController(gamepad, driver)
-    return controller, gamepad, driver
+    controller = module.HM10AIDriverController(hm10, driver)
+    return controller, hm10, driver
 
 
-def test_start_button_applies_brake():
-    controller, gamepad, driver = make_controller()
-    gamepad.start = True
-
-    controller.update()
-
-    assert driver.calls[0][0] == "brake"
-
-
-def test_dpad_up_drives_forward():
-    controller, gamepad, driver = make_controller()
-    gamepad.up = True
+def test_forward_command_sets_motor_directions():
+    controller, hm10, driver = make_controller()
+    hm10.left_speed = 120
+    hm10.right_speed = 110
 
     controller.update()
 
-    assert driver.calls[0] == (
-        "drive_forward",
-        (controller.max_speed, controller.max_speed),
+    assert driver.motor_left.direction == "forward"
+    assert driver.motor_left.last_speed == 120
+    assert driver.motor_right.direction == "backward"  # right motor reversed
+    assert driver.motor_right.last_speed == 110
+    assert driver.brake_calls == 0
+
+
+def test_reverse_command_sets_motor_directions():
+    controller, hm10, driver = make_controller()
+    hm10.left_speed = -100
+    hm10.right_speed = -90
+
+    controller.update()
+
+    assert driver.motor_left.direction == "backward"
+    assert driver.motor_right.direction == "forward"
+
+
+def test_spin_left():
+    controller, hm10, driver = make_controller()
+    hm10.left_speed = -200
+    hm10.right_speed = 200
+
+    controller.update()
+
+    assert driver.motor_left.direction == "backward"
+    assert driver.motor_right.direction == "backward"
+
+
+def test_brake_flag_triggers_brake():
+    controller, hm10, driver = make_controller()
+    hm10.flags = 0x01
+    hm10.left_speed = 80
+    hm10.right_speed = 90
+
+    controller.update()
+
+    assert driver.brake_calls == 1
+    assert driver.motor_left.stopped
+    assert driver.motor_right.stopped
+
+
+def test_stale_command_triggers_brake():
+    controller, hm10, driver = make_controller()
+    hm10.stale = True
+
+    controller.update()
+
+    assert driver.brake_calls == 1
+
+
+def test_telemetry_sent_when_interval_elapsed():
+    controller, hm10, driver = make_controller()
+    controller.telemetry_enabled = True
+    controller._last_telemetry_read_ms = (
+        controller._last_telemetry_read_ms - controller.telemetry_period_ms
     )
 
-
-def test_dpad_down_drives_backward():
-    controller, gamepad, driver = make_controller()
-    gamepad.down = True
-
     controller.update()
 
-    assert driver.calls[0] == (
-        "drive_backward",
-        (controller.max_speed, controller.max_speed),
-    )
-
-
-def test_dpad_left_rotates_left():
-    controller, gamepad, driver = make_controller()
-    gamepad.left = True
-
-    controller.update()
-
-    assert driver.calls[0] == ("rotate_left", (controller.turn_speed,))
-
-
-def test_dpad_right_rotates_right():
-    controller, gamepad, driver = make_controller()
-    gamepad.right = True
-
-    controller.update()
-
-    assert driver.calls[0] == ("rotate_right", (controller.turn_speed,))
-
-
-def test_analog_radius_zero_brakes():
-    controller, gamepad, driver = make_controller()
-    gamepad.mode = 1
-    gamepad.angle = 0
-    gamepad.radius = 0
-
-    controller.update()
-
-    assert driver.calls[0][0] == "brake"
-
-
-def test_analog_forward_drives_forward():
-    controller, gamepad, driver = make_controller()
-    gamepad.mode = 1
-    gamepad.angle = 90
-    gamepad.radius = 7
-
-    controller.update()
-
-    call = driver.calls[0]
-    assert call[0] == "drive_forward"
-    right, left = call[1]
-    assert abs(right - left) <= 1
-    assert abs(right - controller.max_speed) <= 1
-
-
-def test_analog_backward_drives_backward():
-    controller, gamepad, driver = make_controller()
-    gamepad.mode = 1
-    gamepad.angle = 270
-    gamepad.radius = 7
-
-    controller.update()
-
-    call = driver.calls[0]
-    assert call[0] == "drive_backward"
-
-
-def test_analog_rotate_left():
-    controller, gamepad, driver = make_controller()
-    gamepad.mode = 1
-    gamepad.angle = 180
-    gamepad.radius = 7
-
-    controller.update()
-
-    assert driver.calls[0][0] == "rotate_left"
-
-
-def test_analog_rotate_right():
-    controller, gamepad, driver = make_controller()
-    gamepad.mode = 1
-    gamepad.angle = 0
-    gamepad.radius = 7
-
-    controller.update()
-
-    assert driver.calls[0][0] == "rotate_right"
-
-
-def test_no_input_brakes():
-    controller, _gamepad, driver = make_controller()
-
-    controller.update()
-
-    assert driver.calls[0][0] == "brake"
+    assert hm10.telemetry[0] == driver.distance

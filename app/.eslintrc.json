@@ -1,0 +1,61 @@
+{
+  "root": true,
+  "env": {
+    "browser": true,
+    "es2021": true
+  },
+  "extends": ["eslint:recommended"],
+  "parserOptions": {
+    "ecmaVersion": 2021,
+    "sourceType": "module"
+  },
+  "globals": {
+    "App": "writable",
+    "Editor": "readonly",
+    "Simulator": "readonly",
+    "Logger": "readonly",
+    "DebugPanel": "readonly",
+    "PythonRunner": "readonly",
+    "Validator": "readonly",
+    "Challenges": "readonly",
+    "Mazes": "readonly",
+    "Gamepad": "readonly",
+    "AIDriverStub": "readonly",
+    "Sk": "readonly",
+    "bootstrap": "readonly",
+    "ace": "readonly",
+    "calculateDistance": "readonly",
+    "updateUltrasonicDisplay": "readonly",
+    "navigator": "readonly",
+    "performance": "readonly",
+    "module": "readonly",
+    "exports": "readonly",
+    "runCode": "readonly",
+    "stopExecution": "readonly",
+    "render": "readonly"
+  },
+  "overrides": [
+    {
+      "files": ["tests/**/*.js"],
+      "env": {
+        "jest": true,
+        "node": true
+      },
+      "globals": {
+        "App": "readonly"
+      }
+    },
+    {
+      "files": ["**/*.config.js", "**/*.cjs"],
+      "env": {
+        "node": true
+      }
+    }
+  ],
+  "rules": {
+    "no-unused-vars": ["warn", { "args": "none", "ignoreRestSiblings": true }],
+    "no-undef": "error",
+    "no-console": "off",
+    "no-case-declarations": "off"
+  }
+}

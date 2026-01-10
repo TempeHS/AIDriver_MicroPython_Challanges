@@ -10,8 +10,29 @@ const Mazes = (function () {
   const WALL_THICKNESS = 30;
 
   /**
-   * Pre-defined maze layouts
-   * Each maze has walls defined as { x, y, width, height } in mm
+   * Axis-aligned rectangle measured in millimetres.
+   * @typedef {Object} MazeRect
+   * @property {number} x Left coordinate from the simulator origin.
+   * @property {number} y Top coordinate from the simulator origin.
+   * @property {number} width Rectangle width.
+   * @property {number} height Rectangle height.
+   */
+
+  /**
+   * Metadata and geometry for a maze used by Challenge 6.
+   * @typedef {Object} MazeDefinition
+   * @property {string} id Unique identifier displayed in the maze selector.
+   * @property {string} name Short title shown in the UI drop-down.
+   * @property {"Easy"|"Medium"|"Hard"} difficulty Difficulty label used for badge colouring.
+   * @property {string} description Optional learner-facing summary of the maze.
+   * @property {{x:number,y:number,heading:number}} startPosition Robot spawn point expressed in millimetres.
+   * @property {{x:number,y:number,width:number,height:number}} endZone Goal area that triggers challenge completion.
+   * @property {Array<MazeRect>} walls Obstacles rendered on the canvas and used for collision checks.
+   */
+
+  /**
+   * Pre-defined maze layouts with walls expressed as millimeter rectangles.
+   * @type {Record<string, MazeDefinition>}
    */
   const mazeDefinitions = {
     // Simple maze - basic L-shaped corridor
@@ -110,8 +131,8 @@ const Mazes = (function () {
   };
 
   /**
-   * Generate a classic maze using a simple algorithm
-   * @returns {Array} Wall definitions
+   * Generate a deterministic classic maze layout comprised of cell-aligned walls.
+   * @returns {Array<{x:number,y:number,width:number,height:number}>} Wall definitions.
    */
   function generateClassicMaze() {
     const walls = [];
@@ -205,25 +226,25 @@ const Mazes = (function () {
   }
 
   /**
-   * Get maze by ID
-   * @param {string} mazeId - Maze identifier
-   * @returns {object} Maze definition
+   * Retrieve a maze definition by identifier, defaulting to the simple maze.
+   * @param {string} mazeId Maze identifier.
+   * @returns {object} Maze definition including geometry and metadata.
    */
   function get(mazeId) {
     return mazeDefinitions[mazeId] || mazeDefinitions.simple;
   }
 
   /**
-   * Get all maze definitions
-   * @returns {object} All mazes
+   * Expose the full maze definitions map.
+   * @returns {Record<string, object>} All maze definitions keyed by id.
    */
   function getAll() {
     return mazeDefinitions;
   }
 
   /**
-   * Get maze list for UI
-   * @returns {Array} List of { id, name, difficulty }
+   * Build a lightweight list of maze metadata for UI consumption.
+   * @returns {Array<{id:string,name:string,difficulty:string}>} Summary list.
    */
   function getList() {
     return Object.values(mazeDefinitions).map((m) => ({
@@ -234,10 +255,11 @@ const Mazes = (function () {
   }
 
   /**
-   * Draw maze walls on canvas
-   * @param {CanvasRenderingContext2D} ctx - Canvas context
-   * @param {number} scale - Scale factor (pixels per mm)
-   * @param {string} mazeId - Maze ID
+   * Render the selected maze walls and exit zone on the provided canvas context.
+   * @param {CanvasRenderingContext2D} ctx Canvas rendering context.
+   * @param {number} scale Conversion factor from millimeters to pixels.
+   * @param {string} mazeId Maze identifier to draw.
+   * @returns {void}
    */
   function draw(ctx, scale, mazeId) {
     const maze = get(mazeId);

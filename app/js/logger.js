@@ -29,7 +29,8 @@ const Logger = {
   },
 
   /**
-   * Initialize the logger
+   * Reset session state, register global error handlers, and emit the initial log entry.
+   * @returns {void}
    */
   init() {
     this.sessionStart = new Date();
@@ -59,11 +60,12 @@ const Logger = {
   },
 
   /**
-   * Core logging function
-   * @param {string} category - Log category (APP, PYTHON, etc.)
-   * @param {string} message - Log message
-   * @param {object} data - Optional data object
-   * @param {string} level - Log level: 'info', 'warn', 'error', 'debug'
+   * Record a structured log entry and optionally mirror it to the browser console.
+   * @param {string} category Category tag such as APP or PYTHON.
+   * @param {string} message Message describing the event.
+   * @param {object|null} [data=null] Additional structured metadata.
+   * @param {"info"|"warn"|"error"|"debug"} [level="info"] Severity level.
+   * @returns {void}
    */
   log(category, message, data = null, level = "info") {
     if (!this.enabled) return;
@@ -98,42 +100,65 @@ const Logger = {
   },
 
   /**
-   * Log info message
+   * Shortcut for logging informational messages.
+   * @param {string} category Category tag.
+   * @param {string} message Message to log.
+   * @param {object|null} [data=null] Optional metadata.
+   * @returns {void}
    */
   info(category, message, data = null) {
     this.log(category, message, data, "info");
   },
 
   /**
-   * Log warning message
+   * Shortcut for logging warnings.
+   * @param {string} category Category tag.
+   * @param {string} message Message to log.
+   * @param {object|null} [data=null] Optional metadata.
+   * @returns {void}
    */
   warn(category, message, data = null) {
     this.log(category, message, data, "warn");
   },
 
   /**
-   * Log error message
+   * Log an application error with automatic category routing.
+   * @param {string} message Descriptive error message.
+   * @param {object|null} [data=null] Optional metadata.
+   * @returns {void}
    */
   error(message, data = null) {
     this.log("ERROR", message, data, "error");
   },
 
   /**
-   * Log debug message (verbose)
+   * Log verbose diagnostic information.
+   * @param {string} category Category tag.
+   * @param {string} message Message to log.
+   * @param {object|null} [data=null] Optional metadata.
+   * @returns {void}
    */
   debug(category, message, data = null) {
     this.log(category, message, data, "debug");
   },
 
   /**
-   * Log a command execution
+   * Log execution of a high-level command dispatched by the UI.
+   * @param {string} commandType Identifier for the command.
+   * @param {object|null} [params=null] Command parameters.
+   * @returns {void}
    */
   command(commandType, params = null) {
     this.log("COMMAND", `Executing: ${commandType}`, params, "info");
   },
 
   /**
-   * Log state change
+   * Emit a state change event with before/after values.
+   * @param {string} component Component name.
+   * @param {string} property Property name changing.
+   * @param {*} oldValue Value before change.
+   * @param {*} newValue Value after change.
+   * @returns {void}
    */
   stateChange(component, property, oldValue, newValue) {
     this.log(
@@ -145,21 +170,27 @@ const Logger = {
   },
 
   /**
-   * Log Python output (from print statements)
+   * Route Python print output into the logging pipeline.
+   * @param {string} message Captured print string.
+   * @returns {void}
    */
   pythonOutput(message) {
     this.log("PYTHON", message, null, "info");
   },
 
   /**
-   * Log user action
+   * Document a user interaction for later analytics.
+   * @param {string} action Summary of the user action.
+   * @param {object|null} [details=null] Supplementary details.
+   * @returns {void}
    */
   userAction(action, details = null) {
     this.log("USER", action, details, "info");
   },
 
   /**
-   * Get relative time since session start
+   * Compute relative elapsed time since the logger session began.
+   * @returns {string} Human-readable offset string.
    */
   _getRelativeTime() {
     const elapsed = Date.now() - this.sessionStart.getTime();
@@ -168,7 +199,8 @@ const Logger = {
   },
 
   /**
-   * Capture current application state
+   * Snapshot key application state used for diagnostics.
+   * @returns {object} Hierarchical representation of simulator state.
    */
   captureAppState() {
     const state = {
@@ -220,7 +252,8 @@ const Logger = {
   },
 
   /**
-   * Get current code from editor
+   * Retrieve the learner's current code from the editor subsystem.
+   * @returns {string} Active editor contents or fallback message.
    */
   getCurrentCode() {
     if (typeof Editor !== "undefined" && Editor.getCode) {
@@ -233,7 +266,8 @@ const Logger = {
   },
 
   /**
-   * Get debug console content
+   * Return the textual contents of the on-screen debug console.
+   * @returns {string} Debug console text or placeholder when unavailable.
    */
   getDebugConsoleContent() {
     const console = document.getElementById("debugConsole");
@@ -244,7 +278,8 @@ const Logger = {
   },
 
   /**
-   * Generate comprehensive debug report
+   * Build a structured textual report combining logs, state, and console output.
+   * @returns {string} Multi-section diagnostic report.
    */
   generateReport() {
     const state = this.captureAppState();
@@ -367,7 +402,8 @@ const Logger = {
   },
 
   /**
-   * Download the debug report as a text file
+   * Trigger download of the generated debug report as a UTF-8 text file.
+   * @returns {void}
    */
   downloadReport() {
     const report = this.generateReport();
@@ -395,7 +431,8 @@ const Logger = {
   },
 
   /**
-   * Clear all log entries
+   * Reset the log storage and start a fresh session timeline.
+   * @returns {void}
    */
   clear() {
     this.entries = [];
@@ -404,21 +441,26 @@ const Logger = {
   },
 
   /**
-   * Get entries filtered by category
+   * Filter log entries by category tag.
+   * @param {string} category Category to match.
+   * @returns {Array<object>} Matching log entries.
    */
   getByCategory(category) {
     return this.entries.filter((e) => e.category === category);
   },
 
   /**
-   * Get entries filtered by level
+   * Filter log entries by severity level.
+   * @param {string} level Severity to match.
+   * @returns {Array<object>} Matching log entries.
    */
   getByLevel(level) {
     return this.entries.filter((e) => e.level === level);
   },
 
   /**
-   * Get error entries only
+   * Retrieve log entries with error severity.
+   * @returns {Array<object>} Error-level log entries.
    */
   getErrors() {
     return this.getByLevel("error");

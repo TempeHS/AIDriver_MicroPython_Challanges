@@ -111,9 +111,13 @@ const Validator = (function () {
   ];
 
   /**
-   * Parse import statements from code
-   * @param {string} code - Python code
-   * @returns {Array} - List of import info objects
+   * Parse Python import statements into a normalized structure that captures
+   * import style, modules, aliases, and the originating line numbers. Supports
+   * both `import module` and `from module import ...` forms to drive further
+   * validation logic.
+   *
+   * @param {string} code Raw Python source to scan.
+   * @returns {Array<{type:string,module:string,line:number,names?:Array<string>}>} Structured import metadata entries.
    */
   function parseImports(code) {
     const imports = [];
@@ -154,9 +158,13 @@ const Validator = (function () {
   }
 
   /**
-   * Validate Python code
-   * @param {string} code - Python code to validate
-   * @returns {object} - { valid: boolean, errors: [], warnings: [] }
+   * Run static validation over learner Python code, enforcing allowed imports
+   * and APIs while flagging obvious syntax issues and usage omissions. Combines
+   * hard errors for forbidden behaviour with softer warnings that highlight
+   * likely mistakes.
+   *
+   * @param {string} code Python source string to examine.
+   * @returns {{valid:boolean,errors:Array<object>,warnings:Array<object>}} Aggregated validation result set.
    */
   function validate(code) {
     const errors = [];
@@ -248,9 +256,12 @@ const Validator = (function () {
   }
 
   /**
-   * Check for basic Python syntax issues
-   * @param {string} code - Python code
-   * @returns {object} - { errors: [], warnings: [] }
+   * Apply lightweight heuristics to detect common Python syntax mistakes
+   * without invoking a full parser. Targets missing colons, accidental typos,
+   * and unbalanced delimiters while ignoring multi-line strings.
+   *
+   * @param {string} code Python program text.
+   * @returns {{errors:Array<object>,warnings:Array<object>}} Categorised issues discovered during scanning.
    */
   function checkBasicSyntax(code) {
     const errors = [];
@@ -366,9 +377,12 @@ const Validator = (function () {
   }
 
   /**
-   * Validate that code uses proper AIDriver method calls
-   * @param {string} code - Python code
-   * @returns {Array} - List of method usage warnings
+   * Confirm that any AIDriver instances only invoke supported methods. Reports
+   * descriptive warnings when learners call undefined or disallowed helpers on
+   * their robot controller objects.
+   *
+   * @param {string} code Python source to inspect.
+   * @returns {Array<{line:number,message:string,type:string}>} Warning entries for each unsupported method.
    */
   function validateMethodUsage(code) {
     const warnings = [];
@@ -424,9 +438,12 @@ const Validator = (function () {
   }
 
   /**
-   * Validate standalone function calls
-   * @param {string} code - Python code
-   * @returns {Array} - List of unknown function warnings
+   * Ensure all standalone function invocations resolve to approved builtins,
+   * learner-defined functions, or previously assigned callables. Anything else
+   * is reported as an undefined reference to guide the learner.
+   *
+   * @param {string} code Python program text.
+   * @returns {Array<{line:number,message:string,type:string}>} Error list for unknown function calls.
    */
   function validateFunctionCalls(code) {
     const errors = [];
@@ -506,9 +523,11 @@ const Validator = (function () {
   }
 
   /**
-   * Get suggestions for common errors
-   * @param {string} errorMessage - Error message from Python interpreter
-   * @returns {string|null} - Suggestion or null
+   * Map a Python interpreter error message onto a learner-friendly suggestion
+   * hinting at likely fixes. Falls back to null when no known pattern matches.
+   *
+   * @param {string} errorMessage Raw error text raised during execution.
+   * @returns {string|null} Suggested remediation guidance, when recognised.
    */
   function getSuggestion(errorMessage) {
     const suggestions = {

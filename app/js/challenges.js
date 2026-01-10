@@ -15,7 +15,8 @@ const Challenges = (function () {
   };
 
   /**
-   * Challenge definitions
+   * Comprehensive challenge definitions keyed by identifier.
+   * Consumers should treat this object as immutable runtime configuration.
    */
   const definitions = {
     // Debug Script: Hardware test from project/main.py
@@ -262,12 +263,13 @@ const Challenges = (function () {
       icon: "bi-controller",
       menuGroup: "advanced",
       difficulty: DIFFICULTY.BEGINNER,
-      description: "Use the on-screen gamepad to drive the robot manually.",
-      goal: "Practice manual control to understand robot behavior.",
+      description:
+        "Pair the BLE gamepad with your HM-10 module and drive the robot or simulator manually.",
+      goal: "Practice manual control while monitoring live ultrasonic telemetry.",
       hints: [
-        "Use arrow buttons or keyboard arrows",
-        "W/A/S/D also works for control",
-        "Try driving different patterns",
+        "Select BLE Gamepad and tap Connect to pair with the HM-10",
+        "Drag the joystick or use WASD / arrow keys to steer",
+        "Watch the distance readout to plan safe braking",
       ],
       startPosition: { x: 1000, y: 1000, heading: 0 },
       successCriteria: {
@@ -281,36 +283,36 @@ const Challenges = (function () {
   };
 
   /**
-   * Get challenge by ID
-   * @param {number} id - Challenge ID (0-7)
-   * @returns {object} Challenge definition
+   * Retrieve a challenge definition by identifier, falling back to challenge 0 when missing.
+   * @param {number|string} id Challenge identifier; accepts numeric or string ids.
+   * @returns {object} Challenge metadata including paths, goals, and criteria.
    */
   function get(id) {
     return definitions[id] || definitions[0];
   }
 
   /**
-   * Get all challenges
-   * @returns {object} All challenge definitions
+   * Access the full definitions map for read-only operations.
+   * @returns {Record<string, object>} Dictionary of challenge definitions keyed by id.
    */
   function getAll() {
     return definitions;
   }
 
   /**
-   * Get challenge count
-   * @returns {number} Number of challenges
+   * Count the total number of registered challenges.
+   * @returns {number} Total challenge entries including debug script.
    */
   function count() {
     return Object.keys(definitions).length;
   }
 
   /**
-   * Check if robot meets success criteria
-   * @param {number} challengeId - Challenge ID
-   * @param {object} robotState - Current robot state
-   * @param {object} sessionData - Session tracking data
-   * @returns {object} { success: boolean, message: string }
+   * Evaluate the robot state against the challenge-specific success criteria.
+   * @param {number|string} challengeId Identifier of the active challenge.
+   * @param {{x:number,y:number,leftSpeed:number,rightSpeed:number,heading?:number}} robotState Latest simulator robot snapshot.
+   * @param {object} sessionData Aggregated telemetry captured during the run.
+   * @returns {{success:boolean,message:string}} Result with user-facing feedback.
    */
   function checkSuccess(challengeId, robotState, sessionData) {
     const challenge = get(challengeId);
@@ -344,7 +346,11 @@ const Challenges = (function () {
   }
 
   /**
-   * Check: Run without error and move
+   * Determine whether the run completed error-free and covered the minimum distance.
+   * @param {{x:number,y:number}} robot Current robot coordinates.
+   * @param {{hasError?:boolean,startPosition?:{x:number,y:number}}} session Session metrics for the attempt.
+   * @param {{minDistance:number}} criteria Success constraint for movement.
+   * @returns {{success:boolean,message:string}} Evaluation outcome.
    */
   function checkRunWithoutError(robot, session, criteria) {
     if (session.hasError) {
@@ -365,7 +371,10 @@ const Challenges = (function () {
   }
 
   /**
-   * Check: Reach target zone
+   * Determine whether the robot currently resides inside the configured zone.
+   * @param {{x:number,y:number}} robot Current robot coordinates.
+   * @param {{zone:{x:number,y:number,width:number,height:number}}} criteria Zone dimensions to evaluate.
+   * @returns {{success:boolean,message:string}} Evaluation outcome.
    */
   function checkReachZone(robot, criteria) {
     const zone = criteria.zone;
@@ -386,7 +395,11 @@ const Challenges = (function () {
   }
 
   /**
-   * Check: Complete a circle
+   * Confirm the robot completed sufficient rotation and returned near its start point.
+   * @param {{x:number,y:number}} robot Current robot coordinates.
+   * @param {{startPosition:{x:number,y:number},totalRotation?:number}} session Session metrics.
+   * @param {{minRotation:number,centerTolerance:number}} criteria Circle completion bounds.
+   * @returns {{success:boolean,message:string}} Evaluation outcome.
    */
   function checkCompleteCircle(robot, session, criteria) {
     const startPos = session.startPosition;
@@ -418,7 +431,10 @@ const Challenges = (function () {
   }
 
   /**
-   * Check: Stop at specific distance
+   * Verify the robot has stopped and is within the prescribed distance window from the wall.
+   * @param {{x:number,y:number,leftSpeed:number,rightSpeed:number}} robot Robot state including wheel speeds.
+   * @param {{wallPosition:number,targetDistance:{min:number,max:number}}} criteria Distance tolerances.
+   * @returns {{success:boolean,message:string}} Evaluation outcome.
    */
   function checkStopAtDistance(robot, criteria) {
     const distanceToWall = robot.y - criteria.wallPosition;
@@ -443,7 +459,11 @@ const Challenges = (function () {
   }
 
   /**
-   * Check: Return to start after U-turn
+   * Validate the robot reached the top of the arena and returned to the origin zone.
+   * @param {{x:number,y:number}} robot Current robot coordinates.
+   * @param {{minY?:number}} session Session tracking with minY metric.
+   * @param {{startZone:{x:number,y:number,width:number,height:number},mustReachTop:number}} criteria Required movement bounds.
+   * @returns {{success:boolean,message:string}} Evaluation outcome.
    */
   function checkReturnToStart(robot, session, criteria) {
     const zone = criteria.startZone;
@@ -468,7 +488,11 @@ const Challenges = (function () {
   }
 
   /**
-   * Check: Figure 8 pattern
+   * Assess figure-eight completion by crossover counts and cumulative rotation.
+   * @param {{}} robot Robot state (position not directly used).
+   * @param {{crossoverCount?:number,totalRotation?:number}} session Session metrics captured during run.
+   * @param {{crossoverCount:number,minRotation:number}} criteria Figure-eight thresholds.
+   * @returns {{success:boolean,message:string}} Evaluation outcome.
    */
   function checkFigureEight(robot, session, criteria) {
     const crossovers = session.crossoverCount || 0;
@@ -494,9 +518,9 @@ const Challenges = (function () {
   }
 
   /**
-   * Generate menu HTML for challenge dropdown
-   * @param {string} menuType - 'simulator' for simulator links, 'docs' for doc links
-   * @returns {string} HTML string for menu items
+   * Build the HTML string representing the grouped challenge dropdown menu.
+   * @param {"simulator"|"docs"} [menuType="simulator"] Determines link targets within the menu.
+   * @returns {string} HTML snippet for insertion into dropdown menus.
    */
   function generateMenuHTML(menuType = "simulator") {
     const groups = { special: [], basic: [], advanced: [] };
@@ -560,9 +584,10 @@ const Challenges = (function () {
   }
 
   /**
-   * Populate a dropdown menu element with challenge items
-   * @param {string} selector - CSS selector for the <ul> element
-   * @param {string} menuType - 'simulator' or 'docs'
+   * Inject generated challenge menu HTML into the targeted list element.
+   * @param {string} selector CSS selector for the container element.
+   * @param {"simulator"|"docs"} [menuType="simulator"] Link mode determining menu destination.
+   * @returns {void}
    */
   function populateMenu(selector, menuType = "simulator") {
     const menuEl = document.querySelector(selector);

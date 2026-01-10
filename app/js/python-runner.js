@@ -32,7 +32,9 @@ const PythonRunner = {
   executionPromise: null,
 
   /**
-   * Initialize Skulpt configuration
+   * Configure the Skulpt runtime with simulator-specific IO handlers and timeouts.
+   * Registers MicroPython shims before configuration to ensure imports succeed.
+   * @returns {void}
    */
   init() {
     // Register external modules FIRST (before configure)
@@ -72,7 +74,9 @@ const PythonRunner = {
   },
 
   /**
-   * Register MicroPython-compatible modules in Skulpt
+   * Register JavaScript-backed modules that emulate the MicroPython environment.
+   * Currently injects the aidriver stub needed by learner scripts.
+   * @returns {void}
    */
   registerMicroPythonModules() {
     // Initialize builtin files
@@ -87,8 +91,10 @@ const PythonRunner = {
   },
 
   /**
-   * Get Python source for aidriver module
-   * This uses a simple approach - call window functions from Python
+   * Generate the Python shim for the aidriver module consumed by user code.
+   * Embeds optional tracing utilities when collecting execution traces.
+   * @param {boolean} [forTraceCollection=false] Toggle trace-enhanced implementation.
+   * @returns {string} Python source string defining the aidriver module.
    */
   getAIDriverPythonModule(forTraceCollection = false) {
     // Get speed multiplier from App (default to 1)
@@ -299,7 +305,9 @@ def hold_state(seconds):
   },
 
   /**
-   * Get mock 'machine' module for MicroPython compatibility
+   * Provide a Skulpt module factory emulating MicroPython's machine module.
+   * Includes basic Pin, PWM, and Timer mocks used by learner scripts.
+   * @returns {(name:string)=>object|undefined} Module factory consumed by Skulpt.
    */
   getMachineModule() {
     return function (name) {
@@ -425,7 +433,9 @@ def hold_state(seconds):
   },
 
   /**
-   * Extend the time module with MicroPython-specific functions
+   * Inject MicroPython-specific time helpers into Skulpt's builtin filesystem.
+   * Provides ticks_* and sleep_* functions expected by learner code.
+   * @returns {void}
    */
   extendTimeModule() {
     // We'll add these via builtinFiles as Python code that works with Skulpt
@@ -467,8 +477,9 @@ def ticks_diff(t1, t2):
   },
 
   /**
-   * Handle Python print output
-   * Intercepts step debug messages and displays them specially
+   * Route Skulpt stdout to the debug panel while filtering step debug markers.
+   * @param {string} text Output emitted by Skulpt.
+   * @returns {void}
    */
   handleOutput(text) {
     const trimmed = text.trimEnd();
@@ -494,7 +505,9 @@ def ticks_diff(t1, t2):
   },
 
   /**
-   * Handle Python module imports
+   * Resolve module imports originating from learner code.
+   * @param {string} filename Path of the requested module.
+   * @returns {string} Module source contents.
    */
   handleRead(filename) {
     console.log("[PythonRunner] handleRead called for:", filename);
@@ -525,7 +538,9 @@ def ticks_diff(t1, t2):
   },
 
   /**
-   * Handle Python input (not supported in simulator)
+   * Reject input() usage because interactive stdin is unsupported in the browser environment.
+   * @param {string} prompt Prompt text supplied by Skulpt.
+   * @throws {Error} Always throws to halt execution.
    */
   handleInput(prompt) {
     if (typeof DebugPanel !== "undefined") {
@@ -538,9 +553,12 @@ def ticks_diff(t1, t2):
   },
 
   /**
-   * Run Python code
-   * @param {string} code - Python source code to execute
-   * @returns {Promise} Resolves when execution completes
+   * Execute learner code inside Skulpt with pre-run validation, simulator
+   * wiring, and cooperative scheduling hooks. Manages shouldStop signalling,
+   * command queue flushing, and DebugPanel output for the duration of the run.
+   *
+   * @param {string} code Python source code to execute.
+   * @returns {Promise<void>} Resolves when execution finishes; rejects only for pre-run validation errors.
    */
   async run(code) {
     if (this.isRunning) {
@@ -725,9 +743,9 @@ def ticks_diff(t1, t2):
   },
 
   /**
-   * Transform code to inject debug calls before each line
-   * @param {string} code - Original Python code
-   * @returns {string} - Transformed code with debug calls
+   * Instrument learner code by inserting _step_debug markers ahead of executable lines.
+   * @param {string} code Original Python source.
+   * @returns {string} Transformed source with debug hooks.
    */
   injectDebugCalls(code) {
     const lines = code.split("\n");
@@ -783,10 +801,13 @@ def ticks_diff(t1, t2):
   },
 
   /**
-   * Run code in step mode with trace collection and playback
-   * Phase 1: Collect execution trace (fast, no delays)
-   * Phase 2: Play back trace with delays, showing each step
-   * @param {string} code - Python source code
+   * Execute code through trace collection and controlled playback phases for
+   * step mode. Resets trace state, captures a deterministic execution log, and
+   * then replays it with UI highlights so the learner can step through their
+   * program without re-running Python code.
+   *
+   * @param {string} code Learner Python source.
+   * @returns {Promise<void>} Resolves after playback finishes or the run is cancelled.
    */
   async runStepMode(code) {
     this.sourceCode = code;
@@ -819,9 +840,12 @@ def ticks_diff(t1, t2):
   },
 
   /**
-   * Phase 1: Collect execution trace by running code fast without delays
-   * @param {string} code - Python source code
-   * @returns {boolean} - True if trace collected successfully
+   * Collect an execution trace by running the program without delays. Swaps in
+   * a tracing variant of the aidriver module so each Python line emits command
+   * metadata, making it possible to replay the run deterministically.
+   *
+   * @param {string} code Learner Python source.
+   * @returns {Promise<boolean>} Resolves true when a trace (even partial) is gathered, false on fatal errors.
    */
   async collectTrace(code) {
     this.isCollectingTrace = true;
@@ -948,7 +972,12 @@ def ticks_diff(t1, t2):
   },
 
   /**
-   * Phase 2: Play back the collected trace with delays and line highlighting
+   * Phase 2: Replay the collected execution trace, highlighting source lines and
+   * dispatching any queued robot commands for each step. The trace is generated
+   * by collectTrace() and is played back sequentially until exhausted, paused,
+   * or forcibly stopped.
+   *
+   * @returns {Promise<void>} Resolves after playback completes, pauses, or a stop request occurs.
    */
   async playTrace() {
     this.isPlayingTrace = true;
@@ -1046,7 +1075,8 @@ def ticks_diff(t1, t2):
   },
 
   /**
-   * Pause step mode playback
+   * Pause step mode playback. Playback remains idle until resumeStep() is
+   * invoked or stop() aborts execution.
    */
   pauseStep() {
     this.stepPaused = true;
@@ -1058,7 +1088,8 @@ def ticks_diff(t1, t2):
   },
 
   /**
-   * Resume step mode playback
+   * Resume step mode playback if previously paused. Resolves any outstanding
+   * promise created while waiting in playTrace().
    */
   resumeStep() {
     this.stepPaused = false;
@@ -1072,8 +1103,11 @@ def ticks_diff(t1, t2):
   },
 
   /**
-   * Execute a single robot command during step playback
-   * @param {object} cmd - Command object with type and params
+   * Execute a single robot command emitted by the Python aidriver module during
+   * trace playback. Updates the simulator robot state immediately and triggers a
+   * render to show the new pose.
+   *
+   * @param {{type: string, params: object}} cmd Command describing the robot action to perform.
    */
   executeRobotCommand(cmd) {
     if (typeof App === "undefined" || !App.robot) {
@@ -1134,9 +1168,11 @@ def ticks_diff(t1, t2):
   },
 
   /**
-   * Get the current line info for debugging
-   * @param {number} lineNum - 1-based line number
-   * @returns {object} - { lineNum, lineCode }
+   * Lookup source text for a given 1-based line number previously supplied by
+   * Skulpt during trace playback or error reporting.
+   *
+   * @param {number} lineNum Line number to inspect. Values outside the source range are tolerated.
+   * @returns {{lineNum: number, lineCode: string}} Canonicalised line metadata with trimmed source text.
    */
   getLineInfo(lineNum) {
     if (lineNum > 0 && lineNum <= this.sourceLines.length) {
@@ -1149,7 +1185,8 @@ def ticks_diff(t1, t2):
   },
 
   /**
-   * Stop execution
+   * Stop execution, clearing simulator state, pending commands, and any
+   * outstanding trace playback promises. Safe to call repeatedly.
    */
   stop() {
     console.log("[PythonRunner] stop() called - stack trace:");
@@ -1184,7 +1221,9 @@ def ticks_diff(t1, t2):
   },
 
   /**
-   * Process commands from the Python aidriver module's queue
+   * Drain and execute robot commands produced by the Python aidriver module.
+   * Commands are fetched from both the active Skulpt module and the legacy
+   * AIDriverStub queue to maintain backwards compatibility.
    */
   processCommandQueue() {
     // Try to get commands from Python's aidriver module
@@ -1302,7 +1341,11 @@ def ticks_diff(t1, t2):
   },
 
   /**
-   * Handle Python errors
+   * Handle Python execution errors emitted by Skulpt. Filters out expected stop
+   * scenarios, reports actionable errors to the debug panel, and annotates the
+   * editor when a line number is available.
+   *
+   * @param {Error|Sk.builtin.BaseException|string} error Raw error object from Skulpt execution.
    */
   handleError(error) {
     try {
@@ -1373,9 +1416,11 @@ def ticks_diff(t1, t2):
   },
 
   /**
-   * Validate Python syntax without running
-   * @param {string} code - Python source code
-   * @returns {{valid: boolean, error: string|null, line: number|null}}
+   * Perform a syntax-only compilation pass to surface SyntaxError details
+   * before attempting full execution.
+   *
+   * @param {string} code Python source code to compile.
+   * @returns {{valid: boolean, error: string|null, line: number|null}} Summary containing the error string and 1-based line number when invalid.
    */
   validateSyntax(code) {
     try {

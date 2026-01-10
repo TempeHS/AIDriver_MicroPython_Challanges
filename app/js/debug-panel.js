@@ -8,7 +8,8 @@ const DebugPanel = {
   maxLines: 500,
 
   /**
-   * Initialize the debug panel
+   * Capture and store the debug console element reference, wiring logger integration.
+   * @returns {void}
    */
   init() {
     this.element = document.getElementById("debugConsole");
@@ -19,9 +20,10 @@ const DebugPanel = {
   },
 
   /**
-   * Log a message to the debug panel
-   * @param {string} message - Message to display
-   * @param {string} type - Message type: 'info', 'error', 'success', 'warning', 'output'
+   * Append a styled message line to the debug console.
+   * @param {string} message Message to display to the learner.
+   * @param {"info"|"error"|"success"|"warning"|"output"} [type="info"] Presentation style.
+   * @returns {void}
    */
   log(message, type = "info") {
     if (!this.element) {
@@ -82,42 +84,53 @@ const DebugPanel = {
   },
 
   /**
-   * Log an info message
+   * Convenience helper for informational log entries.
+   * @param {string} message Text to display.
+   * @returns {void}
    */
   info(message) {
     this.log(message, "info");
   },
 
   /**
-   * Log an error message
+   * Convenience helper for error log entries.
+   * @param {string} message Text to display.
+   * @returns {void}
    */
   error(message) {
     this.log(message, "error");
   },
 
   /**
-   * Log a success message
+   * Convenience helper for success log entries.
+   * @param {string} message Text to display.
+   * @returns {void}
    */
   success(message) {
     this.log(message, "success");
   },
 
   /**
-   * Log a warning message
+   * Convenience helper for warning log entries.
+   * @param {string} message Text to display.
+   * @returns {void}
    */
   warning(message) {
     this.log(message, "warning");
   },
 
   /**
-   * Log program output (print statements)
+   * Record stdout-style program output without timestamps.
+   * @param {string} message Text to display.
+   * @returns {void}
    */
   output(message) {
     this.log(message, "output");
   },
 
   /**
-   * Clear the debug panel
+   * Remove all previously rendered log entries.
+   * @returns {void}
    */
   clear() {
     if (this.element) {
@@ -126,7 +139,8 @@ const DebugPanel = {
   },
 
   /**
-   * Add a separator line
+   * Insert a visual separator to delineate log sections.
+   * @returns {void}
    */
   separator() {
     this.log("─".repeat(50), "info");

@@ -40,7 +40,8 @@ const App = {
 };
 
 /**
- * Initialize the application
+ * Bootstrap the simulator by wiring modules, UI, and initial challenge state.
+ * @returns {void}
  */
 function init() {
   // Initialize Logger first (before anything else)
@@ -101,7 +102,8 @@ function init() {
 }
 
 /**
- * Cache frequently accessed DOM elements
+ * Store references to DOM nodes used throughout the simulator to avoid repeated lookups.
+ * @returns {void}
  */
 function cacheElements() {
   App.elements = {
@@ -116,12 +118,6 @@ function cacheElements() {
     btnConfirmReset: document.getElementById("btnConfirmReset"),
     btnRotateCar: document.getElementById("btnRotateCar"),
     rotationDisplay: document.getElementById("rotationDisplay"),
-
-    // Gamepad buttons
-    btnUp: document.getElementById("btnUp"),
-    btnDown: document.getElementById("btnDown"),
-    btnLeft: document.getElementById("btnLeft"),
-    btnRight: document.getElementById("btnRight"),
 
     // Displays
     ultrasonicDisplay: document.getElementById("ultrasonicDisplay"),
@@ -147,7 +143,8 @@ function cacheElements() {
 }
 
 /**
- * Initialize Bootstrap components (tooltips, etc.)
+ * Enable Bootstrap-driven UI affordances such as tooltips.
+ * @returns {void}
  */
 function initBootstrapComponents() {
   // Initialize all tooltips
@@ -160,7 +157,8 @@ function initBootstrapComponents() {
 }
 
 /**
- * Initialize ACE Editor using the Editor module
+ * Create and configure the ACE editor instance via the Editor facade.
+ * @returns {void}
  */
 function initEditor() {
   // Use the Editor module for full functionality
@@ -174,7 +172,8 @@ function initEditor() {
 }
 
 /**
- * Initialize Canvas for robot simulation
+ * Prepare the simulation canvas and renderer used for arena drawing.
+ * @returns {void}
  */
 function initCanvas() {
   App.canvas = App.elements.arenaCanvas;
@@ -190,7 +189,8 @@ function initCanvas() {
 }
 
 /**
- * Resize canvas to fit container while maintaining aspect ratio
+ * Resize the simulation canvas to match its container while keeping aspect ratio square.
+ * @returns {void}
  */
 function resizeCanvas() {
   const container = App.elements.canvasContainer;
@@ -204,7 +204,8 @@ function resizeCanvas() {
 }
 
 /**
- * Set up all event listeners
+ * Attach DOM, keyboard, and navigation handlers that drive the simulator UI.
+ * @returns {void}
  */
 function setupEventListeners() {
   // Control buttons
@@ -304,8 +305,6 @@ function setupEventListeners() {
   });
 
   // Gamepad buttons
-  setupGamepadListeners();
-
   // Window resize
   window.addEventListener("resize", resizeCanvas);
 
@@ -351,35 +350,9 @@ function setupEventListeners() {
 }
 
 /**
- * Set up gamepad button listeners
- */
-function setupGamepadListeners() {
-  const gamepadButtons = {
-    btnUp: { action: "forward" },
-    btnDown: { action: "backward" },
-    btnLeft: { action: "left" },
-    btnRight: { action: "right" },
-  };
-
-  Object.entries(gamepadButtons).forEach(([id, config]) => {
-    const btn = App.elements[id];
-    if (btn) {
-      btn.addEventListener("mousedown", () =>
-        handleGamepadPress(config.action)
-      );
-      btn.addEventListener("mouseup", () => handleGamepadRelease());
-      btn.addEventListener("mouseleave", () => handleGamepadRelease());
-      btn.addEventListener("touchstart", (e) => {
-        e.preventDefault();
-        handleGamepadPress(config.action);
-      });
-      btn.addEventListener("touchend", () => handleGamepadRelease());
-    }
-  });
-}
-
-/**
- * Handle keyboard shortcuts
+ * Interpret global keyboard shortcuts for running, stopping, and resetting.
+ * @param {KeyboardEvent} e Browser keyboard event to evaluate.
+ * @returns {void}
  */
 function handleKeyboardShortcuts(e) {
   // Ctrl+Enter - Run code
@@ -400,49 +373,9 @@ function handleKeyboardShortcuts(e) {
 }
 
 /**
- * Handle gamepad button press
- */
-function handleGamepadPress(action) {
-  const speed = 200;
-  switch (action) {
-    case "forward":
-      App.robot.leftSpeed = speed;
-      App.robot.rightSpeed = speed;
-      App.robot.isMoving = true;
-      logDebug("[Gamepad] Driving forward");
-      break;
-    case "backward":
-      App.robot.leftSpeed = -speed;
-      App.robot.rightSpeed = -speed;
-      App.robot.isMoving = true;
-      logDebug("[Gamepad] Driving backward");
-      break;
-    case "left":
-      App.robot.leftSpeed = -speed;
-      App.robot.rightSpeed = speed;
-      App.robot.isMoving = true;
-      logDebug("[Gamepad] Rotating left");
-      break;
-    case "right":
-      App.robot.leftSpeed = speed;
-      App.robot.rightSpeed = -speed;
-      App.robot.isMoving = true;
-      logDebug("[Gamepad] Rotating right");
-      break;
-  }
-}
-
-/**
- * Handle gamepad button release
- */
-function handleGamepadRelease() {
-  App.robot.leftSpeed = 0;
-  App.robot.rightSpeed = 0;
-  App.robot.isMoving = false;
-}
-
-/**
- * Load a challenge
+ * Load the specified challenge configuration, assets, and starter code.
+ * @param {number|string} challengeId Identifier for the requested challenge.
+ * @returns {void}
  */
 function loadChallenge(challengeId) {
   App.currentChallenge = challengeId;
@@ -590,8 +523,9 @@ function loadChallenge(challengeId) {
 }
 
 /**
- * Load starter code for a challenge
- * For debug challenge, fetches from project/main.py
+ * Populate the editor with challenge starter code, fetching debug code from project/main.py when needed.
+ * @param {number|string} challengeId Identifier for the challenge whose starter script should load.
+ * @returns {Promise<void>} Resolves once code is applied to the editor.
  */
 async function loadStarterCode(challengeId) {
   // Debug challenge loads from project/main.py via GitHub raw
@@ -623,7 +557,8 @@ async function loadStarterCode(challengeId) {
 }
 
 /**
- * Reset to starter code (discard changes)
+ * Restore the current challenge editor contents to the original starter template.
+ * @returns {Promise<void>} Resolves after starter code loads.
  */
 async function resetToStarterCode() {
   Editor.clearSavedCode(App.currentChallenge);
@@ -632,14 +567,17 @@ async function resetToStarterCode() {
 }
 
 /**
- * Save code to localStorage (handled by Editor module now)
+ * Persist the editor content via the Editor module storage abstraction.
+ * @returns {void}
  */
 function saveCode() {
   Editor.saveCode();
 }
 
 /**
- * Load a maze (for Challenge 6)
+ * Load the maze definition for Challenge 6 and reconfigure the simulator.
+ * @param {string} mazeId Identifier of the maze to load from Mazes.
+ * @returns {void}
  */
 function loadMaze(mazeId) {
   if (typeof Mazes === "undefined") {
@@ -682,7 +620,8 @@ function loadMaze(mazeId) {
 }
 
 /**
- * Shrink editor for running mode (debug panel always visible)
+ * Collapse the editor panel to provide more vertical room while code executes.
+ * @returns {void}
  */
 function expandDebugPanel() {
   console.log("[App] expandDebugPanel called");
@@ -702,7 +641,8 @@ function expandDebugPanel() {
 }
 
 /**
- * Restore editor to full height (debug panel stays visible)
+ * Restore the editor panel height after execution concludes.
+ * @returns {void}
  */
 function collapseDebugPanel() {
   const editor = document.getElementById("editor");
@@ -720,7 +660,8 @@ function collapseDebugPanel() {
 }
 
 /**
- * Run the code
+ * Execute the learner's Python code through the Python runner pipeline.
+ * @returns {void}
  */
 function runCode() {
   if (App.isRunning) return;
@@ -786,7 +727,8 @@ function runCode() {
 }
 
 /**
- * Stop code execution
+ * Halt execution, reset UI state, and stop robot motion.
+ * @returns {void}
  */
 function stopExecution() {
   // Log stop event
@@ -820,9 +762,9 @@ function stopExecution() {
 }
 
 /**
- * Step through code with trace collection and playback
- * Phase 1: Collect execution trace (fast, no delays)
- * Phase 2: Play back trace with delays, showing each step
+ * Run code in deterministic step mode by capturing a trace and replaying it with delays.
+ * The first pass collects execution trace without delays, then the trace is replayed for visualization.
+ * @returns {Promise<void>} Resolves when stepping completes or rejects on failure.
  */
 async function stepCode() {
   // If already playing trace, toggle pause
@@ -893,7 +835,9 @@ async function stepCode() {
 }
 
 /**
- * Reset robot to starting position
+ * Restore robot state, session tracking, and UI elements to their initial values.
+ * Applies the user-selected heading offset before rendering.
+ * @returns {void}
  */
 function resetRobot() {
   // Log reset event
@@ -985,14 +929,18 @@ function resetRobot() {
 }
 
 /**
- * Clear debug console
+ * Remove all entries from the debug panel output.
+ * @returns {void}
  */
 function clearDebug() {
   DebugPanel.clear();
 }
 
 /**
- * Log message to debug console
+ * Route a message to the debug panel using the desired severity style.
+ * @param {string} message Message to display in the debug panel.
+ * @param {"info"|"error"|"success"|"warning"} [type="info"] Visual style key for the entry.
+ * @returns {void}
  */
 function logDebug(message, type = "info") {
   // Use DebugPanel module
@@ -1012,7 +960,10 @@ function logDebug(message, type = "info") {
 }
 
 /**
- * Update status bar
+ * Present a status message in the UI banner with contextual styling.
+ * @param {string} message Text to display to the user.
+ * @param {string} [type="info"] Bootstrap alert variant (primary, success, etc.).
+ * @returns {void}
  */
 function updateStatus(message, type = "info") {
   App.elements.statusMessage.textContent = message;
@@ -1020,7 +971,9 @@ function updateStatus(message, type = "info") {
 }
 
 /**
- * Update ultrasonic distance display
+ * Update the ultrasonic sensor readout badge with distance and severity color.
+ * @param {number} distance Simulated distance measurement in millimeters or -1 when invalid.
+ * @returns {void}
  */
 function updateUltrasonicDisplay(distance) {
   const display = App.elements.ultrasonicDisplay;
@@ -1043,7 +996,8 @@ function updateUltrasonicDisplay(distance) {
 }
 
 /**
- * Calculate distance from robot to nearest wall/obstacle
+ * Determine the distance from the robot to the nearest obstacle using the simulator fallback logic.
+ * @returns {number} Distance in millimeters or -1 when out of range.
  */
 function calculateDistance() {
   // Use Simulator for accurate ultrasonic calculation
@@ -1060,7 +1014,8 @@ function calculateDistance() {
 }
 
 /**
- * Main render loop
+ * Render the full arena including grid, path, walls, trail, and robot.
+ * @returns {void}
  */
 function render() {
   const ctx = App.ctx;
@@ -1091,7 +1046,10 @@ function render() {
 }
 
 /**
- * Draw background grid
+ * Draw the metric grid overlay that aids navigation within the arena.
+ * @param {CanvasRenderingContext2D} ctx Drawing context for the canvas.
+ * @param {number} scale Conversion from millimeters to pixels.
+ * @returns {void}
  */
 function drawGrid(ctx, scale) {
   ctx.strokeStyle = "#2a2a4a";
@@ -1116,7 +1074,10 @@ function drawGrid(ctx, scale) {
 }
 
 /**
- * Draw challenge path
+ * Visualize the active challenge path including lanes and highlighting.
+ * @param {CanvasRenderingContext2D} ctx Drawing context for the canvas.
+ * @param {number} scale Conversion from millimeters to pixels.
+ * @returns {void}
  */
 function drawPath(ctx, scale) {
   if (!App.currentChallengeConfig || !App.currentChallengeConfig.path) return;
@@ -1706,7 +1667,10 @@ function drawPath(ctx, scale) {
 }
 
 /**
- * Draw arena walls and maze
+ * Render the arena boundary and, when active, the selected maze layout.
+ * @param {CanvasRenderingContext2D} ctx Drawing context for the canvas.
+ * @param {number} scale Conversion from millimeters to pixels.
+ * @returns {void}
  */
 function drawWalls(ctx, scale) {
   // Draw arena border
@@ -1721,7 +1685,10 @@ function drawWalls(ctx, scale) {
 }
 
 /**
- * Draw robot trail
+ * Plot the historical path of the robot as a translucent polyline.
+ * @param {CanvasRenderingContext2D} ctx Drawing context for the canvas.
+ * @param {number} scale Conversion from millimeters to pixels.
+ * @returns {void}
  */
 function drawTrail(ctx, scale) {
   if (App.robot.trail.length < 2) return;
@@ -1738,7 +1705,10 @@ function drawTrail(ctx, scale) {
 }
 
 /**
- * Draw the robot (car top-down view)
+ * Draw the robot avatar using a stylized top-down car representation.
+ * @param {CanvasRenderingContext2D} ctx Drawing context for the canvas.
+ * @param {number} scale Conversion from millimeters to pixels.
+ * @returns {void}
  */
 function drawRobot(ctx, scale) {
   const x = App.robot.x * scale;
@@ -1887,10 +1857,9 @@ function drawRobot(ctx, scale) {
 }
 
 /**
- * Update robot position based on current speeds
- * @deprecated This function is no longer used. Physics are handled by
- * startAnimationLoop() which calls Simulator.step() with proper physics.
- * Kept for backward compatibility but should not be called.
+ * @deprecated Physics updates are computed by startAnimationLoop via Simulator.step().
+ * Legacy helper retained for compatibility logging only.
+ * @returns {void}
  */
 function updateRobotPosition() {
   // Note: This function is deprecated and no longer used.
@@ -1902,8 +1871,9 @@ function updateRobotPosition() {
 }
 
 /**
- * Update robot state from AIDriver commands
- * @param {object} state - { leftSpeed, rightSpeed, isMoving }
+ * Merge AIDriver command state into the robot cache and trigger a redraw.
+ * @param {{leftSpeed?: number, rightSpeed?: number, isMoving?: boolean}} state Partial state payload.
+ * @returns {void}
  */
 function updateRobot(state) {
   if (state.leftSpeed !== undefined) {
@@ -1922,15 +1892,17 @@ function updateRobot(state) {
 }
 
 /**
- * Hide loading overlay
+ * Conceal the startup loading overlay once initialization concludes.
+ * @returns {void}
  */
 function hideLoading() {
   App.elements.loadingOverlay.classList.add("hidden");
 }
 
 /**
- * Get starter codes for all challenges
- * Note: Debug challenge code is fetched from project/main.py in loadStarterCode()
+ * Provide starter program templates keyed by challenge identifier.
+ * Debug challenge source is fetched dynamically in loadStarterCode.
+ * @returns {Record<number, string>} Mapping of challenge id to starter code.
  */
 function getStarterCodes() {
   return {
@@ -2141,7 +2113,10 @@ while True:
 // Initialize when DOM is ready
 document.addEventListener("DOMContentLoaded", init);
 
-// Start animation loop
+/**
+ * Continuously advance the simulation, rendering updates and checking success each frame.
+ * @returns {void}
+ */
 function startAnimationLoop() {
   let lastTime = performance.now();
   let frameCount = 0;
@@ -2196,7 +2171,8 @@ function startAnimationLoop() {
 }
 
 /**
- * Update session tracking data
+ * Track aggregate session metrics used during challenge evaluation.
+ * @returns {void}
  */
 function updateSessionTracking() {
   if (!App.session) return;
@@ -2235,7 +2211,8 @@ function updateSessionTracking() {
 }
 
 /**
- * Check if current challenge is complete
+ * Evaluate the current challenge success criteria and surface completion UI.
+ * @returns {void}
  */
 function checkChallengeSuccess() {
   if (!App.currentChallengeConfig || typeof Challenges === "undefined") return;

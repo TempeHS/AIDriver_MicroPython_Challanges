@@ -15,14 +15,15 @@ const AIDriverStub = {
   robotInstance: null,
 
   /**
-   * Clear the command queue
+   * Reset the simulator command queue so pending actions are discarded.
    */
   clearQueue() {
     this.commandQueue = [];
   },
 
   /**
-   * Add a command to the queue
+   * Enqueue a structured command for the simulator and optionally log it.
+   * @param {{type: string, params: Record<string, unknown>}} cmd Command payload.
    */
   queueCommand(cmd) {
     console.log("[AIDriverStub] queueCommand:", cmd.type, cmd.params);
@@ -37,21 +38,24 @@ const AIDriverStub = {
   },
 
   /**
-   * Get next command from queue
+   * Dequeue the next pending command.
+   * @returns {{type: string, params: Record<string, unknown>}|undefined} Oldest command or undefined.
    */
   getNextCommand() {
     return this.commandQueue.shift();
   },
 
   /**
-   * Check if queue has commands
+   * Determine whether commands remain in the queue.
+   * @returns {boolean} True when at least one command is waiting to be processed.
    */
   hasCommands() {
     return this.commandQueue.length > 0;
   },
 
   /**
-   * Get the Skulpt module definition for 'aidriver'
+   * Build the Skulpt module definition that the Python runtime imports as `aidriver`.
+   * @returns {(name: string) => object|undefined} Module factory compatible with Skulpt expectations.
    */
   getModule() {
     const self = this;
@@ -69,7 +73,10 @@ const AIDriverStub = {
       mod.AIDriver = Sk.misceval.buildClass(
         mod,
         function ($gbl, $loc) {
-          // Constructor
+          /**
+           * Initialize the stub and register the robot instance.
+           * @returns {null}
+           */
           $loc.__init__ = new Sk.builtin.func(function (self) {
             self.rightSpeed = 0;
             self.leftSpeed = 0;
@@ -88,7 +95,12 @@ const AIDriverStub = {
             return Sk.builtin.none.none$;
           });
 
-          // drive_forward(right_speed, left_speed)
+          /**
+           * Queue a forward driving command with discrete wheel speeds.
+           * @param {Sk.builtin.int_} rightSpeed Mapped to right wheel speed.
+           * @param {Sk.builtin.int_} leftSpeed Mapped to left wheel speed.
+           * @returns {null}
+           */
           $loc.drive_forward = new Sk.builtin.func(function (
             self,
             rightSpeed,
@@ -109,7 +121,12 @@ const AIDriverStub = {
             return Sk.builtin.none.none$;
           });
 
-          // drive_backward(right_speed, left_speed)
+          /**
+           * Queue a backward driving command with discrete wheel speeds.
+           * @param {Sk.builtin.int_} rightSpeed Mapped to right wheel speed.
+           * @param {Sk.builtin.int_} leftSpeed Mapped to left wheel speed.
+           * @returns {null}
+           */
           $loc.drive_backward = new Sk.builtin.func(function (
             self,
             rightSpeed,
@@ -130,7 +147,11 @@ const AIDriverStub = {
             return Sk.builtin.none.none$;
           });
 
-          // rotate_left(turn_speed)
+          /**
+           * Queue a left rotation command using a single turn speed.
+           * @param {Sk.builtin.int_} turnSpeed Desired rotation speed value.
+           * @returns {null}
+           */
           $loc.rotate_left = new Sk.builtin.func(function (self, turnSpeed) {
             const ts = Sk.ffi.remapToJs(turnSpeed);
 
@@ -146,7 +167,11 @@ const AIDriverStub = {
             return Sk.builtin.none.none$;
           });
 
-          // rotate_right(turn_speed)
+          /**
+           * Queue a right rotation command using a single turn speed.
+           * @param {Sk.builtin.int_} turnSpeed Desired rotation speed value.
+           * @returns {null}
+           */
           $loc.rotate_right = new Sk.builtin.func(function (self, turnSpeed) {
             const ts = Sk.ffi.remapToJs(turnSpeed);
 
@@ -162,7 +187,10 @@ const AIDriverStub = {
             return Sk.builtin.none.none$;
           });
 
-          // brake()
+          /**
+           * Immediately stop all movement and queue a brake command.
+           * @returns {null}
+           */
           $loc.brake = new Sk.builtin.func(function (self) {
             self.rightSpeed = 0;
             self.leftSpeed = 0;
@@ -176,7 +204,10 @@ const AIDriverStub = {
             return Sk.builtin.none.none$;
           });
 
-          // read_distance()
+          /**
+           * Measure distance using the simulator abstraction.
+           * @returns {Sk.builtin.int_} Integer distance in simulated centimeters.
+           */
           $loc.read_distance = new Sk.builtin.func(function (self) {
             // Get distance from simulator using current robot state
             let distance = 1000;
@@ -196,12 +227,18 @@ const AIDriverStub = {
             return new Sk.builtin.int_(distance);
           });
 
-          // is_moving()
+          /**
+           * Report whether motion commands are currently active.
+           * @returns {Sk.builtin.bool} True when the robot is moving.
+           */
           $loc.is_moving = new Sk.builtin.func(function (self) {
             return new Sk.builtin.bool(self.isMoving);
           });
 
-          // get_motor_speeds()
+          /**
+           * Return a tuple capturing the cached motor speeds.
+           * @returns {Sk.builtin.tuple} Pair of right and left speed integers.
+           */
           $loc.get_motor_speeds = new Sk.builtin.func(function (self) {
             return new Sk.builtin.tuple([
               new Sk.builtin.int_(self.rightSpeed),
@@ -209,7 +246,12 @@ const AIDriverStub = {
             ]);
           });
 
-          // set_motor_speeds(right_speed, left_speed)
+          /**
+           * Update the cached motor speeds without changing direction indicators.
+           * @param {Sk.builtin.int_} rightSpeed New right wheel speed.
+           * @param {Sk.builtin.int_} leftSpeed New left wheel speed.
+           * @returns {null}
+           */
           $loc.set_motor_speeds = new Sk.builtin.func(function (
             self,
             rightSpeed,
@@ -233,7 +275,11 @@ const AIDriverStub = {
         []
       );
 
-      // hold_state(seconds) - module-level function
+      /**
+       * Suspend execution for the requested time while keeping the last state.
+       * @param {Sk.builtin.int_|Sk.builtin.float_} seconds Duration expressed in seconds.
+       * @returns {Sk.misceval.Suspension} Suspension resolving when the duration elapses.
+       */
       mod.hold_state = new Sk.builtin.func(function (seconds) {
         const secs = Sk.ffi.remapToJs(seconds);
 

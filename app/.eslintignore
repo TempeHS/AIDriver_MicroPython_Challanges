@@ -1,0 +1,4 @@
+coverage/
+assets/
+node_modules/
+dist/
