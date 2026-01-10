@@ -334,10 +334,7 @@ class UltrasonicSensor:
             if duration < 0:
                 _ultrasonic_warn_inline("Sensor error – check wiring")
                 # Only log to eventlog on first few failures to avoid log spam
-                if (
-                    _ultrasonic_fail_count <= _ULTRASONIC_WARN_THRESHOLD
-                    and eventlog is not None
-                ):
+                if _ultrasonic_fail_count <= 3 and eventlog is not None:
                     try:
                         eventlog.log_event("ultrasonic timeout or invalid echo")
                     except Exception:
@@ -364,10 +361,7 @@ class UltrasonicSensor:
             # Out of range – likely too close, too far, or pointing into open space
             _ultrasonic_warn_inline("Out of range ({}mm)".format(int(distance_mm)))
             # Only log to eventlog on first few failures to avoid log spam
-            if (
-                _ultrasonic_fail_count <= _ULTRASONIC_WARN_THRESHOLD
-                and eventlog is not None
-            ):
+            if _ultrasonic_fail_count <= 3 and eventlog is not None:
                 try:
                     eventlog.log_event(
                         "ultrasonic out of range: {} mm".format(int(distance_mm))
@@ -380,10 +374,7 @@ class UltrasonicSensor:
             # This can occur if there's an issue with time_pulse_us or pin configuration
             _ultrasonic_warn_inline("OSError – check pins & power")
             # Only log to eventlog on first few failures to avoid log spam
-            if (
-                _ultrasonic_fail_count <= _ULTRASONIC_WARN_THRESHOLD
-                and eventlog is not None
-            ):
+            if _ultrasonic_fail_count <= 3 and eventlog is not None:
                 try:
                     eventlog.log_event("ultrasonic OSError: {}".format(exc))
                 except Exception:
