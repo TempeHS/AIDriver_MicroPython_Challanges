@@ -23,8 +23,11 @@ const Challenges = (function () {
       id: "debug",
       title: "Debug Script",
       subtitle: "Hardware Test",
+      icon: "bi-bug",
+      menuGroup: "special", // Shows at top with divider after
       difficulty: DIFFICULTY.BEGINNER,
-      description: "Run the hardware debug script (project/main.py) to test all robot functions.",
+      description:
+        "Run the hardware debug script (project/main.py) to test all robot functions.",
       goal: "Verify motors, rotation, and ultrasonic sensor are working correctly.",
       hints: [
         "This script tests all hardware functions",
@@ -45,6 +48,8 @@ const Challenges = (function () {
       id: 0,
       title: "Fix the Code",
       subtitle: "Debug Practice",
+      icon: "bi-wrench",
+      menuGroup: "basic",
       difficulty: DIFFICULTY.BEGINNER,
       description: "Find and fix the syntax errors in the provided code.",
       goal: "Make the code run without errors. The robot should drive forward.",
@@ -67,6 +72,8 @@ const Challenges = (function () {
       id: 1,
       title: "Drive in a Straight Line",
       subtitle: "Motor Balance",
+      icon: "bi-arrow-up",
+      menuGroup: "basic",
       difficulty: DIFFICULTY.BEGINNER,
       description: "Balance the motor speeds so the robot drives straight.",
       goal: "Drive from start to the green target zone without veering off.",
@@ -95,6 +102,8 @@ const Challenges = (function () {
       id: 2,
       title: "Drive a Circle",
       subtitle: "Differential Drive",
+      icon: "bi-circle",
+      menuGroup: "basic",
       difficulty: DIFFICULTY.EASY,
       description: "Modify wheel speeds to make the robot drive in a circle.",
       goal: "Complete at least one full circle and return near the start.",
@@ -124,6 +133,8 @@ const Challenges = (function () {
       id: 3,
       title: "Detect and Stop",
       subtitle: "Ultrasonic Sensor",
+      icon: "bi-rulers",
+      menuGroup: "basic",
       difficulty: DIFFICULTY.EASY,
       description: "Use the ultrasonic sensor to detect the wall and stop.",
       goal: "Stop within 100-200mm of the wall without hitting it.",
@@ -152,6 +163,8 @@ const Challenges = (function () {
       id: 4,
       title: "Drive a Square",
       subtitle: "Precision Turning",
+      icon: "bi-square",
+      menuGroup: "basic",
       difficulty: DIFFICULTY.MEDIUM,
       description: "Drive in a square pattern using 90-degree turns.",
       goal: "Complete a square path and return to the starting position.",
@@ -182,6 +195,8 @@ const Challenges = (function () {
       id: 5,
       title: "Obstacle Avoidance",
       subtitle: "Sensor Navigation",
+      icon: "bi-exclamation-triangle",
+      menuGroup: "basic",
       difficulty: DIFFICULTY.MEDIUM,
       description: "Navigate around obstacles using the ultrasonic sensor.",
       goal: "Turn left, then right to reach the target zone.",
@@ -217,6 +232,8 @@ const Challenges = (function () {
       id: 6,
       title: "Maze Navigation",
       subtitle: "Autonomous Navigation",
+      icon: "bi-signpost-split",
+      menuGroup: "advanced",
       difficulty: DIFFICULTY.HARD,
       description: "Navigate through a maze using ultrasonic sensing.",
       goal: "Reach the exit zone without hitting walls.",
@@ -242,6 +259,8 @@ const Challenges = (function () {
       id: 7,
       title: "Gamepad Control",
       subtitle: "Manual Driving",
+      icon: "bi-controller",
+      menuGroup: "advanced",
       difficulty: DIFFICULTY.BEGINNER,
       description: "Use the on-screen gamepad to drive the robot manually.",
       goal: "Practice manual control to understand robot behavior.",
@@ -474,12 +493,92 @@ const Challenges = (function () {
     return { success: true, message: "Figure 8 complete!" };
   }
 
+  /**
+   * Generate menu HTML for challenge dropdown
+   * @param {string} menuType - 'simulator' for simulator links, 'docs' for doc links
+   * @returns {string} HTML string for menu items
+   */
+  function generateMenuHTML(menuType = "simulator") {
+    const groups = { special: [], basic: [], advanced: [] };
+
+    // Sort challenges into groups
+    Object.values(definitions).forEach((challenge) => {
+      const group = challenge.menuGroup || "basic";
+      if (groups[group]) {
+        groups[group].push(challenge);
+      }
+    });
+
+    let html = "";
+
+    // Special group (debug script) - shown first with divider after
+    groups.special.forEach((c) => {
+      const href =
+        menuType === "docs"
+          ? `docs.html?doc=Challenge_${c.id}`
+          : `simulator.html?challenge=${c.id}`;
+      html += `<li><a class="dropdown-item" href="${href}" data-challenge="${c.id}">`;
+      html += `<i class="bi ${c.icon} me-2"></i>${c.title}`;
+      html += `</a></li>`;
+    });
+
+    if (groups.special.length > 0) {
+      html += `<li><hr class="dropdown-divider" /></li>`;
+    }
+
+    // Basic group (challenges 0-5)
+    groups.basic.forEach((c) => {
+      const href =
+        menuType === "docs"
+          ? `docs.html?doc=Challenge_${c.id}`
+          : `simulator.html?challenge=${c.id}`;
+      const label =
+        typeof c.id === "number" ? `Challenge ${c.id}: ${c.title}` : c.title;
+      html += `<li><a class="dropdown-item" href="${href}" data-challenge="${c.id}">`;
+      html += `<i class="bi ${c.icon} me-2"></i>${label}`;
+      html += `</a></li>`;
+    });
+
+    if (groups.advanced.length > 0) {
+      html += `<li><hr class="dropdown-divider" /></li>`;
+    }
+
+    // Advanced group (challenges 6-7)
+    groups.advanced.forEach((c) => {
+      const href =
+        menuType === "docs"
+          ? `docs.html?doc=Challenge_${c.id}`
+          : `simulator.html?challenge=${c.id}`;
+      const label =
+        typeof c.id === "number" ? `Challenge ${c.id}: ${c.title}` : c.title;
+      html += `<li><a class="dropdown-item" href="${href}" data-challenge="${c.id}">`;
+      html += `<i class="bi ${c.icon} me-2"></i>${label}`;
+      html += `</a></li>`;
+    });
+
+    return html;
+  }
+
+  /**
+   * Populate a dropdown menu element with challenge items
+   * @param {string} selector - CSS selector for the <ul> element
+   * @param {string} menuType - 'simulator' or 'docs'
+   */
+  function populateMenu(selector, menuType = "simulator") {
+    const menuEl = document.querySelector(selector);
+    if (menuEl) {
+      menuEl.innerHTML = generateMenuHTML(menuType);
+    }
+  }
+
   // Public API
   return {
     get,
     getAll,
     count,
     checkSuccess,
+    generateMenuHTML,
+    populateMenu,
     DIFFICULTY,
   };
 })();

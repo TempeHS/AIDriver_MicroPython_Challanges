@@ -48,6 +48,11 @@ function init() {
   // Cache DOM elements
   cacheElements();
 
+  // Populate challenge menus from single source of truth
+  if (typeof Challenges !== "undefined" && Challenges.populateMenu) {
+    Challenges.populateMenu("#challengeSimulatorMenu", "simulator");
+  }
+
   // Initialize Bootstrap components
   initBootstrapComponents();
 

@@ -125,96 +125,12 @@
               >
                 <i class="bi bi-play-circle me-1"></i>Challenge Simulator
               </a>
-              <ul class="dropdown-menu" aria-labelledby="challengeDropdown">
-                <li>
-                  <a
-                    class="dropdown-item"
-                    href="simulator.html?challenge=debug"
-                    data-challenge="debug"
-                  >
-                    <i class="bi bi-bug me-2"></i>Debug Script
-                  </a>
-                </li>
-                <li><hr class="dropdown-divider" /></li>
-                <li>
-                  <a
-                    class="dropdown-item"
-                    href="simulator.html?challenge=0"
-                    data-challenge="0"
-                  >
-                    <i class="bi bi-wrench me-2"></i>Challenge 0: Fix the Code
-                  </a>
-                </li>
-                <li>
-                  <a
-                    class="dropdown-item"
-                    href="simulator.html?challenge=1"
-                    data-challenge="1"
-                  >
-                    <i class="bi bi-arrow-up me-2"></i>Challenge 1: Straight
-                    Line
-                  </a>
-                </li>
-                <li>
-                  <a
-                    class="dropdown-item"
-                    href="simulator.html?challenge=2"
-                    data-challenge="2"
-                  >
-                    <i class="bi bi-circle me-2"></i>Challenge 2: Drive a Circle
-                  </a>
-                </li>
-                <li>
-                  <a
-                    class="dropdown-item"
-                    href="simulator.html?challenge=3"
-                    data-challenge="3"
-                  >
-                    <i class="bi bi-rulers me-2"></i>Challenge 3: Distance
-                    Sensor
-                  </a>
-                </li>
-                <li>
-                  <a
-                    class="dropdown-item"
-                    href="simulator.html?challenge=4"
-                    data-challenge="4"
-                  >
-                    <i class="bi bi-square me-2"></i>Challenge 4: Drive a Square
-                  </a>
-                </li>
-                <li>
-                  <a
-                    class="dropdown-item"
-                    href="simulator.html?challenge=5"
-                    data-challenge="5"
-                  >
-                    <i class="bi bi-exclamation-triangle me-2"></i>Challenge 5:
-                    Obstacle Avoidance
-                  </a>
-                </li>
-                <li><hr class="dropdown-divider" /></li>
-                <li>
-                  <a
-                    class="dropdown-item"
-                    href="simulator.html?challenge=6"
-                    data-challenge="6"
-                  >
-                    <i class="bi bi-signpost-split me-2"></i>Challenge 6: Maze
-                    Navigation
-                  </a>
-                </li>
-                <li>
-                  <a
-                    class="dropdown-item"
-                    href="simulator.html?challenge=7"
-                    data-challenge="7"
-                  >
-                    <i class="bi bi-controller me-2"></i>Challenge 7: Gamepad
-                    Control
-                  </a>
-                </li>
-              </ul>
+              <!-- Menu populated dynamically from Challenges.populateMenu() -->
+              <ul
+                class="dropdown-menu"
+                id="challengeSimulatorMenu"
+                aria-labelledby="challengeDropdown"
+              ></ul>
             </li>
 
             <!-- Maze Selector (hidden by default, shown for Challenge 6) -->
@@ -708,15 +624,15 @@
     <script src="https://cdn.jsdelivr.net/npm/skulpt@1.2.0/dist/skulpt-stdlib.js"></script>
 
     <!-- Application Scripts (order matters!) -->
-    <script src="js/debug-panel.js?v=8"></script>
-    <script src="js/validator.js?v=11"></script>
-    <script src="js/simulator.js?v=8"></script>
-    <script src="js/challenges.js?v=11"></script>
-    <script src="js/mazes.js?v=23"></script>
-    <script src="js/gamepad.js?v=8"></script>
-    <script src="js/aidriver-stub.js?v=8"></script>
-    <script src="js/python-runner.js?v=40"></script>
-    <script src="js/editor.js?v=11"></script>
-    <script src="js/app.js?v=43"></script>
+    <script src="js/debug-panel.js?v=10"></script>
+    <script src="js/validator.js?v=13"></script>
+    <script src="js/simulator.js?v=10"></script>
+    <script src="js/challenges.js?v=13"></script>
+    <script src="js/mazes.js?v=25"></script>
+    <script src="js/gamepad.js?v=10"></script>
+    <script src="js/aidriver-stub.js?v=10"></script>
+    <script src="js/python-runner.js?v=42"></script>
+    <script src="js/editor.js?v=13"></script>
+    <script src="js/app.js?v=45"></script>
   </body>
 </html>
