@@ -121,7 +121,9 @@ def _ultrasonic_warn_inline(message):
     )
 
     # Pad to 70 chars to ensure we overwrite any previous longer message
-    warn_text = warn_text.ljust(70)
+    # Note: MicroPython doesn't have str.ljust(), so we pad manually
+    padding = max(0, 70 - len(warn_text))
+    warn_text = warn_text + " " * padding
 
     # Print with carriage return (no newline) to stay on same line
     print("\r" + warn_text, end="")
