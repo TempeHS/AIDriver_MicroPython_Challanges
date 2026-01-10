@@ -76,52 +76,64 @@
 > To avoid damaging your computer or robot place it on the floor in an area with enough space for it to move safely before powering it on.
 
 ```python
-from time import sleep
+from aidriver import AIDriver, hold_state
 import aidriver
-from aidriver import AIDriver
-import sys
 
-"""Hardware test for the AIDriver robot.
-Relies on aidriver.DEBUG_AIDRIVER for detailed motor/sensor logs.
+"""Hardware sanity test for the AIDriver robot.
+
+Runs a short sequence of movements and distance readings.
+Most details are reported via the AIDriver debug logger.
 """
 
-aidriver.DEBUG_AIDRIVER = True
 
-try:
-    driver = AIDriver()
-except Exception as e:
-    # Minimal error reporting in case the library is missing or broken
-    print("AIDriver init failed:", e)
-    sys.exit()
+def main():
+    aidriver.DEBUG_AIDRIVER = True
 
-sleep(5)
+    print("Initialising AIDriver hardware test...")
 
-# Test 1: Drive Forward
-driver.drive_forward(200, 200)
-sleep(2)
-driver.brake()
-sleep(3)
+    try:
+        robot = AIDriver()
+    except Exception as exc:
+        print("Failed to initialise AIDriver:", exc)
+        print("Check that 'aidriver.py' is in the 'lib' folder on the device.")
+        return
 
-# Test 2: Drive Backward
-driver.drive_backward(200, 200)
-sleep(2)
-driver.brake()
-sleep(3)
+    print("Starting tests in 3 seconds. Ensure clear space around the robot.")
+    hold_state(3)
 
-# Test 3: Rotate Right
-driver.rotate_right(200)
-sleep(2)
-driver.brake()
-sleep(3)
+    # Test 1: Drive Forward
+    print("Test 1: drive_forward")
+    robot.drive_forward(200, 200)
+    hold_state(2)
+    robot.brake()
+    hold_state(1)
 
-# Test 4: Rotate Left
-driver.rotate_left(200)
-sleep(2)
-driver.brake()
-sleep(3)
+    # Test 2: Drive Backward
+    print("Test 2: drive_backward")
+    robot.drive_backward(200, 200)
+    hold_state(2)
+    robot.brake()
+    hold_state(1)
 
-# Test 5: Ultrasonic Sensor
-for _ in range(5):
-    driver.read_distance()
-    sleep(1)
+    # Test 3: Rotate Right
+    print("Test 3: rotate_right")
+    robot.rotate_right(200)
+    hold_state(2)
+    robot.brake()
+    hold_state(1)
+
+    # Test 4: Rotate Left
+    print("Test 4: rotate_left")
+    robot.rotate_left(200)
+    hold_state(2)
+    robot.brake()
+    hold_state(1)
+
+    # Test 5: Ultrasonic Sensor
+    print("Test 5: ultrasonic distance readings")
+    for i in range(5):
+        distance = robot.read_distance()
+        hold_state(0.5)
+
+    print("All hardware tests completed.")
 ```

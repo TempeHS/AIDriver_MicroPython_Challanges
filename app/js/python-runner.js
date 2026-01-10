@@ -60,11 +60,15 @@ const PythonRunner = {
     // Initialize builtin files
     Sk.builtinFiles = Sk.builtinFiles || { files: {} };
 
-    // Add aidriver module as pure Python with JS interop
-    Sk.builtinFiles["files"]["src/lib/aidriver.py"] =
-      this.getAIDriverPythonModule();
+    // Register aidriver as a JavaScript module (for proper suspension support)
+    // This uses AIDriverStub.getModule() which has promiseToSuspension for hold_state
+    Sk.externalLibraries = Sk.externalLibraries || {};
+    Sk.externalLibraries["aidriver"] = {
+      path: "virtual://aidriver",
+      dependencies: [],
+    };
 
-    console.log("[PythonRunner] Registered aidriver Python module");
+    console.log("[PythonRunner] Registered aidriver JS module");
   },
 
   /**
@@ -444,7 +448,7 @@ def ticks_diff(t1, t2):
   handleRead(filename) {
     console.log("[PythonRunner] handleRead called for:", filename);
 
-    // Handle aidriver module - check various possible paths
+    // Handle aidriver module - return the Python module
     if (
       filename === "src/lib/aidriver.py" ||
       filename === "./aidriver.py" ||

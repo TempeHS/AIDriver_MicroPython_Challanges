@@ -479,13 +479,18 @@ function loadChallenge(challengeId) {
   // Clear any existing error markers
   Editor.clearAllMarkers();
 
-  // Try to load saved code, otherwise load starter code
-  const savedCode = Editor.loadSavedCode(challengeId);
-  if (savedCode) {
-    Editor.setCode(savedCode);
-    logDebug(`Loaded saved code for Challenge ${challengeId}`);
-  } else {
+  // Debug challenge always loads fresh from main.py (no saved code)
+  // Other challenges try saved code first, then starter code
+  if (challengeId === "debug") {
     loadStarterCode(challengeId);
+  } else {
+    const savedCode = Editor.loadSavedCode(challengeId);
+    if (savedCode) {
+      Editor.setCode(savedCode);
+      logDebug(`Loaded saved code for Challenge ${challengeId}`);
+    } else {
+      loadStarterCode(challengeId);
+    }
   }
 
   // Store current challenge config
@@ -560,8 +565,31 @@ function loadChallenge(challengeId) {
 
 /**
  * Load starter code for a challenge
+ * For debug challenge, fetches from project/main.py
  */
-function loadStarterCode(challengeId) {
+async function loadStarterCode(challengeId) {
+  // Debug challenge loads from project/main.py via GitHub raw
+  if (challengeId === "debug") {
+    try {
+      const response = await fetch(
+        "https://raw.githubusercontent.com/TempeHS/AIDriver_MicroPython_Challanges/refs/heads/main/project/main.py"
+      );
+      if (response.ok) {
+        const code = await response.text();
+        Editor.setCode(code);
+        logDebug("[App] Loaded starter code from project/main.py");
+        return;
+      }
+    } catch (err) {
+      console.warn("[App] Could not fetch project/main.py:", err);
+    }
+    // Fallback if fetch fails
+    Editor.setCode(
+      "# Could not load project/main.py\n# Check your internet connection\n"
+    );
+    return;
+  }
+
   const starterCodes = getStarterCodes();
   const code = starterCodes[challengeId] || "# No starter code available\n";
   Editor.setCode(code);
@@ -571,9 +599,9 @@ function loadStarterCode(challengeId) {
 /**
  * Reset to starter code (discard changes)
  */
-function resetToStarterCode() {
+async function resetToStarterCode() {
   Editor.clearSavedCode(App.currentChallenge);
-  loadStarterCode(App.currentChallenge);
+  await loadStarterCode(App.currentChallenge);
   logDebug("[App] Code reset to starter code");
 }
 
@@ -1853,60 +1881,11 @@ function hideLoading() {
 
 /**
  * Get starter codes for all challenges
+ * Note: Debug challenge code is fetched from project/main.py in loadStarterCode()
  */
 function getStarterCodes() {
   return {
-    debug: `# Debug Script: Hardware Sanity Test
-# Runs a sequence of movements and distance readings
-# This mirrors project/main.py for testing on real hardware
-
-from aidriver import AIDriver, hold_state
-import aidriver
-
-aidriver.DEBUG_AIDRIVER = True
-
-print("Initialising AIDriver hardware test...")
-my_robot = AIDriver()
-
-print("Starting tests in 3 seconds. Ensure clear space around the robot.")
-hold_state(3)
-
-# Test 1: Drive Forward
-print("Test 1: drive_forward")
-my_robot.drive_forward(200, 200)
-hold_state(2)
-my_robot.brake()
-hold_state(1)
-
-# Test 2: Drive Backward
-print("Test 2: drive_backward")
-my_robot.drive_backward(200, 200)
-hold_state(2)
-my_robot.brake()
-hold_state(1)
-
-# Test 3: Rotate Right
-print("Test 3: rotate_right")
-my_robot.rotate_right(200)
-hold_state(2)
-my_robot.brake()
-hold_state(1)
-
-# Test 4: Rotate Left
-print("Test 4: rotate_left")
-my_robot.rotate_left(200)
-hold_state(2)
-my_robot.brake()
-hold_state(1)
-
-# Test 5: Ultrasonic Sensor
-print("Test 5: ultrasonic distance readings")
-for i in range(5):
-    distance = my_robot.read_distance()
-    hold_state(0.5)
-
-print("All hardware tests completed.")
-`,
+    // debug: loaded dynamically from project/main.py
     0: `# Challenge 0: Fix the Code
 # This code has errors - can you find and fix them?
 
