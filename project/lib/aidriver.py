@@ -96,10 +96,6 @@ def _ultrasonic_warn_inline(message):
 
     _ultrasonic_fail_count += 1
 
-    # First few failures: stay silent (could be transient)
-    if _ultrasonic_fail_count < 3:
-        return
-
     # Print the initial warning (no newline)
     if not _ultrasonic_warned:
         print("[AIDriver] " + message, end="")
