@@ -1,7 +1,8 @@
 - Fix BT
 
-1.  Library: https://github.com/STEMpedia/Dabble
-2.  Docs:
+Library: https://github.com/STEMpedia/Dabble
+Docs:
+
 <p><a href="https://ai.thestempedia.com/docs/dabble-app/">Dabble App - Documentation</a></p>
 <ol>
   <li>
