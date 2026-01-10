@@ -6,112 +6,105 @@
 const Mazes = (function () {
   "use strict";
 
-  // Wall thickness in mm
-  const WALL_THICKNESS = 50;
+  // Wall thickness in mm (reduced for wider corridors)
+  const WALL_THICKNESS = 30;
 
   /**
    * Pre-defined maze layouts
    * Each maze has walls defined as { x, y, width, height } in mm
    */
   const mazeDefinitions = {
-    // Simple maze - basic corridors
+    // Simple maze - basic L-shaped corridor
     simple: {
       id: "simple",
       name: "Simple Corridor",
       difficulty: "Easy",
-      description: "A simple corridor maze to practice basic navigation",
-      startPosition: { x: 200, y: 1800, heading: 0 },
-      endZone: { x: 1700, y: 100, width: 200, height: 200 },
+      description: "A simple L-shaped corridor to practice basic navigation",
+      startPosition: { x: 300, y: 1700, heading: 0 },
+      endZone: { x: 100, y: 100, width: 200, height: 200 },
       walls: [
-        // Outer walls are arena boundaries, no need to add
-
-        // Horizontal walls
-        { x: 0, y: 1400, width: 1200, height: WALL_THICKNESS },
-        { x: 800, y: 1000, width: 1200, height: WALL_THICKNESS },
-        { x: 0, y: 600, width: 1200, height: WALL_THICKNESS },
-        { x: 800, y: 200, width: 800, height: WALL_THICKNESS },
-
-        // Vertical walls
-        { x: 400, y: 1400, width: WALL_THICKNESS, height: 400 },
-        { x: 1600, y: 600, width: WALL_THICKNESS, height: 600 },
+        // Just two walls creating an L-shaped path
+        { x: 0, y: 1000, width: 1400, height: WALL_THICKNESS },
+        { x: 700, y: 400, width: WALL_THICKNESS, height: 600 },
       ],
     },
 
-    // Zigzag maze
+    // Zigzag maze - walls extend from opposite sides
     zigzag: {
       id: "zigzag",
       name: "Zigzag Path",
       difficulty: "Medium",
       description: "Navigate through a zigzag corridor",
-      startPosition: { x: 200, y: 1800, heading: 0 },
+      startPosition: { x: 300, y: 1700, heading: 0 },
       endZone: { x: 1700, y: 100, width: 200, height: 200 },
       walls: [
-        // Zigzag horizontal walls
-        { x: 400, y: 1600, width: 1600, height: WALL_THICKNESS },
-        { x: 0, y: 1200, width: 1600, height: WALL_THICKNESS },
-        { x: 400, y: 800, width: 1600, height: WALL_THICKNESS },
-        { x: 0, y: 400, width: 1600, height: WALL_THICKNESS },
+        // Bottom wall extends from left
+        { x: 0, y: 1200, width: 1500, height: WALL_THICKNESS },
+        // Top wall extends from right
+        { x: 500, y: 600, width: 1500, height: WALL_THICKNESS },
       ],
     },
 
-    // Spiral maze
+    // Spiral maze - evenly spaced spiral pattern
     spiral: {
       id: "spiral",
       name: "Spiral",
       difficulty: "Hard",
       description: "Navigate a spiral pattern to the center",
-      startPosition: { x: 200, y: 1900, heading: 0 },
-      endZone: { x: 900, y: 900, width: 200, height: 200 },
+      startPosition: { x: 300, y: 1700, heading: 0 },
+      endZone: { x: 800, y: 800, width: 200, height: 200 },
       walls: [
-        // Outer spiral
-        { x: 0, y: 1700, width: 1800, height: WALL_THICKNESS },
-        { x: 1800, y: 300, width: WALL_THICKNESS, height: 1450 },
-        { x: 200, y: 300, width: 1650, height: WALL_THICKNESS },
-        { x: 200, y: 300, width: WALL_THICKNESS, height: 1200 },
-
-        // Inner spiral
-        { x: 400, y: 1500, width: 1200, height: WALL_THICKNESS },
-        { x: 1600, y: 500, width: WALL_THICKNESS, height: 1050 },
-        { x: 400, y: 500, width: 1250, height: WALL_THICKNESS },
-        { x: 400, y: 500, width: WALL_THICKNESS, height: 800 },
-
-        // Center spiral
-        { x: 600, y: 1300, width: 800, height: WALL_THICKNESS },
-        { x: 1400, y: 700, width: WALL_THICKNESS, height: 650 },
-        { x: 600, y: 700, width: 850, height: WALL_THICKNESS },
+        // Outer spiral - 400mm spacing between walls
+        { x: 0, y: 1400, width: 1600, height: WALL_THICKNESS }, // Outer top
+        { x: 1600, y: 400, width: WALL_THICKNESS, height: 1030 }, // Outer right
+        { x: 400, y: 400, width: 1230, height: WALL_THICKNESS }, // Outer bottom
+        { x: 400, y: 400, width: WALL_THICKNESS, height: 600 }, // Outer left (partial)
+        // Inner spiral - 400mm inward
+        { x: 400, y: 1000, width: 800, height: WALL_THICKNESS }, // Inner top
+        { x: 1200, y: 800, width: WALL_THICKNESS, height: 230 }, // Inner right
       ],
     },
 
-    // Classic maze
+    // Classic maze - verified solvable with dead ends
+    // Solution: UP to top, hit wall, DOWN, RIGHT through gap, UP, RIGHT to end
     classic: {
       id: "classic",
       name: "Classic Maze",
       difficulty: "Hard",
-      description: "A traditional maze with multiple paths",
-      startPosition: { x: 100, y: 1900, heading: 0 },
-      endZone: { x: 1800, y: 50, width: 150, height: 150 },
-      walls: generateClassicMaze(),
+      description: "A traditional maze with dead ends",
+      startPosition: { x: 250, y: 1750, heading: 0 },
+      endZone: { x: 1700, y: 100, width: 200, height: 200 },
+      walls: [
+        // Horizontal walls
+        { x: 500, y: 400, width: 500, height: WALL_THICKNESS }, // blocks middle-left at top
+        { x: 1500, y: 400, width: 500, height: WALL_THICKNESS }, // blocks right at top
+        { x: 500, y: 1100, width: 1000, height: WALL_THICKNESS }, // middle barrier
+        { x: 500, y: 1500, width: 500, height: WALL_THICKNESS }, // blocks path up from start-right
+        // Vertical walls
+        { x: 500, y: 700, width: WALL_THICKNESS, height: 400 }, // short wall with gap above
+        { x: 500, y: 1500, width: WALL_THICKNESS, height: 500 }, // blocks going right from start
+        { x: 1000, y: 0, width: WALL_THICKNESS, height: 400 }, // forces detour at top
+        { x: 1500, y: 400, width: WALL_THICKNESS, height: 700 }, // blocks direct right path
+      ],
     },
 
-    // Open arena with obstacles
+    // Open arena with obstacles - including wall-attached obstacles
     obstacles: {
       id: "obstacles",
       name: "Obstacle Course",
       difficulty: "Medium",
       description: "Navigate around scattered obstacles",
-      startPosition: { x: 200, y: 1800, heading: 0 },
+      startPosition: { x: 300, y: 1700, heading: 0 },
       endZone: { x: 1700, y: 100, width: 200, height: 200 },
       walls: [
-        // Scattered obstacles
-        { x: 400, y: 1400, width: 200, height: 200 },
-        { x: 800, y: 1600, width: 200, height: 200 },
-        { x: 600, y: 1000, width: 300, height: 150 },
-        { x: 1200, y: 1200, width: 200, height: 300 },
-        { x: 1000, y: 600, width: 250, height: 200 },
-        { x: 1500, y: 800, width: 200, height: 200 },
-        { x: 400, y: 400, width: 200, height: 200 },
-        { x: 800, y: 200, width: 300, height: 150 },
-        { x: 1300, y: 400, width: 200, height: 200 },
+        // Wall-attached obstacles
+        { x: 0, y: 1200, width: 300, height: 200 }, // Left wall
+        { x: 1700, y: 800, width: 300, height: 200 }, // Right wall
+        { x: 600, y: 0, width: 200, height: 300 }, // Top wall
+        { x: 1200, y: 1700, width: 200, height: 300 }, // Bottom wall
+        // Center obstacles
+        { x: 700, y: 900, width: 200, height: 200 },
+        { x: 1100, y: 500, width: 200, height: 200 },
       ],
     },
   };

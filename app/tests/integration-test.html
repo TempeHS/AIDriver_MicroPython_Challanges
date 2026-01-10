@@ -1,0 +1,1262 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AIDriver Integration Test</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        background: #1a1a2e;
+        color: #e4e6eb;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        padding: 20px;
+      }
+      h1 {
+        color: #00d9ff;
+      }
+      .card {
+        background: #16213e;
+        border: 1px solid rgba(0, 217, 255, 0.2);
+        border-radius: 8px;
+        margin-bottom: 15px;
+      }
+      .card-header {
+        background: rgba(0, 217, 255, 0.1);
+        border-bottom: 1px solid rgba(0, 217, 255, 0.2);
+        padding: 12px 15px;
+        font-weight: 600;
+      }
+      .card-body {
+        padding: 15px;
+      }
+      #testCanvas {
+        border: 2px solid #00d9ff;
+        border-radius: 8px;
+        background: #0f0f23;
+      }
+      .btn-test {
+        background: #00d9ff;
+        color: #000;
+        border: none;
+        padding: 15px 40px;
+        font-size: 18px;
+        font-weight: bold;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+      .btn-test:hover {
+        background: #00b8d9;
+      }
+      .btn-test:disabled {
+        background: #555;
+        cursor: not-allowed;
+      }
+      .btn-stop {
+        background: #ff4757;
+        margin-left: 10px;
+      }
+      #testLog {
+        background: #0f0f23;
+        border: 1px solid rgba(0, 217, 255, 0.2);
+        border-radius: 4px;
+        padding: 15px;
+        height: 500px;
+        overflow-y: auto;
+        font-family: monospace;
+        font-size: 13px;
+        white-space: pre-wrap;
+      }
+      .log-info {
+        color: #00d9ff;
+      }
+      .log-success {
+        color: #2ed573;
+      }
+      .log-warning {
+        color: #ffa502;
+      }
+      .log-error {
+        color: #ff4757;
+      }
+      .log-test {
+        color: #a78bfa;
+        font-weight: bold;
+      }
+      .log-section {
+        color: #00d9ff;
+        font-weight: bold;
+        border-top: 1px solid #00d9ff;
+        margin-top: 10px;
+        padding-top: 10px;
+      }
+      .results-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 15px;
+        margin-top: 20px;
+      }
+      .result-box {
+        background: #0f0f23;
+        padding: 20px;
+        border-radius: 8px;
+        text-align: center;
+      }
+      .result-value {
+        font-size: 36px;
+        font-weight: bold;
+      }
+      .result-label {
+        font-size: 14px;
+        color: #8892b0;
+        margin-top: 5px;
+      }
+      .pass {
+        color: #2ed573;
+      }
+      .fail {
+        color: #ff4757;
+      }
+      .progress-bar-container {
+        width: 100%;
+        height: 8px;
+        background: #0f0f23;
+        border-radius: 4px;
+        overflow: hidden;
+        margin: 15px 0;
+      }
+      .progress-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #00d9ff, #2ed573);
+        width: 0%;
+        transition: width 0.3s;
+      }
+      #currentTestName {
+        color: #00d9ff;
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container-fluid">
+      <h1>🧪 AIDriver Comprehensive Integration Test</h1>
+
+      <div class="row">
+        <div class="col-lg-5">
+          <div class="card">
+            <div class="card-header">Live Test View</div>
+            <div class="card-body text-center">
+              <canvas id="testCanvas" width="500" height="500"></canvas>
+              <div class="mt-3">
+                <button id="btnRunTests" class="btn-test">
+                  ▶ Run All Tests
+                </button>
+                <button id="btnStop" class="btn-test btn-stop" disabled>
+                  ■ Stop
+                </button>
+              </div>
+              <div class="progress-bar-container">
+                <div id="progressBar" class="progress-bar-fill"></div>
+              </div>
+              <div>Current: <span id="currentTestName">Ready</span></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">Results Summary</div>
+            <div class="card-body">
+              <div class="results-grid">
+                <div class="result-box">
+                  <div id="totalTests" class="result-value">0</div>
+                  <div class="result-label">Total</div>
+                </div>
+                <div class="result-box">
+                  <div id="passedTests" class="result-value pass">0</div>
+                  <div class="result-label">Passed</div>
+                </div>
+                <div class="result-box">
+                  <div id="failedTests" class="result-value fail">0</div>
+                  <div class="result-label">Failed</div>
+                </div>
+                <div class="result-box">
+                  <div
+                    id="testDuration"
+                    class="result-value"
+                    style="color: #00d9ff"
+                  >
+                    0s
+                  </div>
+                  <div class="result-label">Duration</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-7">
+          <div class="card">
+            <div class="card-header">
+              Test Log
+              <button
+                id="btnClearLog"
+                class="btn btn-sm btn-outline-secondary float-end ms-2"
+              >
+                Clear
+              </button>
+              <button
+                id="btnCopyLog"
+                class="btn btn-sm btn-outline-info float-end"
+              >
+                📋 Copy
+              </button>
+            </div>
+            <div class="card-body">
+              <div id="testLog"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Skulpt Python Engine -->
+    <script src="https://cdn.jsdelivr.net/npm/skulpt@1.2.0/dist/skulpt.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/skulpt@1.2.0/dist/skulpt-stdlib.js"></script>
+
+    <!-- EXACT same modules as main app -->
+    <script src="../js/simulator.js"></script>
+    <script src="../js/aidriver-stub.js"></script>
+    <script src="../js/python-runner.js"></script>
+    <script src="../js/challenges.js"></script>
+
+    <script>
+      // ============================================
+      // INTEGRATION TEST FRAMEWORK
+      // Uses EXACT same modules as main app
+      // ============================================
+
+      const Test = {
+        running: false,
+        shouldStop: false,
+        canvas: null,
+        ctx: null,
+        robot: null,
+        animationId: null,
+        tests: [],
+        passed: 0,
+        failed: 0,
+        startTime: null,
+
+        init() {
+          this.canvas = document.getElementById("testCanvas");
+          this.ctx = this.canvas.getContext("2d");
+
+          document.getElementById("btnRunTests").onclick = () =>
+            this.runAllTests();
+          document.getElementById("btnStop").onclick = () => this.stop();
+          document.getElementById("btnClearLog").onclick = () =>
+            this.clearLog();
+          document.getElementById("btnCopyLog").onclick = () => this.copyLog();
+
+          // Create App global that PythonRunner expects
+          window.App = {
+            robot: null,
+            speedMultiplier: 1,
+            isRunning: false,
+          };
+
+          // Suppress DebugPanel errors
+          window.DebugPanel = {
+            log: () => {},
+            info: () => {},
+            error: () => {},
+            warning: () => {},
+            success: () => {},
+            clear: () => {},
+          };
+
+          this.defineTests();
+          this.resetRobot();
+          this.render();
+
+          this.log("Integration Test Framework Ready", "success");
+          this.log("This uses the EXACT same modules as the main app", "info");
+          this.log('Click "Run All Tests" to begin\n', "info");
+        },
+
+        // ============================================
+        // ROBOT STATE
+        // ============================================
+
+        resetRobot(x = 250, y = 400, heading = 0) {
+          this.robot = {
+            x: x,
+            y: y,
+            heading: heading,
+            leftSpeed: 0,
+            rightSpeed: 0,
+            isMoving: false,
+            trail: [],
+          };
+          // Sync with App global
+          window.App.robot = this.robot;
+        },
+
+        // ============================================
+        // RENDERING
+        // ============================================
+
+        render() {
+          const ctx = this.ctx;
+          const canvas = this.canvas;
+
+          ctx.fillStyle = "#0f0f23";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          // Grid
+          ctx.strokeStyle = "rgba(0, 217, 255, 0.1)";
+          ctx.lineWidth = 1;
+          for (let i = 0; i <= canvas.width; i += 50) {
+            ctx.beginPath();
+            ctx.moveTo(i, 0);
+            ctx.lineTo(i, canvas.height);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(0, i);
+            ctx.lineTo(canvas.width, i);
+            ctx.stroke();
+          }
+
+          if (!this.robot) return;
+
+          // Trail
+          if (this.robot.trail && this.robot.trail.length > 1) {
+            ctx.strokeStyle = "#00d9ff";
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(this.robot.trail[0].x, this.robot.trail[0].y);
+            for (const p of this.robot.trail) {
+              ctx.lineTo(p.x, p.y);
+            }
+            ctx.stroke();
+          }
+
+          // Robot
+          const x = this.robot.x;
+          const y = this.robot.y;
+          const heading = ((this.robot.heading - 90) * Math.PI) / 180;
+
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.rotate(heading);
+
+          ctx.fillStyle = this.robot.isMoving ? "#00d9ff" : "#8892b0";
+          ctx.beginPath();
+          ctx.moveTo(0, -25);
+          ctx.lineTo(-18, 18);
+          ctx.lineTo(18, 18);
+          ctx.closePath();
+          ctx.fill();
+
+          ctx.fillStyle = "#2ed573";
+          ctx.beginPath();
+          ctx.arc(0, -15, 5, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.restore();
+
+          // Status
+          ctx.fillStyle = "#8892b0";
+          ctx.font = "14px monospace";
+          ctx.fillText(`Position: (${x.toFixed(1)}, ${y.toFixed(1)})`, 10, 25);
+          ctx.fillText(`Heading: ${this.robot.heading.toFixed(1)}°`, 10, 45);
+          ctx.fillText(
+            `Speeds: L=${this.robot.leftSpeed} R=${this.robot.rightSpeed}`,
+            10,
+            65
+          );
+          ctx.fillText(`Moving: ${this.robot.isMoving}`, 10, 85);
+        },
+
+        // ============================================
+        // TEST DEFINITIONS
+        // ============================================
+
+        defineTests() {
+          this.tests = [
+            // ========== MODULE TESTS ==========
+            {
+              name: "Module: Simulator exists",
+              run: async () => {
+                this.assert(
+                  typeof Simulator !== "undefined",
+                  "Simulator is undefined"
+                );
+                this.assert(
+                  typeof Simulator.step === "function",
+                  "Simulator.step is not a function"
+                );
+                this.assert(
+                  typeof Simulator.setSpeed === "function",
+                  "Simulator.setSpeed is not a function"
+                );
+                return "Simulator module loaded";
+              },
+            },
+            {
+              name: "Module: PythonRunner exists",
+              run: async () => {
+                this.assert(
+                  typeof PythonRunner !== "undefined",
+                  "PythonRunner is undefined"
+                );
+                this.assert(
+                  typeof PythonRunner.run === "function",
+                  "PythonRunner.run is not a function"
+                );
+                this.assert(
+                  typeof PythonRunner.collectTrace === "function",
+                  "collectTrace is not a function"
+                );
+                return "PythonRunner module loaded";
+              },
+            },
+            {
+              name: "Module: Challenges exists",
+              run: async () => {
+                this.assert(
+                  typeof Challenges !== "undefined",
+                  "Challenges is undefined"
+                );
+                const all = Challenges.getAll();
+                const count = Object.keys(all).length;
+                this.assert(count >= 8, `Expected 8+ challenges, got ${count}`);
+                return `${count} challenges loaded`;
+              },
+            },
+            {
+              name: "Module: Skulpt exists",
+              run: async () => {
+                this.assert(
+                  typeof Sk !== "undefined",
+                  "Skulpt (Sk) is undefined"
+                );
+                this.assert(
+                  typeof Sk.configure === "function",
+                  "Sk.configure missing"
+                );
+                return "Skulpt Python engine loaded";
+              },
+            },
+
+            // ========== PHYSICS TESTS ==========
+            {
+              name: "Physics: Robot moves forward",
+              visual: true,
+              run: async () => {
+                this.resetRobot(250, 400, 0);
+                this.robot.leftSpeed = 200;
+                this.robot.rightSpeed = 200;
+                this.robot.isMoving = true;
+
+                const startY = this.robot.y;
+                await this.runPhysicsAnimation(1.0);
+
+                const moved = startY - this.robot.y;
+                this.log(`  Moved: ${moved.toFixed(1)}mm`, "info");
+                this.assert(
+                  moved > 50,
+                  `Robot only moved ${moved.toFixed(1)}mm, expected >50mm`
+                );
+                return `Moved ${moved.toFixed(1)}mm forward`;
+              },
+            },
+            {
+              name: "Physics: Differential left turn",
+              visual: true,
+              run: async () => {
+                this.resetRobot(250, 250, 0);
+                this.robot.leftSpeed = 100;
+                this.robot.rightSpeed = 200;
+                this.robot.isMoving = true;
+
+                const startHeading = this.robot.heading;
+                await this.runPhysicsAnimation(1.0);
+
+                let turned = this.robot.heading - startHeading;
+                if (turned > 180) turned -= 360;
+                if (turned < -180) turned += 360;
+
+                this.log(`  Turned: ${turned.toFixed(1)}°`, "info");
+                // Slower left wheel = positive heading change (turn left in our coord system)
+                this.assert(
+                  Math.abs(turned) > 5,
+                  `Expected turn (>5°), got ${turned.toFixed(1)}°`
+                );
+                return `Turned ${turned.toFixed(
+                  1
+                )}° (differential drive works)`;
+              },
+            },
+            {
+              name: "Physics: Differential right turn",
+              visual: true,
+              run: async () => {
+                this.resetRobot(250, 250, 0);
+                this.robot.leftSpeed = 200;
+                this.robot.rightSpeed = 100;
+                this.robot.isMoving = true;
+
+                const startHeading = this.robot.heading;
+                await this.runPhysicsAnimation(1.0);
+
+                let turned = this.robot.heading - startHeading;
+                if (turned > 180) turned -= 360;
+                if (turned < -180) turned += 360;
+
+                this.log(`  Turned: ${turned.toFixed(1)}°`, "info");
+                // Slower right wheel = opposite direction turn
+                this.assert(
+                  Math.abs(turned) > 5,
+                  `Expected turn (>5°), got ${turned.toFixed(1)}°`
+                );
+                return `Turned ${turned.toFixed(
+                  1
+                )}° (differential drive works)`;
+              },
+            },
+            {
+              name: "Physics: Speed multiplier consistency",
+              visual: true,
+              run: async () => {
+                // Test at 1x
+                this.resetRobot(250, 400, 0);
+                const leftSpeed = 200;
+                const rightSpeed = 200;
+                this.robot.leftSpeed = leftSpeed;
+                this.robot.rightSpeed = rightSpeed;
+                this.robot.isMoving = true;
+                Simulator.setSpeed(1);
+                await this.runPhysicsAnimation(0.5);
+                const dist1x = 400 - this.robot.y;
+
+                // Test at 3x (should cover same simulated distance in 1/3 real time)
+                this.resetRobot(250, 400, 0);
+                this.robot.leftSpeed = leftSpeed;
+                this.robot.rightSpeed = rightSpeed;
+                this.robot.isMoving = true;
+                Simulator.setSpeed(3);
+                await this.runPhysicsAnimation(0.5);
+                const dist3x = 400 - this.robot.y;
+
+                Simulator.setSpeed(1);
+
+                const diff = Math.abs(dist1x - dist3x);
+                // Scale tolerance based on speed difference: 0 diff = 15%, 100 diff = 25%
+                const speedDiff = Math.abs(leftSpeed - rightSpeed);
+                const tolerancePercent = 0.15 + (speedDiff / 100) * 0.1; // 15% to 25%
+                const tolerance = Math.max(dist1x, dist3x) * tolerancePercent;
+
+                this.log(
+                  `  1x: ${dist1x.toFixed(1)}mm, 3x: ${dist3x.toFixed(
+                    1
+                  )}mm, diff: ${diff.toFixed(1)}mm`,
+                  "info"
+                );
+                this.assert(
+                  diff < tolerance,
+                  `Distance varies too much: diff=${diff.toFixed(
+                    1
+                  )}mm (tolerance: ${(tolerancePercent * 100).toFixed(0)}%)`
+                );
+                return `Consistent: 1x=${dist1x.toFixed(
+                  1
+                )}mm, 3x=${dist3x.toFixed(1)}mm (${(
+                  tolerancePercent * 100
+                ).toFixed(0)}% tolerance)`;
+              },
+            },
+            {
+              name: "Physics: Angular motion consistency",
+              visual: true,
+              run: async () => {
+                // Test turning consistency at different speeds
+                const leftSpeed = 100;
+                const rightSpeed = 200;
+                const speedDiff = Math.abs(leftSpeed - rightSpeed);
+
+                // Test at 1x
+                this.resetRobot(250, 250, 0);
+                this.robot.leftSpeed = leftSpeed;
+                this.robot.rightSpeed = rightSpeed;
+                this.robot.isMoving = true;
+                Simulator.setSpeed(1);
+                await this.runPhysicsAnimation(0.5);
+                let turn1x = this.robot.heading;
+                if (turn1x > 180) turn1x -= 360;
+                if (turn1x < -180) turn1x += 360;
+
+                // Test at 3x
+                this.resetRobot(250, 250, 0);
+                this.robot.leftSpeed = leftSpeed;
+                this.robot.rightSpeed = rightSpeed;
+                this.robot.isMoving = true;
+                Simulator.setSpeed(3);
+                await this.runPhysicsAnimation(0.5);
+                let turn3x = this.robot.heading;
+                if (turn3x > 180) turn3x -= 360;
+                if (turn3x < -180) turn3x += 360;
+
+                Simulator.setSpeed(1);
+
+                const diff = Math.abs(Math.abs(turn1x) - Math.abs(turn3x));
+                // Scale tolerance: 0 speed diff = 20%, 100 speed diff = 50%
+                const tolerancePercent = 0.2 + (speedDiff / 100) * 0.3;
+                const maxTurn = Math.max(Math.abs(turn1x), Math.abs(turn3x));
+                const tolerance = Math.max(maxTurn * tolerancePercent, 15); // At least 15°
+
+                this.log(
+                  `  1x: ${turn1x.toFixed(1)}°, 3x: ${turn3x.toFixed(
+                    1
+                  )}°, diff: ${diff.toFixed(1)}° (${(
+                    tolerancePercent * 100
+                  ).toFixed(0)}% tolerance)`,
+                  "info"
+                );
+                this.assert(
+                  diff < tolerance, // Use scaled tolerance
+                  `Angular motion varies too much: diff=${diff.toFixed(
+                    1
+                  )}° (tolerance: ${tolerance.toFixed(1)}°)`
+                );
+                return `Consistent: 1x=${turn1x.toFixed(
+                  1
+                )}°, 3x=${turn3x.toFixed(1)}° (${(
+                  tolerancePercent * 100
+                ).toFixed(0)}% tolerance)`;
+              },
+            },
+
+            // ========== PYTHON EXECUTION TESTS ==========
+            {
+              name: "Python: Simple print executes",
+              run: async () => {
+                let output = "";
+                const origOutput = PythonRunner.handleOutput;
+                PythonRunner.handleOutput = (text) => {
+                  output += text;
+                };
+
+                try {
+                  await this.runPython('print("HELLO_TEST_123")');
+                  this.assert(
+                    output.includes("HELLO_TEST_123"),
+                    `Expected HELLO_TEST_123, got: "${output}"`
+                  );
+                  return `Output: ${output.trim()}`;
+                } finally {
+                  PythonRunner.handleOutput = origOutput.bind(PythonRunner);
+                }
+              },
+            },
+            {
+              name: "Python: AIDriver import works",
+              run: async () => {
+                let output = "";
+                const origOutput = PythonRunner.handleOutput;
+                PythonRunner.handleOutput = (text) => {
+                  output += text;
+                };
+
+                try {
+                  await this.runPython(`
+from aidriver import AIDriver, hold_state
+robot = AIDriver()
+print("IMPORT_SUCCESS")
+`);
+                  this.assert(
+                    output.includes("IMPORT_SUCCESS"),
+                    `Import failed: "${output}"`
+                  );
+                  return "AIDriver imports correctly";
+                } finally {
+                  PythonRunner.handleOutput = origOutput.bind(PythonRunner);
+                }
+              },
+            },
+            {
+              name: "Python: drive_forward moves robot",
+              visual: true,
+              run: async () => {
+                this.resetRobot(250, 400, 0);
+                window.App.robot = this.robot;
+                window.App.speedMultiplier = 1;
+
+                const startY = this.robot.y;
+
+                await this.runPythonWithAnimation(
+                  `
+from aidriver import AIDriver, hold_state
+robot = AIDriver()
+robot.drive_forward(200, 200)
+hold_state(1.0)
+robot.brake()
+`,
+                  3000
+                );
+
+                const moved = startY - this.robot.y;
+                this.log(`  Robot moved: ${moved.toFixed(1)}mm`, "info");
+                this.assert(
+                  moved > 30,
+                  `Robot only moved ${moved.toFixed(1)}mm, expected >30mm`
+                );
+                return `Robot moved ${moved.toFixed(1)}mm`;
+              },
+            },
+            {
+              name: "Python: brake stops robot",
+              visual: true,
+              run: async () => {
+                this.resetRobot(250, 400, 0);
+                window.App.robot = this.robot;
+
+                const startY = this.robot.y;
+
+                await this.runPythonWithAnimation(
+                  `
+from aidriver import AIDriver, hold_state
+robot = AIDriver()
+robot.drive_forward(200, 200)
+hold_state(0.3)
+robot.brake()
+hold_state(0.3)
+`,
+                  2000
+                );
+
+                const moved = startY - this.robot.y;
+                // Verify robot moved during the test (brake stops it at end)
+                this.assert(
+                  moved > 20,
+                  `Robot should have moved before braking: ${moved.toFixed(
+                    1
+                  )}mm`
+                );
+                return `Robot moved ${moved.toFixed(1)}mm then braked`;
+              },
+            },
+            {
+              name: "Python: Different wheel speeds turn",
+              visual: true,
+              run: async () => {
+                this.resetRobot(250, 250, 0);
+                window.App.robot = this.robot;
+
+                const startHeading = this.robot.heading;
+
+                await this.runPythonWithAnimation(
+                  `
+from aidriver import AIDriver, hold_state
+robot = AIDriver()
+robot.drive_forward(150, 200)
+hold_state(1.0)
+robot.brake()
+`,
+                  3000
+                );
+
+                let turned = this.robot.heading - startHeading;
+                if (turned > 180) turned -= 360;
+                if (turned < -180) turned += 360;
+
+                this.log(`  Turned: ${turned.toFixed(1)}°`, "info");
+                this.assert(
+                  Math.abs(turned) > 5,
+                  `Expected turn, got only ${turned.toFixed(1)}°`
+                );
+                return `Turned ${turned.toFixed(1)}°`;
+              },
+            },
+
+            // ========== STEP MODE TESTS ==========
+            {
+              name: "Step: Trace collection works",
+              run: async () => {
+                const code = `
+from aidriver import AIDriver, hold_state
+robot = AIDriver()
+robot.drive_forward(200, 200)
+hold_state(0.1)
+robot.brake()
+`;
+                let success;
+                try {
+                  success = await PythonRunner.collectTrace(code);
+                } catch (e) {
+                  throw new Error(`collectTrace threw: ${e.message}`);
+                }
+
+                this.assert(
+                  success === true,
+                  `collectTrace returned: ${success}`
+                );
+
+                const trace = PythonRunner.executionTrace;
+                this.assert(
+                  trace !== null && trace !== undefined,
+                  "executionTrace is null/undefined"
+                );
+                this.assert(
+                  Array.isArray(trace),
+                  `executionTrace is not an array: ${typeof trace}`
+                );
+                this.assert(trace.length > 0, "Trace array is empty");
+                this.assert(
+                  trace.length >= 3,
+                  `Expected 3+ trace entries, got ${trace.length}`
+                );
+                return `Collected ${trace.length} trace entries`;
+              },
+            },
+            {
+              name: "Step: Commands captured in trace",
+              run: async () => {
+                const code = `
+from aidriver import AIDriver, hold_state
+robot = AIDriver()
+robot.drive_forward(200, 200)
+hold_state(0.1)
+`;
+                let success;
+                try {
+                  success = await PythonRunner.collectTrace(code);
+                } catch (e) {
+                  throw new Error(`collectTrace threw: ${e.message}`);
+                }
+
+                this.assert(
+                  success === true,
+                  `collectTrace returned: ${success}`
+                );
+
+                const trace = PythonRunner.executionTrace;
+                this.assert(
+                  Array.isArray(trace),
+                  `executionTrace is not an array: ${typeof trace}`
+                );
+
+                const allCommands = [];
+                for (const t of trace) {
+                  if (t.commands && Array.isArray(t.commands)) {
+                    allCommands.push(...t.commands);
+                  }
+                }
+                const types = allCommands.map((c) => c.type);
+
+                this.log(`  Commands: ${types.join(", ") || "(none)"}`, "info");
+                this.assert(types.includes("init"), "Missing init command");
+                this.assert(
+                  types.includes("drive_forward"),
+                  "Missing drive_forward command"
+                );
+                return `Commands: ${types.join(", ")}`;
+              },
+            },
+
+            // ========== CHALLENGE CODE TESTS ==========
+            {
+              name: "Challenge 1: Straight line code",
+              visual: true,
+              run: async () => {
+                this.resetRobot(250, 450, 0);
+                window.App.robot = this.robot;
+
+                const startY = this.robot.y;
+                const startX = this.robot.x;
+
+                await this.runPythonWithAnimation(
+                  `
+from aidriver import AIDriver, hold_state
+my_robot = AIDriver()
+my_robot.drive_forward(200, 200)
+hold_state(1.0)
+my_robot.brake()
+`,
+                  3000
+                );
+
+                const movedY = startY - this.robot.y;
+                const deviationX = Math.abs(this.robot.x - startX);
+
+                this.log(
+                  `  Forward: ${movedY.toFixed(
+                    1
+                  )}mm, Deviation: ${deviationX.toFixed(1)}mm`,
+                  "info"
+                );
+                this.assert(
+                  movedY > 50,
+                  `Not enough forward movement: ${movedY.toFixed(1)}mm`
+                );
+                this.assert(
+                  deviationX < 20,
+                  `Too much deviation: ${deviationX.toFixed(1)}mm`
+                );
+                return `Forward ${movedY.toFixed(
+                  1
+                )}mm, deviation ${deviationX.toFixed(1)}mm`;
+              },
+            },
+            {
+              name: "Challenge 2: Circle code turns",
+              visual: true,
+              run: async () => {
+                this.resetRobot(250, 250, 90);
+                window.App.robot = this.robot;
+
+                const startHeading = this.robot.heading;
+
+                await this.runPythonWithAnimation(
+                  `
+from aidriver import AIDriver, hold_state
+my_robot = AIDriver()
+my_robot.drive_forward(150, 200)
+hold_state(2.0)
+my_robot.brake()
+`,
+                  4000
+                );
+
+                let turned = this.robot.heading - startHeading;
+                if (turned > 180) turned -= 360;
+                if (turned < -180) turned += 360;
+
+                this.log(
+                  `  Total rotation: ${Math.abs(turned).toFixed(1)}°`,
+                  "info"
+                );
+                this.assert(
+                  Math.abs(turned) > 20,
+                  `Expected significant turn, got ${turned.toFixed(1)}°`
+                );
+                return `Rotated ${Math.abs(turned).toFixed(1)}°`;
+              },
+            },
+
+            // ========== ERROR HANDLING TESTS ==========
+            {
+              name: "Error: Syntax error caught",
+              run: async () => {
+                let errorCaught = false;
+                let errorMsg = "";
+                try {
+                  // Skulpt should throw on syntax error during compile
+                  Sk.configure({
+                    output: () => {},
+                    read: PythonRunner.handleRead.bind(PythonRunner),
+                  });
+                  Sk.importMainWithBody(
+                    "<stdin>",
+                    false,
+                    'print("hello"',
+                    true
+                  );
+                } catch (e) {
+                  errorCaught = true;
+                  errorMsg = e.toString();
+                }
+                this.assert(errorCaught, "Syntax error was not caught");
+                return `Syntax errors caught: ${errorMsg.substring(0, 50)}...`;
+              },
+            },
+            {
+              name: "Error: Undefined variable caught",
+              run: async () => {
+                let errorCaught = false;
+                let errorMsg = "";
+                try {
+                  // Use Skulpt directly to catch runtime error
+                  Sk.configure({
+                    output: () => {},
+                    read: PythonRunner.handleRead.bind(PythonRunner),
+                    __future__: Sk.python3,
+                  });
+                  await Sk.misceval.asyncToPromise(() =>
+                    Sk.importMainWithBody(
+                      "<stdin>",
+                      false,
+                      "print(undefined_xyz_var)",
+                      true
+                    )
+                  );
+                } catch (e) {
+                  errorCaught = true;
+                  errorMsg = e.toString();
+                }
+                this.assert(
+                  errorCaught,
+                  "Undefined variable error was not caught"
+                );
+                return `Runtime errors caught: ${errorMsg.substring(0, 50)}...`;
+              },
+            },
+          ];
+        },
+
+        // ============================================
+        // TEST HELPERS
+        // ============================================
+
+        assert(condition, message) {
+          if (!condition) {
+            throw new Error(message);
+          }
+        },
+
+        async runPhysicsAnimation(simSeconds) {
+          return new Promise((resolve) => {
+            const realDuration = simSeconds * 1000;
+            const startTime = performance.now();
+            let lastTime = startTime;
+
+            const animate = (currentTime) => {
+              if (this.shouldStop) {
+                resolve();
+                return;
+              }
+
+              const elapsed = currentTime - startTime;
+              const dt = (currentTime - lastTime) / 1000;
+              lastTime = currentTime;
+
+              if (elapsed >= realDuration) {
+                this.robot.isMoving = false;
+                this.render();
+                resolve();
+                return;
+              }
+
+              // Use actual Simulator.step - EXACT same as main app
+              this.robot = Simulator.step(this.robot, dt);
+              this.robot.trail.push({ x: this.robot.x, y: this.robot.y });
+              this.render();
+
+              requestAnimationFrame(animate);
+            };
+
+            requestAnimationFrame(animate);
+          });
+        },
+
+        async runPython(code, timeout = 5000) {
+          return new Promise((resolve, reject) => {
+            const timeoutId = setTimeout(() => {
+              PythonRunner.stop();
+              resolve();
+            }, timeout);
+
+            PythonRunner.run(code)
+              .then(() => {
+                clearTimeout(timeoutId);
+                resolve();
+              })
+              .catch((err) => {
+                clearTimeout(timeoutId);
+                reject(err);
+              });
+          });
+        },
+
+        async runPythonWithAnimation(code, timeout = 5000) {
+          const self = this;
+
+          return new Promise((resolve) => {
+            let animationRunning = true;
+            let lastTime = performance.now();
+
+            function animate(currentTime) {
+              if (!animationRunning || self.shouldStop) return;
+
+              const dt = (currentTime - lastTime) / 1000;
+              lastTime = currentTime;
+
+              // Use EXACT same logic as main app animation loop
+              if (
+                self.robot.isMoving ||
+                self.robot.leftSpeed !== 0 ||
+                self.robot.rightSpeed !== 0
+              ) {
+                self.robot = Simulator.step(self.robot, dt);
+                self.robot.trail.push({ x: self.robot.x, y: self.robot.y });
+              }
+
+              // Keep App.robot in sync
+              window.App.robot = self.robot;
+
+              self.render();
+              requestAnimationFrame(animate);
+            }
+
+            requestAnimationFrame(animate);
+
+            const timeoutId = setTimeout(() => {
+              animationRunning = false;
+              PythonRunner.stop();
+              resolve();
+            }, timeout);
+
+            PythonRunner.run(code)
+              .then(() => {
+                // Let animation continue briefly after code finishes
+                setTimeout(() => {
+                  animationRunning = false;
+                  clearTimeout(timeoutId);
+                  resolve();
+                }, 300);
+              })
+              .catch((err) => {
+                animationRunning = false;
+                clearTimeout(timeoutId);
+                self.log(`  Python error: ${err.message}`, "warning");
+                resolve();
+              });
+          });
+        },
+
+        // ============================================
+        // TEST RUNNER
+        // ============================================
+
+        async runAllTests() {
+          if (this.running) return;
+
+          this.running = true;
+          this.shouldStop = false;
+          this.passed = 0;
+          this.failed = 0;
+          this.startTime = Date.now();
+
+          document.getElementById("btnRunTests").disabled = true;
+          document.getElementById("btnStop").disabled = false;
+
+          this.log(
+            "════════════════════════════════════════════════",
+            "section"
+          );
+          this.log("COMPREHENSIVE INTEGRATION TEST SUITE", "section");
+          this.log(
+            "════════════════════════════════════════════════\n",
+            "section"
+          );
+
+          const total = this.tests.length;
+
+          for (let i = 0; i < this.tests.length; i++) {
+            if (this.shouldStop) {
+              this.log("\n⚠ Tests stopped by user", "warning");
+              break;
+            }
+
+            const test = this.tests[i];
+            document.getElementById("currentTestName").textContent = test.name;
+            document.getElementById("progressBar").style.width = `${
+              ((i + 1) / total) * 100
+            }%`;
+
+            this.log(`\n▶ ${test.name}`, "test");
+
+            try {
+              const result = await test.run();
+              this.passed++;
+              this.log(`  ✓ PASS: ${result}`, "success");
+            } catch (error) {
+              this.failed++;
+              this.log(`  ✗ FAIL: ${error.message}`, "error");
+            }
+
+            document.getElementById("totalTests").textContent = i + 1;
+            document.getElementById("passedTests").textContent = this.passed;
+            document.getElementById("failedTests").textContent = this.failed;
+
+            // Brief pause between tests
+            await new Promise((r) => setTimeout(r, 100));
+          }
+
+          const duration = ((Date.now() - this.startTime) / 1000).toFixed(1);
+          document.getElementById("testDuration").textContent = `${duration}s`;
+
+          this.log(
+            "\n════════════════════════════════════════════════",
+            "section"
+          );
+          if (this.failed === 0) {
+            this.log(
+              `✓ ALL ${this.passed} TESTS PASSED in ${duration}s`,
+              "success"
+            );
+          } else {
+            this.log(
+              `✗ ${this.failed} FAILED, ${this.passed} passed in ${duration}s`,
+              "error"
+            );
+          }
+          this.log(
+            "════════════════════════════════════════════════\n",
+            "section"
+          );
+
+          this.running = false;
+          document.getElementById("btnRunTests").disabled = false;
+          document.getElementById("btnStop").disabled = true;
+          document.getElementById("currentTestName").textContent = "Complete";
+        },
+
+        stop() {
+          this.shouldStop = true;
+          PythonRunner.stop();
+          this.log("Stopping...", "warning");
+        },
+
+        log(message, type = "info") {
+          const log = document.getElementById("testLog");
+          const div = document.createElement("div");
+          div.className = `log-${type}`;
+          div.textContent = message;
+          log.appendChild(div);
+          log.scrollTop = log.scrollHeight;
+        },
+
+        clearLog() {
+          document.getElementById("testLog").innerHTML = "";
+        },
+
+        copyLog() {
+          const log = document.getElementById("testLog");
+          const text = log.innerText;
+          navigator.clipboard
+            .writeText(text)
+            .then(() => {
+              const btn = document.getElementById("btnCopyLog");
+              const original = btn.innerHTML;
+              btn.innerHTML = "✓ Copied!";
+              btn.classList.remove("btn-outline-info");
+              btn.classList.add("btn-success");
+              setTimeout(() => {
+                btn.innerHTML = original;
+                btn.classList.remove("btn-success");
+                btn.classList.add("btn-outline-info");
+              }, 2000);
+            })
+            .catch((err) => {
+              alert("Failed to copy: " + err);
+            });
+        },
+      };
+
+      window.addEventListener("DOMContentLoaded", () => Test.init());
+    </script>
+  </body>
+</html>

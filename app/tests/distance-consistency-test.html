@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Distance Consistency Test - AIDriver Simulator</title>
+    <!-- Load actual simulator module -->
+    <script src="../js/simulator.js"></script>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: #1a1a2e;
+        color: #e0e0e0;
+        padding: 20px;
+        min-height: 100vh;
+      }
+      h1 {
+        color: #00d9ff;
+        margin-bottom: 20px;
+      }
+      .container {
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+      .panel {
+        background: #16213e;
+        border: 1px solid #00d9ff33;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+      }
+      .panel h2 {
+        color: #00d9ff;
+        margin-bottom: 15px;
+        font-size: 1.2em;
+      }
+      .row {
+        display: flex;
+        gap: 20px;
+        flex-wrap: wrap;
+      }
+      .col {
+        flex: 1;
+        min-width: 300px;
+      }
+      .col-wide {
+        flex: 2;
+        min-width: 500px;
+      }
+      label {
+        display: block;
+        margin-bottom: 5px;
+        color: #8892b0;
+      }
+      input[type="number"],
+      select {
+        width: 100%;
+        padding: 10px;
+        background: #0f0f23;
+        border: 1px solid #00d9ff44;
+        color: #e0e0e0;
+        border-radius: 4px;
+        font-size: 14px;
+        margin-bottom: 15px;
+      }
+      input[type="range"] {
+        width: 100%;
+        margin-bottom: 15px;
+      }
+      button {
+        padding: 12px 24px;
+        font-size: 14px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        margin-right: 10px;
+        margin-bottom: 10px;
+      }
+      .btn-primary {
+        background: #00d9ff;
+        color: #1a1a2e;
+      }
+      .btn-secondary {
+        background: #2d3a5a;
+        color: #e0e0e0;
+      }
+      .btn-danger {
+        background: #ff4757;
+        color: white;
+      }
+      .btn-success {
+        background: #2ed573;
+        color: #1a1a2e;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+      }
+      th,
+      td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid #00d9ff22;
+      }
+      th {
+        background: #0f0f23;
+        color: #00d9ff;
+      }
+      tr:hover {
+        background: #00d9ff11;
+      }
+      .pass {
+        color: #2ed573;
+      }
+      .fail {
+        color: #ff4757;
+      }
+      .warning {
+        color: #ffa502;
+      }
+      #log {
+        background: #0f0f23;
+        padding: 15px;
+        border-radius: 4px;
+        height: 200px;
+        overflow-y: auto;
+        font-family: monospace;
+        font-size: 12px;
+        line-height: 1.6;
+      }
+      .log-info {
+        color: #00d9ff;
+      }
+      .log-success {
+        color: #2ed573;
+      }
+      .log-error {
+        color: #ff4757;
+      }
+      .log-warning {
+        color: #ffa502;
+      }
+
+      #miniCanvas {
+        border: 1px solid #00d9ff44;
+        border-radius: 4px;
+        background: #0f0f23;
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 15px;
+        margin-top: 15px;
+      }
+      .stat-box {
+        background: #0f0f23;
+        padding: 15px;
+        border-radius: 4px;
+        text-align: center;
+      }
+      .stat-value {
+        font-size: 24px;
+        font-weight: bold;
+        color: #00d9ff;
+      }
+      .stat-label {
+        font-size: 12px;
+        color: #8892b0;
+        margin-top: 5px;
+      }
+
+      .formula {
+        background: #0f0f23;
+        padding: 15px;
+        border-radius: 4px;
+        font-family: monospace;
+        margin: 10px 0;
+      }
+      .formula-title {
+        color: #ffa502;
+        margin-bottom: 5px;
+      }
+
+      .progress-bar {
+        width: 100%;
+        height: 20px;
+        background: #0f0f23;
+        border-radius: 4px;
+        overflow: hidden;
+        margin-top: 10px;
+      }
+      .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #00d9ff, #2ed573);
+        width: 0%;
+        transition: width 0.3s ease;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🔬 Distance Consistency Test</h1>
+      <p style="margin-bottom: 20px; color: #8892b0">
+        Tests that the robot travels the same distance regardless of time speed
+        setting. Distance should only depend on wheel speeds and hold duration,
+        not simulation speed.
+      </p>
+
+      <div class="row">
+        <div class="col">
+          <div class="panel">
+            <h2>Test Configuration</h2>
+
+            <label>Left Wheel Speed (0-255)</label>
+            <input type="number" id="leftSpeed" value="200" min="0" max="255" />
+
+            <label>Right Wheel Speed (0-255)</label>
+            <input
+              type="number"
+              id="rightSpeed"
+              value="200"
+              min="0"
+              max="255"
+            />
+
+            <label>Hold Duration (seconds)</label>
+            <input
+              type="number"
+              id="holdDuration"
+              value="5"
+              min="0.5"
+              max="30"
+              step="0.5"
+            />
+
+            <label>Test Speeds</label>
+            <select id="speedsToTest" multiple size="5">
+              <option value="1" selected>1x</option>
+              <option value="2" selected>2x</option>
+              <option value="3" selected>3x</option>
+              <option value="4" selected>4x</option>
+              <option value="5" selected>5x</option>
+            </select>
+            <small
+              style="
+                color: #8892b0;
+                display: block;
+                margin-top: -10px;
+                margin-bottom: 15px;
+              "
+            >
+              Ctrl+Click to select multiple
+            </small>
+
+            <label>Acceptable Error Margin (%)</label>
+            <input type="number" id="errorMargin" value="5" min="1" max="20" />
+
+            <button class="btn-primary" id="runTestBtn" onclick="runFullTest()">
+              Run Full Test Suite
+            </button>
+            <button
+              class="btn-secondary"
+              id="runSingleBtn"
+              onclick="runSingleTest()"
+            >
+              Run Single Test
+            </button>
+            <button class="btn-danger" onclick="stopTest()">Stop</button>
+            <button class="btn-secondary" onclick="clearResults()">
+              Clear Results
+            </button>
+          </div>
+
+          <div class="panel">
+            <h2>Expected Physics</h2>
+            <div class="formula">
+              <div class="formula-title">Straight Line (L = R):</div>
+              displacement = velocity × time<br />
+              velocity = (L + R) / 2 × MM_PER_SPEED_UNIT × 1000 / MAX_MOTOR<br />
+              <br />
+              <div class="formula-title">Curved Path (L ≠ R):</div>
+              ω = (vR - vL) / wheelBase (angular velocity)<br />
+              R = v / ω (turn radius)<br />
+              θ = ω × time (total angle turned)<br />
+              <strong>displacement = 2 × |R| × |sin(θ/2)|</strong> (chord
+              length)<br />
+              <br />
+              <div class="formula-title">Speed Scaling:</div>
+              velocity_scaled = velocity × speedMultiplier<br />
+              time_scaled = holdSeconds / speedMultiplier<br />
+              ✅ Distance is speed-independent!
+            </div>
+
+            <div class="stats" id="expectedStats">
+              <div class="stat-box">
+                <div class="stat-value" id="expectedDistance">--</div>
+                <div class="stat-label">Expected Displacement (mm)</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-value" id="expectedVelocity">--</div>
+                <div class="stat-label">Linear Velocity (mm/s)</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-value" id="expectedAngular">--</div>
+                <div class="stat-label">Angular Vel (rad/s)</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-value" id="expectedRadius">--</div>
+                <div class="stat-label">Turn Radius (mm)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-wide">
+          <div class="panel">
+            <h2>Test Progress</h2>
+            <div id="currentTest">Ready to run tests...</div>
+            <div class="progress-bar">
+              <div class="progress-fill" id="progressFill"></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h2>Test Results</h2>
+            <table id="resultsTable">
+              <thead>
+                <tr>
+                  <th>Speed</th>
+                  <th>Expected (mm)</th>
+                  <th>Actual (mm)</th>
+                  <th>Error (%)</th>
+                  <th>Real Time (s)</th>
+                  <th>Frames</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="resultsBody">
+                <tr>
+                  <td colspan="7" style="text-align: center; color: #8892b0">
+                    No tests run yet
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="panel">
+            <h2>Visualization</h2>
+            <canvas id="miniCanvas" width="400" height="300"></canvas>
+          </div>
+
+          <div class="panel">
+            <h2>Debug Log</h2>
+            <div id="log"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // ============================================
+      // Constants (matching simulator.js)
+      // ============================================
+      const WHEEL_DIAMETER = 65; // mm
+      const WHEEL_CIRCUMFERENCE = Math.PI * WHEEL_DIAMETER;
+      const WHEEL_BASE = 120;
+      const MAX_MOTOR_SPEED = 255;
+      const MM_PER_SPEED_UNIT = 0.8;
+      const ARENA_WIDTH = 2000;
+      const ARENA_HEIGHT = 2000;
+
+      // Check if actual Simulator is loaded
+      const useActualSimulator = typeof Simulator !== "undefined";
+      console.log(
+        "Using actual Simulator:",
+        useActualSimulator,
+        useActualSimulator ? Simulator : "N/A"
+      );
+
+      // ============================================
+      // State
+      // ============================================
+      let testState = {
+        running: false,
+        shouldStop: false,
+        currentSpeed: 1,
+        startX: 0,
+        startY: 0,
+        results: [],
+      };
+
+      let robot = {
+        x: ARENA_WIDTH / 2,
+        y: ARENA_HEIGHT - 200,
+        heading: 0,
+        leftSpeed: 0,
+        rightSpeed: 0,
+        isMoving: false,
+        trail: [],
+      };
+
+      let simulationSpeed = 1;
+
+      // ============================================
+      // Logging
+      // ============================================
+      function log(msg, type = "info") {
+        const logEl = document.getElementById("log");
+        const entry = document.createElement("div");
+        entry.className = `log-${type}`;
+        entry.textContent = `[${new Date()
+          .toISOString()
+          .slice(11, 23)}] ${msg}`;
+        logEl.appendChild(entry);
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+
+      // ============================================
+      // Physics Simulation (matching simulator.js)
+      // ============================================
+      function updateKinematics(robot, dt) {
+        const leftSpeed = robot.leftSpeed;
+        const rightSpeed = robot.rightSpeed;
+
+        // Convert motor speed to wheel velocity (mm/s)
+        // THIS is where simulationSpeed affects the velocity
+        const leftVelocity =
+          (leftSpeed / MAX_MOTOR_SPEED) *
+          MM_PER_SPEED_UNIT *
+          1000 *
+          simulationSpeed;
+        const rightVelocity =
+          (rightSpeed / MAX_MOTOR_SPEED) *
+          MM_PER_SPEED_UNIT *
+          1000 *
+          simulationSpeed;
+
+        const linearVelocity = (leftVelocity + rightVelocity) / 2;
+        const angularVelocity = (rightVelocity - leftVelocity) / WHEEL_BASE;
+
+        const headingRad = (robot.heading * Math.PI) / 180;
+        const newHeadingRad = headingRad + angularVelocity * dt;
+
+        let newX, newY;
+
+        if (Math.abs(angularVelocity) < 0.001) {
+          newX = robot.x + linearVelocity * Math.sin(headingRad) * dt;
+          newY = robot.y - linearVelocity * Math.cos(headingRad) * dt;
+        } else {
+          const R = linearVelocity / angularVelocity;
+          newX = robot.x + R * (Math.cos(headingRad) - Math.cos(newHeadingRad));
+          newY = robot.y - R * (Math.sin(newHeadingRad) - Math.sin(headingRad));
+        }
+
+        let newHeading = (newHeadingRad * 180) / Math.PI;
+        newHeading = ((newHeading % 360) + 360) % 360;
+
+        return {
+          ...robot,
+          x: newX,
+          y: newY,
+          heading: newHeading,
+        };
+      }
+
+      // ============================================
+      // Calculate Expected Distance (displacement, not arc length)
+      // ============================================
+      function calculateExpectedDistance(leftSpeed, rightSpeed, holdSeconds) {
+        // Base velocities without any speed multiplier
+        const leftVelocity =
+          (leftSpeed / MAX_MOTOR_SPEED) * MM_PER_SPEED_UNIT * 1000;
+        const rightVelocity =
+          (rightSpeed / MAX_MOTOR_SPEED) * MM_PER_SPEED_UNIT * 1000;
+        const linearVelocity = (leftVelocity + rightVelocity) / 2;
+        const angularVelocity = (rightVelocity - leftVelocity) / WHEEL_BASE;
+
+        // For straight line (no angular velocity), displacement = arc length
+        if (Math.abs(angularVelocity) < 0.001) {
+          return linearVelocity * holdSeconds;
+        }
+
+        // For curves: calculate displacement (chord) not arc length
+        // Robot follows a circular arc with radius R = v/ω
+        // Total angle turned: θ = ω × t
+        // Displacement (chord) = 2 × R × sin(θ/2)
+        const R = linearVelocity / angularVelocity;
+        const theta = angularVelocity * holdSeconds;
+        const displacement = 2 * Math.abs(R) * Math.abs(Math.sin(theta / 2));
+
+        return displacement;
+      }
+
+      function updateExpectedStats() {
+        const leftSpeed = parseInt(document.getElementById("leftSpeed").value);
+        const rightSpeed = parseInt(
+          document.getElementById("rightSpeed").value
+        );
+        const holdDuration = parseFloat(
+          document.getElementById("holdDuration").value
+        );
+
+        const leftVelocity =
+          (leftSpeed / MAX_MOTOR_SPEED) * MM_PER_SPEED_UNIT * 1000;
+        const rightVelocity =
+          (rightSpeed / MAX_MOTOR_SPEED) * MM_PER_SPEED_UNIT * 1000;
+        const linearVelocity = (leftVelocity + rightVelocity) / 2;
+        const angularVelocity = (rightVelocity - leftVelocity) / WHEEL_BASE;
+
+        // Calculate displacement for curves
+        let distance;
+        let turnRadius = Infinity;
+        if (Math.abs(angularVelocity) < 0.001) {
+          distance = linearVelocity * holdDuration;
+        } else {
+          turnRadius = linearVelocity / angularVelocity;
+          const theta = angularVelocity * holdDuration;
+          distance = 2 * Math.abs(turnRadius) * Math.abs(Math.sin(theta / 2));
+        }
+
+        document.getElementById("expectedVelocity").textContent =
+          linearVelocity.toFixed(1);
+        document.getElementById("expectedDistance").textContent =
+          distance.toFixed(1);
+        document.getElementById("expectedAngular").textContent =
+          angularVelocity.toFixed(3);
+        document.getElementById("expectedRadius").textContent =
+          Math.abs(turnRadius) === Infinity
+            ? "∞"
+            : Math.abs(turnRadius).toFixed(0);
+      }
+
+      // ============================================
+      // Run Single Test at Specific Speed
+      // ============================================
+      async function runTestAtSpeed(speed, leftSpeed, rightSpeed, holdSeconds) {
+        return new Promise((resolve) => {
+          // Reset robot
+          robot = {
+            x: ARENA_WIDTH / 2,
+            y: ARENA_HEIGHT - 200,
+            heading: 0,
+            leftSpeed: leftSpeed,
+            rightSpeed: rightSpeed,
+            isMoving: true,
+            trail: [],
+          };
+
+          // Set simulation speed - both local and actual Simulator
+          simulationSpeed = speed;
+          if (useActualSimulator) {
+            Simulator.setSpeed(speed);
+          }
+
+          const startX = robot.x;
+          const startY = robot.y;
+          const startTime = performance.now();
+
+          // Calculate how long the simulation should run in real time
+          // hold_state divides by speed multiplier
+          const realTimeDuration = (holdSeconds / speed) * 1000; // ms
+
+          let frameCount = 0;
+          let lastFrameTime = startTime;
+
+          log(
+            `Starting test at ${speed}x speed (using ${
+              useActualSimulator ? "actual Simulator" : "local physics"
+            })...`,
+            "info"
+          );
+          log(
+            `  Hold duration: ${holdSeconds}s (real time: ${(
+              realTimeDuration / 1000
+            ).toFixed(2)}s)`,
+            "info"
+          );
+
+          function animateTest() {
+            if (testState.shouldStop) {
+              resolve(null);
+              return;
+            }
+
+            const currentTime = performance.now();
+            const elapsed = currentTime - startTime;
+
+            if (elapsed >= realTimeDuration) {
+              // Test complete
+              const actualDistance = Math.sqrt(
+                Math.pow(robot.x - startX, 2) + Math.pow(robot.y - startY, 2)
+              );
+
+              robot.isMoving = false;
+
+              log(
+                `Test complete: distance = ${actualDistance.toFixed(
+                  2
+                )}mm, frames = ${frameCount}`,
+                "success"
+              );
+
+              resolve({
+                speed: speed,
+                distance: actualDistance,
+                realTime: elapsed / 1000,
+                frames: frameCount,
+                endX: robot.x,
+                endY: robot.y,
+              });
+              return;
+            }
+
+            // Calculate dt from actual frame time
+            const dt = (currentTime - lastFrameTime) / 1000;
+            lastFrameTime = currentTime;
+            frameCount++;
+
+            // Update physics - use actual Simulator if available
+            if (useActualSimulator) {
+              robot = Simulator.step(robot, dt);
+            } else {
+              robot = updateKinematics(robot, dt);
+            }
+            robot.trail.push({ x: robot.x, y: robot.y });
+
+            // Draw
+            drawMiniCanvas();
+
+            requestAnimationFrame(animateTest);
+          }
+
+          requestAnimationFrame(animateTest);
+        });
+      }
+
+      // ============================================
+      // Run Full Test Suite
+      // ============================================
+      async function runFullTest() {
+        if (testState.running) {
+          log("Test already running!", "warning");
+          return;
+        }
+
+        testState.running = true;
+        testState.shouldStop = false;
+        testState.results = [];
+
+        const leftSpeed = parseInt(document.getElementById("leftSpeed").value);
+        const rightSpeed = parseInt(
+          document.getElementById("rightSpeed").value
+        );
+        const holdDuration = parseFloat(
+          document.getElementById("holdDuration").value
+        );
+        const errorMargin = parseFloat(
+          document.getElementById("errorMargin").value
+        );
+
+        const speedSelect = document.getElementById("speedsToTest");
+        const speedsToTest = Array.from(speedSelect.selectedOptions).map(
+          (opt) => parseInt(opt.value)
+        );
+
+        if (speedsToTest.length === 0) {
+          log("No speeds selected!", "error");
+          testState.running = false;
+          return;
+        }
+
+        const expectedDistance = calculateExpectedDistance(
+          leftSpeed,
+          rightSpeed,
+          holdDuration
+        );
+
+        log(`=== Starting Full Test Suite ===`, "info");
+        log(
+          `Wheels: L=${leftSpeed}, R=${rightSpeed}, Hold=${holdDuration}s`,
+          "info"
+        );
+        log(`Expected distance: ${expectedDistance.toFixed(2)}mm`, "info");
+        log(`Testing speeds: ${speedsToTest.join("x, ")}x`, "info");
+
+        clearResultsTable();
+
+        for (let i = 0; i < speedsToTest.length; i++) {
+          if (testState.shouldStop) break;
+
+          const speed = speedsToTest[i];
+          document.getElementById("currentTest").textContent = `Running test ${
+            i + 1
+          }/${speedsToTest.length}: Speed ${speed}x...`;
+          document.getElementById("progressFill").style.width = `${
+            (i / speedsToTest.length) * 100
+          }%`;
+
+          const result = await runTestAtSpeed(
+            speed,
+            leftSpeed,
+            rightSpeed,
+            holdDuration
+          );
+
+          if (result) {
+            result.expected = expectedDistance;
+            result.error =
+              (Math.abs(result.distance - expectedDistance) /
+                expectedDistance) *
+              100;
+            result.pass = result.error <= errorMargin;
+
+            testState.results.push(result);
+            addResultRow(result);
+          }
+
+          // Small delay between tests
+          await new Promise((r) => setTimeout(r, 500));
+        }
+
+        document.getElementById("progressFill").style.width = "100%";
+        document.getElementById("currentTest").textContent =
+          "Test suite complete!";
+
+        // Summary
+        const passed = testState.results.filter((r) => r.pass).length;
+        const total = testState.results.length;
+        log(
+          `=== Test Complete: ${passed}/${total} passed ===`,
+          passed === total ? "success" : "error"
+        );
+
+        if (passed < total) {
+          const avgError =
+            testState.results.reduce((sum, r) => sum + r.error, 0) / total;
+          log(`Average error: ${avgError.toFixed(2)}%`, "warning");
+
+          // Analyze the pattern
+          analyzeResults(testState.results);
+        }
+
+        testState.running = false;
+      }
+
+      async function runSingleTest() {
+        if (testState.running) {
+          log("Test already running!", "warning");
+          return;
+        }
+
+        testState.running = true;
+        testState.shouldStop = false;
+
+        const leftSpeed = parseInt(document.getElementById("leftSpeed").value);
+        const rightSpeed = parseInt(
+          document.getElementById("rightSpeed").value
+        );
+        const holdDuration = parseFloat(
+          document.getElementById("holdDuration").value
+        );
+
+        // Use the first selected speed or default to 1
+        const speedSelect = document.getElementById("speedsToTest");
+        const speed =
+          speedSelect.selectedOptions.length > 0
+            ? parseInt(speedSelect.selectedOptions[0].value)
+            : 1;
+
+        const expectedDistance = calculateExpectedDistance(
+          leftSpeed,
+          rightSpeed,
+          holdDuration
+        );
+
+        log(`Running single test at ${speed}x...`, "info");
+
+        const result = await runTestAtSpeed(
+          speed,
+          leftSpeed,
+          rightSpeed,
+          holdDuration
+        );
+
+        if (result) {
+          result.expected = expectedDistance;
+          result.error =
+            (Math.abs(result.distance - expectedDistance) / expectedDistance) *
+            100;
+          result.pass =
+            result.error <=
+            parseFloat(document.getElementById("errorMargin").value);
+
+          addResultRow(result);
+          log(
+            `Result: ${result.distance.toFixed(
+              2
+            )}mm (expected ${expectedDistance.toFixed(
+              2
+            )}mm, error ${result.error.toFixed(2)}%)`,
+            result.pass ? "success" : "error"
+          );
+        }
+
+        testState.running = false;
+      }
+
+      function stopTest() {
+        testState.shouldStop = true;
+        log("Test stopped by user", "warning");
+      }
+
+      // ============================================
+      // Results Table
+      // ============================================
+      function clearResultsTable() {
+        document.getElementById("resultsBody").innerHTML = "";
+      }
+
+      function addResultRow(result) {
+        const tbody = document.getElementById("resultsBody");
+
+        // Remove "no results" message if present
+        if (tbody.querySelector("td[colspan]")) {
+          tbody.innerHTML = "";
+        }
+
+        const row = document.createElement("tr");
+        row.innerHTML = `
+                <td>${result.speed}x</td>
+                <td>${result.expected.toFixed(2)}</td>
+                <td>${result.distance.toFixed(2)}</td>
+                <td class="${
+                  result.pass ? "pass" : "fail"
+                }">${result.error.toFixed(2)}%</td>
+                <td>${result.realTime.toFixed(2)}</td>
+                <td>${result.frames}</td>
+                <td class="${result.pass ? "pass" : "fail"}">${
+          result.pass ? "✅ PASS" : "❌ FAIL"
+        }</td>
+            `;
+        tbody.appendChild(row);
+      }
+
+      function clearResults() {
+        testState.results = [];
+        document.getElementById("resultsBody").innerHTML = `
+                <tr>
+                    <td colspan="7" style="text-align: center; color: #8892b0;">
+                        No tests run yet
+                    </td>
+                </tr>
+            `;
+        document.getElementById("log").innerHTML = "";
+        document.getElementById("progressFill").style.width = "0%";
+        document.getElementById("currentTest").textContent =
+          "Ready to run tests...";
+      }
+
+      // ============================================
+      // Analysis
+      // ============================================
+      function analyzeResults(results) {
+        // Look for patterns
+        const distances = results.map((r) => r.distance);
+        const speeds = results.map((r) => r.speed);
+
+        // Check if distance scales with speed (would indicate the bug)
+        const distancePerSpeed = results.map((r) => r.distance / r.speed);
+        const avgDPS =
+          distancePerSpeed.reduce((a, b) => a + b, 0) / distancePerSpeed.length;
+        const dpsVariance =
+          distancePerSpeed.reduce(
+            (sum, d) => sum + Math.pow(d - avgDPS, 2),
+            0
+          ) / distancePerSpeed.length;
+
+        if (dpsVariance < 100) {
+          log(
+            `⚠️ Distance appears to scale with speed! (distance/speed is roughly constant: ${avgDPS.toFixed(
+              2
+            )})`,
+            "warning"
+          );
+          log(
+            `This suggests velocity is being multiplied by speed but time is not being divided.`,
+            "warning"
+          );
+        }
+
+        // Check if distance is constant (correct behavior)
+        const avgDist = distances.reduce((a, b) => a + b, 0) / distances.length;
+        const distVariance =
+          distances.reduce((sum, d) => sum + Math.pow(d - avgDist, 2), 0) /
+          distances.length;
+
+        if (distVariance < 100) {
+          log(
+            `✅ Distance is approximately constant across speeds (avg: ${avgDist.toFixed(
+              2
+            )}mm)`,
+            "success"
+          );
+        }
+      }
+
+      // ============================================
+      // Mini Canvas Visualization
+      // ============================================
+      function drawMiniCanvas() {
+        const canvas = document.getElementById("miniCanvas");
+        const ctx = canvas.getContext("2d");
+        const scale = canvas.width / ARENA_WIDTH;
+
+        // Clear
+        ctx.fillStyle = "#0f0f23";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Draw grid
+        ctx.strokeStyle = "#2a2a4a";
+        ctx.lineWidth = 0.5;
+        for (let x = 0; x < canvas.width; x += 40) {
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, canvas.height);
+          ctx.stroke();
+        }
+        for (let y = 0; y < canvas.height; y += 40) {
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(canvas.width, y);
+          ctx.stroke();
+        }
+
+        // Draw trail
+        if (robot.trail.length > 1) {
+          ctx.strokeStyle = "#00d9ff44";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(robot.trail[0].x * scale, robot.trail[0].y * scale);
+          for (let i = 1; i < robot.trail.length; i++) {
+            ctx.lineTo(robot.trail[i].x * scale, robot.trail[i].y * scale);
+          }
+          ctx.stroke();
+        }
+
+        // Draw robot
+        const x = robot.x * scale;
+        const y = robot.y * scale;
+        const size = 10;
+
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate((robot.heading * Math.PI) / 180);
+
+        ctx.fillStyle = "#00d9ff";
+        ctx.beginPath();
+        ctx.moveTo(0, -size);
+        ctx.lineTo(-size * 0.6, size * 0.6);
+        ctx.lineTo(size * 0.6, size * 0.6);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.restore();
+
+        // Draw start marker
+        ctx.fillStyle = "#2ed573";
+        ctx.beginPath();
+        ctx.arc(
+          (ARENA_WIDTH / 2) * scale,
+          (ARENA_HEIGHT - 200) * scale,
+          5,
+          0,
+          Math.PI * 2
+        );
+        ctx.fill();
+      }
+
+      // ============================================
+      // Initialize
+      // ============================================
+      document
+        .getElementById("leftSpeed")
+        .addEventListener("input", updateExpectedStats);
+      document
+        .getElementById("rightSpeed")
+        .addEventListener("input", updateExpectedStats);
+      document
+        .getElementById("holdDuration")
+        .addEventListener("input", updateExpectedStats);
+
+      updateExpectedStats();
+      drawMiniCanvas();
+
+      log("Distance Consistency Test initialized", "info");
+      log(
+        "This test verifies that robot travels the same distance regardless of speed setting",
+        "info"
+      );
+    </script>
+  </body>
+</html>

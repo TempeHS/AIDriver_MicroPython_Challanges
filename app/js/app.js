@@ -11,6 +11,7 @@ const App = {
   isPaused: false,
   hasRun: false, // Track if code has been run (requires reset before running again)
   speedMultiplier: 2,
+  startHeadingOffset: 0, // User-selected rotation offset (0, 90, 180, 270)
 
   // ACE Editor instance
   editor: null,
@@ -70,8 +71,12 @@ function init() {
   // Set up event listeners
   setupEventListeners();
 
-  // Load saved state or default challenge
-  loadChallenge(0);
+  // Load challenge from URL parameter or default to 0
+  const urlParams = new URLSearchParams(window.location.search);
+  const challengeParam = urlParams.get("challenge");
+  const initialChallenge =
+    challengeParam !== null ? parseInt(challengeParam) : 0;
+  loadChallenge(initialChallenge);
 
   // Hide loading overlay
   hideLoading();
@@ -91,8 +96,11 @@ function cacheElements() {
     btnStep: document.getElementById("btnStep"),
     btnReset: document.getElementById("btnReset"),
     btnResetCode: document.getElementById("btnResetCode"),
+    btnCopyCode: document.getElementById("btnCopyCode"),
     btnClearDebug: document.getElementById("btnClearDebug"),
     btnConfirmReset: document.getElementById("btnConfirmReset"),
+    btnRotateCar: document.getElementById("btnRotateCar"),
+    rotationDisplay: document.getElementById("rotationDisplay"),
 
     // Gamepad buttons
     btnUp: document.getElementById("btnUp"),
@@ -191,6 +199,36 @@ function setupEventListeners() {
   App.elements.btnReset.addEventListener("click", resetRobot);
   App.elements.btnClearDebug.addEventListener("click", clearDebug);
 
+  // Rotate car button
+  App.elements.btnRotateCar.addEventListener("click", () => {
+    // Rotate by 90 degrees, wrap at 360
+    App.startHeadingOffset = (App.startHeadingOffset + 90) % 360;
+    App.elements.rotationDisplay.textContent = `${App.startHeadingOffset}°`;
+    // Reset robot to apply new rotation
+    resetRobot();
+    DebugPanel.info(`Car start direction set to ${App.startHeadingOffset}°`);
+  });
+
+  // Copy code button
+  App.elements.btnCopyCode.addEventListener("click", () => {
+    const code = Editor.getCode();
+    navigator.clipboard
+      .writeText(code)
+      .then(() => {
+        // Show feedback by temporarily changing icon
+        const icon = App.elements.btnCopyCode.querySelector("i");
+        icon.classList.remove("bi-clipboard");
+        icon.classList.add("bi-clipboard-check");
+        setTimeout(() => {
+          icon.classList.remove("bi-clipboard-check");
+          icon.classList.add("bi-clipboard");
+        }, 1500);
+      })
+      .catch((err) => {
+        console.error("Failed to copy code:", err);
+      });
+  });
+
   // Reset code button - show modal
   App.elements.btnResetCode.addEventListener("click", () => {
     const modal = new bootstrap.Modal(
@@ -228,6 +266,11 @@ function setupEventListeners() {
       }
       App.hasRun = false;
       const challengeId = parseInt(e.currentTarget.dataset.challenge);
+
+      // Update URL to reflect the new challenge
+      const newUrl = `simulator.html?challenge=${challengeId}`;
+      window.history.pushState({ challenge: challengeId }, "", newUrl);
+
       loadChallenge(challengeId);
     });
   });
@@ -249,6 +292,19 @@ function setupEventListeners() {
 
   // Keyboard shortcuts
   document.addEventListener("keydown", handleKeyboardShortcuts);
+
+  // Handle browser back/forward navigation
+  window.addEventListener("popstate", (e) => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const challengeParam = urlParams.get("challenge");
+    const challengeId = challengeParam !== null ? parseInt(challengeParam) : 0;
+
+    if (App.isRunning) {
+      stopExecution();
+    }
+    App.hasRun = false;
+    loadChallenge(challengeId);
+  });
 
   console.log("[App] Event listeners set up");
 }
@@ -550,6 +606,44 @@ function loadMaze(mazeId) {
 }
 
 /**
+ * Shrink editor for running mode (debug panel always visible)
+ */
+function expandDebugPanel() {
+  console.log("[App] expandDebugPanel called");
+  const editor = document.getElementById("editor");
+
+  if (editor) {
+    editor.classList.add("running-mode");
+    console.log("[App] Added running-mode class to editor");
+  }
+
+  // Resize ACE editor after animation
+  setTimeout(() => {
+    if (App.editor) {
+      App.editor.resize();
+    }
+  }, 350);
+}
+
+/**
+ * Restore editor to full height (debug panel stays visible)
+ */
+function collapseDebugPanel() {
+  const editor = document.getElementById("editor");
+
+  if (editor) {
+    editor.classList.remove("running-mode");
+  }
+
+  // Resize ACE editor after animation
+  setTimeout(() => {
+    if (App.editor) {
+      App.editor.resize();
+    }
+  }, 350);
+}
+
+/**
  * Run the code
  */
 function runCode() {
@@ -558,6 +652,9 @@ function runCode() {
   App.isRunning = true;
   App.isPaused = false;
   App.hasRun = true; // Track that code has been run (requires reset)
+
+  // Expand debug panel with animation
+  expandDebugPanel();
 
   // Reset session tracking for fresh run
   if (App.session) {
@@ -609,6 +706,9 @@ function stopExecution() {
   App.isRunning = false;
   App.isPaused = false;
 
+  // Collapse debug panel with animation
+  collapseDebugPanel();
+
   // Update UI - Run stays disabled until Reset
   App.elements.btnRun.disabled = App.hasRun; // Only enable if hasn't run yet
   App.elements.btnStop.disabled = true;
@@ -626,11 +726,76 @@ function stopExecution() {
 }
 
 /**
- * Step through code
+ * Step through code with trace collection and playback
+ * Phase 1: Collect execution trace (fast, no delays)
+ * Phase 2: Play back trace with delays, showing each step
  */
-function stepCode() {
-  DebugPanel.info("Step mode - executing next command");
-  PythonRunner.step();
+async function stepCode() {
+  // If already playing trace, toggle pause
+  if (PythonRunner.stepMode && PythonRunner.isPlayingTrace) {
+    if (PythonRunner.stepPaused) {
+      PythonRunner.resumeStep();
+      App.elements.btnStep.textContent = "Pause";
+    } else {
+      PythonRunner.pauseStep();
+      App.elements.btnStep.textContent = "Resume";
+    }
+    return;
+  }
+
+  // Get code from editor
+  const code = Editor.getCode();
+
+  // Validate code first
+  if (typeof Validator !== "undefined") {
+    const validation = Validator.validate(code);
+    if (!validation.valid) {
+      expandDebugPanel();
+      DebugPanel.error("Code has errors that must be fixed before stepping:");
+      for (const error of validation.errors) {
+        DebugPanel.error(`  Line ${error.line}: ${error.message}`);
+      }
+      return;
+    }
+  }
+
+  // Start step mode
+  expandDebugPanel();
+  App.isRunning = true;
+  App.hasRun = true;
+
+  // Update UI
+  App.elements.btnRun.disabled = true;
+  App.elements.btnStep.textContent = "Pause";
+  App.elements.btnStop.disabled = false;
+
+  DebugPanel.info(
+    "Step Mode - collecting execution trace and playing back with delays"
+  );
+  updateStatus("Stepping...", "info");
+  App.elements.challengeStatus.textContent = "Stepping";
+  App.elements.challengeStatus.className = "badge bg-info";
+
+  try {
+    // Run in step mode with trace collection and playback
+    await PythonRunner.runStepMode(code);
+    DebugPanel.success("Step mode completed - click Reset to run again");
+  } catch (error) {
+    if (error.message !== "Execution stopped") {
+      DebugPanel.error("Execution error: " + error.message);
+    }
+  }
+
+  // Reset UI
+  PythonRunner.stepMode = false;
+  App.isRunning = false;
+  App.elements.btnRun.disabled = true; // Require reset
+  App.elements.btnStep.disabled = true; // Require reset
+  App.elements.btnStep.textContent = "Step";
+  App.elements.btnStop.disabled = true;
+  updateStatus("Completed", "success");
+  App.elements.challengeStatus.textContent = "Completed";
+  App.elements.challengeStatus.className = "badge bg-success";
 }
 
 /**
@@ -640,14 +805,26 @@ function resetRobot() {
   // Clear hasRun flag FIRST - so stopExecution doesn't disable Run button
   App.hasRun = false;
 
+  // Reset step mode and trace state
+  PythonRunner.stepMode = false;
+  PythonRunner.stepPaused = false;
+  PythonRunner.isCollectingTrace = false;
+  PythonRunner.isPlayingTrace = false;
+  PythonRunner.executionTrace = [];
+  PythonRunner.currentTraceStep = 0;
+
   // Stop any running script
   if (App.isRunning) {
     stopExecution();
   }
 
-  // Ensure Run button is enabled
+  // Collapse debug panel with animation
+  collapseDebugPanel();
+
+  // Ensure Run button is enabled and Step button text reset
   App.elements.btnRun.disabled = false;
   App.elements.btnStep.disabled = false;
+  App.elements.btnStep.textContent = "Step";
 
   // Reset session tracking
   const challenge = App.currentChallengeConfig;
@@ -668,22 +845,26 @@ function resetRobot() {
 
   // Reset robot state to current challenge's start position
   if (challenge && challenge.startPosition) {
+    const baseHeading = challenge.startPosition.heading || 0;
     App.robot = {
       x: challenge.startPosition.x,
       y: challenge.startPosition.y,
-      heading: challenge.startPosition.heading || 0,
+      heading: (baseHeading + App.startHeadingOffset) % 360,
       leftSpeed: 0,
       rightSpeed: 0,
       isMoving: false,
       trail: [],
     };
   } else if (typeof Simulator !== "undefined") {
-    App.robot = Simulator.getInitialRobotState();
+    const initialState = Simulator.getInitialRobotState();
+    initialState.heading =
+      (initialState.heading + App.startHeadingOffset) % 360;
+    App.robot = initialState;
   } else {
     App.robot = {
       x: 1000,
       y: 1800, // Start near bottom
-      heading: 0,
+      heading: App.startHeadingOffset,
       leftSpeed: 0,
       rightSpeed: 0,
       isMoving: false,
@@ -806,12 +987,8 @@ function render() {
   // Draw robot
   drawRobot(ctx, scale);
 
-  // Continue animation if robot is moving
-  if (App.robot.isMoving) {
-    updateRobotPosition();
-    updateUltrasonicDisplay(calculateDistance());
-    App.animationFrameId = requestAnimationFrame(render);
-  }
+  // Note: Physics updates are handled by startAnimationLoop() which calls Simulator.step()
+  // This render function is purely for drawing - no position updates here
 }
 
 /**
@@ -849,15 +1026,22 @@ function drawPath(ctx, scale) {
   const criteria = App.currentChallengeConfig.successCriteria;
 
   ctx.save();
-  ctx.strokeStyle = "rgba(0, 255, 136, 0.4)";
-  ctx.fillStyle = "rgba(0, 255, 136, 0.1)";
-  ctx.lineWidth = 2;
+
+  // Consistent styling for all path types
+  const pathColor = "rgba(0, 255, 136, 0.6)"; // Main path line
+  const boundaryColor = "rgba(0, 255, 136, 0.25)"; // Lane boundaries
+  const fillColor = "rgba(0, 255, 136, 0.08)"; // Lane fill
+  const markerColor = "rgba(0, 255, 136, 0.4)"; // Corner/point markers
+
   ctx.setLineDash([10, 5]);
 
   switch (path.type) {
     case "line":
       // Draw a line corridor
       const halfWidth = (path.width / 2) * scale;
+
+      // Fill lane area
+      ctx.fillStyle = fillColor;
       ctx.beginPath();
       ctx.moveTo(path.start.x * scale - halfWidth, path.start.y * scale);
       ctx.lineTo(path.end.x * scale - halfWidth, path.end.y * scale);
@@ -865,10 +1049,15 @@ function drawPath(ctx, scale) {
       ctx.lineTo(path.start.x * scale + halfWidth, path.start.y * scale);
       ctx.closePath();
       ctx.fill();
+
+      // Draw lane boundaries
+      ctx.strokeStyle = boundaryColor;
+      ctx.lineWidth = 2;
       ctx.stroke();
 
       // Draw center line
-      ctx.strokeStyle = "rgba(0, 255, 136, 0.6)";
+      ctx.strokeStyle = pathColor;
+      ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.moveTo(path.start.x * scale, path.start.y * scale);
       ctx.lineTo(path.end.x * scale, path.end.y * scale);
@@ -876,7 +1065,29 @@ function drawPath(ctx, scale) {
       break;
 
     case "circle":
-      // Draw circle path
+      // Fill lane area
+      ctx.fillStyle = fillColor;
+      ctx.beginPath();
+      ctx.arc(
+        path.center.x * scale,
+        path.center.y * scale,
+        (path.radius + path.width / 2) * scale,
+        0,
+        Math.PI * 2
+      );
+      ctx.arc(
+        path.center.x * scale,
+        path.center.y * scale,
+        (path.radius - path.width / 2) * scale,
+        0,
+        Math.PI * 2,
+        true
+      );
+      ctx.fill("evenodd");
+
+      // Draw main circle path
+      ctx.strokeStyle = pathColor;
+      ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.arc(
         path.center.x * scale,
@@ -887,8 +1098,9 @@ function drawPath(ctx, scale) {
       );
       ctx.stroke();
 
-      // Draw inner and outer bounds
-      ctx.strokeStyle = "rgba(0, 255, 136, 0.2)";
+      // Draw lane boundaries
+      ctx.strokeStyle = boundaryColor;
+      ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(
         path.center.x * scale,
@@ -910,24 +1122,108 @@ function drawPath(ctx, scale) {
       break;
 
     case "figure_eight":
-      // Draw figure-8 pattern
-      const offset = path.loopRadius * scale;
+      // Draw figure-8 pattern with consistent styling
+      const loopRadius = path.loopRadius * scale;
+      const laneW = ((path.width || 150) * scale) / 2;
+
+      // Fill lane areas for both loops
+      ctx.fillStyle = fillColor;
+      // Left loop fill
       ctx.beginPath();
-      // Left circle
       ctx.arc(
         (path.center.x - path.loopRadius) * scale,
         path.center.y * scale,
-        path.loopRadius * scale,
+        loopRadius + laneW,
         0,
         Math.PI * 2
       );
-      ctx.stroke();
-      // Right circle
+      ctx.arc(
+        (path.center.x - path.loopRadius) * scale,
+        path.center.y * scale,
+        loopRadius - laneW,
+        0,
+        Math.PI * 2,
+        true
+      );
+      ctx.fill("evenodd");
+      // Right loop fill
       ctx.beginPath();
       ctx.arc(
         (path.center.x + path.loopRadius) * scale,
         path.center.y * scale,
-        path.loopRadius * scale,
+        loopRadius + laneW,
+        0,
+        Math.PI * 2
+      );
+      ctx.arc(
+        (path.center.x + path.loopRadius) * scale,
+        path.center.y * scale,
+        loopRadius - laneW,
+        0,
+        Math.PI * 2,
+        true
+      );
+      ctx.fill("evenodd");
+
+      // Draw main path lines
+      ctx.strokeStyle = pathColor;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(
+        (path.center.x - path.loopRadius) * scale,
+        path.center.y * scale,
+        loopRadius,
+        0,
+        Math.PI * 2
+      );
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(
+        (path.center.x + path.loopRadius) * scale,
+        path.center.y * scale,
+        loopRadius,
+        0,
+        Math.PI * 2
+      );
+      ctx.stroke();
+
+      // Draw lane boundaries
+      ctx.strokeStyle = boundaryColor;
+      ctx.lineWidth = 2;
+      // Left loop boundaries
+      ctx.beginPath();
+      ctx.arc(
+        (path.center.x - path.loopRadius) * scale,
+        path.center.y * scale,
+        loopRadius - laneW,
+        0,
+        Math.PI * 2
+      );
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(
+        (path.center.x - path.loopRadius) * scale,
+        path.center.y * scale,
+        loopRadius + laneW,
+        0,
+        Math.PI * 2
+      );
+      ctx.stroke();
+      // Right loop boundaries
+      ctx.beginPath();
+      ctx.arc(
+        (path.center.x + path.loopRadius) * scale,
+        path.center.y * scale,
+        loopRadius - laneW,
+        0,
+        Math.PI * 2
+      );
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(
+        (path.center.x + path.loopRadius) * scale,
+        path.center.y * scale,
+        loopRadius + laneW,
         0,
         Math.PI * 2
       );
@@ -935,8 +1231,35 @@ function drawPath(ctx, scale) {
       break;
 
     case "uturn":
-      // Draw U-turn path
-      ctx.strokeStyle = "rgba(0, 255, 136, 0.4)";
+      // Draw U-turn path with lane
+      const uHalfWidth = ((path.width || 150) / 2) * scale;
+
+      // Fill lane area
+      ctx.fillStyle = fillColor;
+      ctx.beginPath();
+      ctx.rect(
+        1000 * scale - uHalfWidth,
+        path.endY * scale,
+        uHalfWidth * 2,
+        (path.startY - path.endY) * scale
+      );
+      ctx.fill();
+
+      // Draw lane boundaries
+      ctx.strokeStyle = boundaryColor;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(1000 * scale - uHalfWidth, path.startY * scale);
+      ctx.lineTo(1000 * scale - uHalfWidth, path.endY * scale);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(1000 * scale + uHalfWidth, path.startY * scale);
+      ctx.lineTo(1000 * scale + uHalfWidth, path.endY * scale);
+      ctx.stroke();
+
+      // Draw center line
+      ctx.strokeStyle = pathColor;
+      ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.moveTo(1000 * scale, path.startY * scale);
       ctx.lineTo(1000 * scale, path.endY * scale);
@@ -951,8 +1274,25 @@ function drawPath(ctx, scale) {
       const laneWidth = (path.width || 150) * scale;
       const halfLane = laneWidth / 2;
 
+      // Fill the lane area
+      ctx.fillStyle = fillColor;
+      ctx.beginPath();
+      // Outer square
+      ctx.moveTo(x - halfLane, y + halfLane);
+      ctx.lineTo(x - halfLane, y - size - halfLane);
+      ctx.lineTo(x + size + halfLane, y - size - halfLane);
+      ctx.lineTo(x + size + halfLane, y + halfLane);
+      ctx.closePath();
+      // Inner square (counter-clockwise for cutout)
+      ctx.moveTo(x + halfLane, y - halfLane);
+      ctx.lineTo(x + size - halfLane, y - halfLane);
+      ctx.lineTo(x + size - halfLane, y - size + halfLane);
+      ctx.lineTo(x + halfLane, y - size + halfLane);
+      ctx.closePath();
+      ctx.fill("evenodd");
+
       // Draw center line (main path)
-      ctx.strokeStyle = "rgba(0, 255, 136, 0.6)";
+      ctx.strokeStyle = pathColor;
       ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.moveTo(x, y);
@@ -963,7 +1303,7 @@ function drawPath(ctx, scale) {
       ctx.stroke();
 
       // Draw outer lane boundary
-      ctx.strokeStyle = "rgba(0, 255, 136, 0.2)";
+      ctx.strokeStyle = boundaryColor;
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(x - halfLane, y + halfLane);
@@ -982,26 +1322,8 @@ function drawPath(ctx, scale) {
       ctx.lineTo(x + halfLane, y - halfLane); // Back to start
       ctx.stroke();
 
-      // Fill the lane area with subtle color
-      ctx.fillStyle = "rgba(0, 255, 136, 0.1)";
-      // Fill using even-odd rule by drawing outer then inner
-      ctx.beginPath();
-      // Outer square
-      ctx.moveTo(x - halfLane, y + halfLane);
-      ctx.lineTo(x - halfLane, y - size - halfLane);
-      ctx.lineTo(x + size + halfLane, y - size - halfLane);
-      ctx.lineTo(x + size + halfLane, y + halfLane);
-      ctx.closePath();
-      // Inner square (counter-clockwise for cutout)
-      ctx.moveTo(x + halfLane, y - halfLane);
-      ctx.lineTo(x + size - halfLane, y - halfLane);
-      ctx.lineTo(x + size - halfLane, y - size + halfLane);
-      ctx.lineTo(x + halfLane, y - size + halfLane);
-      ctx.closePath();
-      ctx.fill("evenodd");
-
       // Draw corner markers
-      ctx.fillStyle = "rgba(0, 255, 136, 0.3)";
+      ctx.fillStyle = markerColor;
       const markerSize = 20 * scale;
       ctx.fillRect(
         x - markerSize / 2,
@@ -1028,6 +1350,121 @@ function drawPath(ctx, scale) {
         markerSize
       );
       break;
+
+    case "none":
+      // No path to draw - just show obstacles and target
+      break;
+
+    case "obstacle_course":
+      // Draw a path with waypoints
+      if (path.waypoints && path.waypoints.length >= 2) {
+        const halfWidth = (path.width / 2) * scale;
+
+        // First pass: fill the entire path including corners
+        ctx.fillStyle = fillColor;
+        ctx.beginPath();
+
+        // Build a continuous path outline
+        // Start from first waypoint, go along one side
+        const wp = path.waypoints;
+
+        // Draw each segment and corner squares to fill gaps
+        for (let i = 0; i < wp.length - 1; i++) {
+          const start = wp[i];
+          const end = wp[i + 1];
+          const isVertical =
+            Math.abs(end.x - start.x) < Math.abs(end.y - start.y);
+
+          // Fill segment
+          ctx.fillStyle = fillColor;
+          if (isVertical) {
+            const minY = Math.min(start.y, end.y);
+            const maxY = Math.max(start.y, end.y);
+            ctx.fillRect(
+              (start.x - path.width / 2) * scale,
+              minY * scale,
+              path.width * scale,
+              (maxY - minY) * scale
+            );
+          } else {
+            const minX = Math.min(start.x, end.x);
+            const maxX = Math.max(start.x, end.x);
+            ctx.fillRect(
+              minX * scale,
+              (start.y - path.width / 2) * scale,
+              (maxX - minX) * scale,
+              path.width * scale
+            );
+          }
+
+          // Fill corner square at each waypoint to avoid gaps
+          ctx.fillRect(
+            (end.x - path.width / 2) * scale,
+            (end.y - path.width / 2) * scale,
+            path.width * scale,
+            path.width * scale
+          );
+        }
+
+        // Fill start corner
+        ctx.fillRect(
+          (wp[0].x - path.width / 2) * scale,
+          (wp[0].y - path.width / 2) * scale,
+          path.width * scale,
+          path.width * scale
+        );
+
+        // Draw lane boundaries
+        ctx.strokeStyle = boundaryColor;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([10, 5]);
+
+        for (let i = 0; i < wp.length - 1; i++) {
+          const start = wp[i];
+          const end = wp[i + 1];
+          const isVertical =
+            Math.abs(end.x - start.x) < Math.abs(end.y - start.y);
+
+          if (isVertical) {
+            const minY = Math.min(start.y, end.y);
+            const maxY = Math.max(start.y, end.y);
+            ctx.strokeRect(
+              (start.x - path.width / 2) * scale,
+              minY * scale,
+              path.width * scale,
+              (maxY - minY) * scale
+            );
+          } else {
+            const minX = Math.min(start.x, end.x);
+            const maxX = Math.max(start.x, end.x);
+            ctx.strokeRect(
+              minX * scale,
+              (start.y - path.width / 2) * scale,
+              (maxX - minX) * scale,
+              path.width * scale
+            );
+          }
+        }
+
+        // Draw center line through all waypoints
+        ctx.strokeStyle = pathColor;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(wp[0].x * scale, wp[0].y * scale);
+        for (let i = 1; i < wp.length; i++) {
+          ctx.lineTo(wp[i].x * scale, wp[i].y * scale);
+        }
+        ctx.stroke();
+
+        // Draw waypoint markers
+        ctx.fillStyle = markerColor;
+        for (const point of wp) {
+          ctx.beginPath();
+          ctx.arc(point.x * scale, point.y * scale, 10 * scale, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      break;
   }
 
   ctx.setLineDash([]);
@@ -1035,8 +1472,8 @@ function drawPath(ctx, scale) {
   // Draw target zone if applicable
   if (criteria && criteria.zone) {
     const zone = criteria.zone;
-    ctx.fillStyle = "rgba(0, 255, 136, 0.3)";
-    ctx.strokeStyle = "#00ff88";
+    ctx.fillStyle = markerColor;
+    ctx.strokeStyle = pathColor;
     ctx.lineWidth = 3;
     ctx.setLineDash([]);
     ctx.fillRect(
@@ -1053,11 +1490,114 @@ function drawPath(ctx, scale) {
     );
 
     // Draw "TARGET" label
-    ctx.fillStyle = "#00ff88";
+    ctx.fillStyle = pathColor;
     ctx.font = `${14 * scale}px monospace`;
     ctx.textAlign = "center";
     ctx.fillText(
       "TARGET",
+      (zone.x + zone.width / 2) * scale,
+      (zone.y + zone.height / 2 + 5) * scale
+    );
+  }
+
+  // Draw obstacles
+  if (App.currentChallengeConfig && App.currentChallengeConfig.obstacles) {
+    const obstacles = App.currentChallengeConfig.obstacles;
+    for (const obs of obstacles) {
+      // Fill with dark red
+      ctx.fillStyle = "rgba(200, 50, 50, 0.7)";
+      ctx.fillRect(
+        obs.x * scale,
+        obs.y * scale,
+        obs.width * scale,
+        obs.height * scale
+      );
+      // Border
+      ctx.strokeStyle = "rgba(255, 100, 100, 0.9)";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(
+        obs.x * scale,
+        obs.y * scale,
+        obs.width * scale,
+        obs.height * scale
+      );
+      // Label
+      ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+      ctx.font = `${12 * scale}px monospace`;
+      ctx.textAlign = "center";
+      ctx.fillText(
+        "OBSTACLE",
+        (obs.x + obs.width / 2) * scale,
+        (obs.y + obs.height / 2 + 4) * scale
+      );
+    }
+  }
+
+  // Draw finish zone for circle challenges (return to start indicator)
+  if (
+    criteria &&
+    criteria.type === "complete_circle" &&
+    criteria.centerTolerance
+  ) {
+    const startPos = App.currentChallengeConfig.startPosition;
+    const tolerance = criteria.centerTolerance;
+
+    // Draw green square showing the finish zone (same style as other challenges)
+    const zoneSize = tolerance * 2;
+    const zoneX = startPos.x - tolerance;
+    const zoneY = startPos.y - tolerance;
+
+    ctx.fillStyle = markerColor;
+    ctx.strokeStyle = pathColor;
+    ctx.lineWidth = 3;
+    ctx.setLineDash([]);
+    ctx.fillRect(
+      zoneX * scale,
+      zoneY * scale,
+      zoneSize * scale,
+      zoneSize * scale
+    );
+    ctx.strokeRect(
+      zoneX * scale,
+      zoneY * scale,
+      zoneSize * scale,
+      zoneSize * scale
+    );
+
+    // Draw "FINISH" label
+    ctx.fillStyle = pathColor;
+    ctx.font = `${14 * scale}px monospace`;
+    ctx.textAlign = "center";
+    ctx.fillText("FINISH", startPos.x * scale, (startPos.y + 5) * scale);
+  }
+
+  // Draw finish zone for square challenges (return to start zone)
+  if (criteria && criteria.type === "complete_square" && criteria.startZone) {
+    const zone = criteria.startZone;
+
+    ctx.fillStyle = markerColor;
+    ctx.strokeStyle = pathColor;
+    ctx.lineWidth = 3;
+    ctx.setLineDash([]);
+    ctx.fillRect(
+      zone.x * scale,
+      zone.y * scale,
+      zone.width * scale,
+      zone.height * scale
+    );
+    ctx.strokeRect(
+      zone.x * scale,
+      zone.y * scale,
+      zone.width * scale,
+      zone.height * scale
+    );
+
+    // Draw "FINISH" label
+    ctx.fillStyle = pathColor;
+    ctx.font = `${14 * scale}px monospace`;
+    ctx.textAlign = "center";
+    ctx.fillText(
+      "FINISH",
       (zone.x + zone.width / 2) * scale,
       (zone.y + zone.height / 2 + 5) * scale
     );
@@ -1249,32 +1789,17 @@ function drawRobot(ctx, scale) {
 
 /**
  * Update robot position based on current speeds
+ * @deprecated This function is no longer used. Physics are handled by
+ * startAnimationLoop() which calls Simulator.step() with proper physics.
+ * Kept for backward compatibility but should not be called.
  */
 function updateRobotPosition() {
-  const dt = (1 / 60) * App.speedMultiplier; // Time step in seconds, scaled
-
-  // Simple differential drive approximation
-  const leftSpeed = App.robot.leftSpeed;
-  const rightSpeed = App.robot.rightSpeed;
-
-  // Average speed and turning
-  const avgSpeed = (leftSpeed + rightSpeed) / 2;
-  const turnRate = (rightSpeed - leftSpeed) / 100; // Simplified turn rate
-
-  // Update heading - differential drive: larger speed diff = tighter turn
-  App.robot.heading += turnRate * dt * 10;
-
-  // Update position: doubled for longer trail
-  const headingRad = (App.robot.heading * Math.PI) / 180;
-  App.robot.x += Math.sin(headingRad) * avgSpeed * dt * 0.24;
-  App.robot.y -= Math.cos(headingRad) * avgSpeed * dt * 0.24;
-
-  // Clamp to arena bounds
-  App.robot.x = Math.max(50, Math.min(1950, App.robot.x));
-  App.robot.y = Math.max(50, Math.min(1950, App.robot.y));
-
-  // Add to trail - keep full path (no limit)
-  App.robot.trail.push({ x: App.robot.x, y: App.robot.y });
+  // Note: This function is deprecated and no longer used.
+  // All physics updates are now handled by startAnimationLoop() -> Simulator.step()
+  // which provides consistent physics regardless of speed multiplier.
+  console.warn(
+    "[Deprecated] updateRobotPosition called - use Simulator.step() instead"
+  );
 }
 
 /**
@@ -1292,12 +1817,9 @@ function updateRobot(state) {
     App.robot.isMoving = state.isMoving;
   }
 
-  // Update position and render
-  if (App.robot.isMoving) {
-    updateRobotPosition();
-    render();
-    updateUltrasonicDisplay(calculateDistance());
-  }
+  // Note: Physics updates are handled by startAnimationLoop() which calls Simulator.step()
+  // Just trigger a render to show the updated state
+  render();
 }
 
 /**
@@ -1521,10 +2043,28 @@ document.addEventListener("DOMContentLoaded", init);
 // Start animation loop
 function startAnimationLoop() {
   let lastTime = performance.now();
+  let frameCount = 0;
 
   function animate(currentTime) {
     const dt = (currentTime - lastTime) / 1000; // Convert to seconds
     lastTime = currentTime;
+    frameCount++;
+
+    // Debug every 60 frames (roughly once per second)
+    if (frameCount % 60 === 0) {
+      console.log(
+        "[AnimLoop] Frame",
+        frameCount,
+        "isMoving:",
+        App.robot.isMoving,
+        "speeds:",
+        App.robot.leftSpeed,
+        App.robot.rightSpeed,
+        "pos:",
+        App.robot.x.toFixed(0),
+        App.robot.y.toFixed(0)
+      );
+    }
 
     // Update robot using Simulator physics if moving
     if (
@@ -1599,6 +2139,9 @@ function updateSessionTracking() {
 function checkChallengeSuccess() {
   if (!App.currentChallengeConfig || typeof Challenges === "undefined") return;
 
+  // Don't check success during step mode playback
+  if (PythonRunner.isPlayingTrace) return;
+
   // Require at least 2 seconds of running before checking success
   if (App.session && App.session.startTime) {
     const elapsed = Date.now() - App.session.startTime;
@@ -1630,6 +2173,7 @@ document.addEventListener("DOMContentLoaded", () => {
 // Expose App globally for Python runner integration
 window.App = App;
 window.updateRobot = updateRobot;
+window.updateRobotPosition = updateRobotPosition;
 window.render = render;
 window.calculateDistance = calculateDistance;
 window.updateUltrasonicDisplay = updateUltrasonicDisplay;

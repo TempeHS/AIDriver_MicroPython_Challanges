@@ -177,6 +177,21 @@ const Editor = {
   },
 
   /**
+   * Highlight a line during step mode playback (alias for highlightExecutingLine)
+   * @param {number} line - Line number (1-indexed)
+   */
+  highlightLine(line) {
+    this.highlightExecutingLine(line);
+  },
+
+  /**
+   * Clear the step mode line highlight
+   */
+  clearHighlight() {
+    this.highlightExecutingLine(null);
+  },
+
+  /**
    * Clear all error/warning markers
    */
   clearAllMarkers() {

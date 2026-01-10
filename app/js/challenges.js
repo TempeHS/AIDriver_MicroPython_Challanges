@@ -85,7 +85,7 @@ const Challenges = (function () {
       startPosition: { x: 1000, y: 1400, heading: 90 },
       successCriteria: {
         type: "complete_circle",
-        centerTolerance: 300, // Must return within 300mm of start
+        centerTolerance: 100, // Must finish inside the 100mm finish box
         minRotation: 330, // Must rotate at least 330 degrees
       },
       path: {
@@ -162,28 +162,31 @@ const Challenges = (function () {
       subtitle: "Sensor Navigation",
       difficulty: DIFFICULTY.MEDIUM,
       description: "Navigate around obstacles using the ultrasonic sensor.",
-      goal: "Reach the target zone without hitting any obstacles.",
+      goal: "Turn left, then right to reach the target zone.",
       hints: [
         "Use read_distance() to detect obstacles ahead",
-        "Turn when distance is too close",
-        "Check distance frequently while moving",
-        "Plan your path around the obstacles",
+        "Turn left when you detect the first obstacle",
+        "Turn right when you detect the second obstacle",
+        "Then drive forward to the target",
       ],
       startPosition: { x: 1000, y: 1800, heading: 0 },
       successCriteria: {
         type: "reach_zone",
-        zone: { x: 900, y: 100, width: 200, height: 200 },
+        zone: { x: 400, y: 100, width: 200, height: 200 },
       },
       path: {
-        type: "line",
-        start: { x: 1000, y: 1800 },
-        end: { x: 1000, y: 200 },
-        width: 400,
+        type: "obstacle_course",
+        waypoints: [
+          { x: 1000, y: 1800 },
+          { x: 1000, y: 900 },
+          { x: 500, y: 900 },
+          { x: 500, y: 200 },
+        ],
+        width: 200,
       },
       obstacles: [
-        { x: 800, y: 1200, width: 200, height: 200 },
-        { x: 1100, y: 800, width: 200, height: 200 },
-        { x: 700, y: 400, width: 200, height: 200 },
+        { x: 900, y: 500, width: 200, height: 200 }, // Directly ahead - turn left (gap from path)
+        { x: 100, y: 800, width: 200, height: 200 }, // On horizontal path center - turn right
       ],
     },
 
@@ -201,7 +204,7 @@ const Challenges = (function () {
         "Wall-following is a common strategy",
         "Left-hand rule or right-hand rule can work",
       ],
-      startPosition: { x: 200, y: 1800, heading: 0 },
+      startPosition: { x: 300, y: 1700, heading: 0 },
       successCriteria: {
         type: "reach_zone",
         zone: { x: 1700, y: 100, width: 200, height: 200 },

@@ -24,17 +24,34 @@ body {
   height: 500px;
   min-height: 400px;
   font-size: 14px;
+  transition: height 0.3s ease-in-out, min-height 0.3s ease-in-out;
 }
 
 /* Reduced editor height for gamepad mode (Challenge 7) */
 #editor.gamepad-mode {
-  height: 250px;
-  min-height: 200px;
+  height: 250px !important;
+  min-height: 200px !important;
+}
+
+/* Reduced editor height when running code */
+#editor.running-mode {
+  height: 250px !important;
+  min-height: 200px !important;
 }
 
 /* Editor card shrinks to fit content in gamepad mode */
 #editorCard.gamepad-mode {
   height: auto !important;
+}
+
+/* Debug panel under editor - always visible */
+#debugPanelContainer {
+  transition: max-height 0.3s ease-in-out;
+}
+
+/* Debug panel visible when running */
+#debugPanelContainer.visible {
+  max-height: 400px;
 }
 
 /* Arena Container */

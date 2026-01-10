@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Step Mode Test - Trace Collection</title>
+    <style>
+      body {
+        font-family: monospace;
+        padding: 20px;
+        background: #1e1e1e;
+        color: #fff;
+      }
+      .pass {
+        color: #4ec9b0;
+      }
+      .fail {
+        color: #f44747;
+      }
+      .info {
+        color: #9cdcfe;
+      }
+      .warn {
+        color: #dcdcaa;
+      }
+      .output {
+        color: #ce9178;
+      }
+      #log {
+        white-space: pre-wrap;
+        line-height: 1.6;
+        margin-top: 20px;
+        max-height: 400px;
+        overflow-y: auto;
+      }
+      button {
+        padding: 10px 20px;
+        margin: 5px;
+        font-size: 16px;
+        cursor: pointer;
+      }
+      #code,
+      #instrumented {
+        background: #2d2d2d;
+        padding: 15px;
+        margin: 10px 0;
+        white-space: pre;
+        font-size: 12px;
+        max-height: 300px;
+        overflow-y: auto;
+      }
+      h3 {
+        margin-top: 20px;
+      }
+      .highlight {
+        background: #3d3d00;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Step Mode Test - Trace & Playback</h1>
+
+    <div>
+      <button id="btnCollect">1. Collect Trace</button>
+      <button id="btnStep">2. Step Through</button>
+      <button id="btnPause">Pause</button>
+      <button id="btnReset">Reset</button>
+    </div>
+
+    <h3>Original Code:</h3>
+    <div id="code"></div>
+
+    <h3>Execution Trace (<span id="traceCount">0</span> steps):</h3>
+    <div id="trace"></div>
+
+    <h3>Debug Output:</h3>
+    <div id="log"></div>
+
+    <!-- Skulpt -->
+    <script src="https://skulpt.org/js/skulpt.min.js"></script>
+    <script src="https://skulpt.org/js/skulpt-stdlib.js"></script>
+
+    <script>
+      const logEl = document.getElementById("log");
+      const codeEl = document.getElementById("code");
+      const traceEl = document.getElementById("trace");
+      const traceCountEl = document.getElementById("traceCount");
+
+      function log(msg, type = "") {
+        const span = document.createElement("span");
+        span.className = type;
+        span.textContent = msg + "\n";
+        logEl.appendChild(span);
+        logEl.scrollTop = logEl.scrollHeight;
+        console.log(`[${type || "log"}] ${msg}`);
+      }
+
+      function clearLog() {
+        logEl.innerHTML = "";
+      }
+
+      // The challenge code
+      const CODE = `# Challenge 2: Drive a Circle
+# Modify wheel_speed and speed_adjust to drive in a circle
+
+from aidriver import AIDriver, hold_state
+
+import aidriver
+
+aidriver.DEBUG_AIDRIVER = True
+my_robot = AIDriver()
+
+my_counter = 1
+wheel_speed = 180
+speed_adjust = 0  # Modify this to turn
+move_time = 0     # Set the time to complete a circle
+
+while my_counter < 3:
+    my_robot.drive_backward(wheel_speed - speed_adjust, wheel_speed + speed_adjust)
+    hold_state(move_time)
+    my_robot.brake()
+    hold_state(1)
+    my_counter = my_counter + 1
+`;
+
+      // Configuration
+      const STEP_DELAY = 500; // ms between steps during playback
+      const MAX_TRACE_STEPS = 1000; // Limit to prevent infinite loops
+      const MAX_EXECUTION_TIME = 5000; // 5 second timeout for trace collection
+
+      // State
+      let executionTrace = []; // Collected trace: [{line, code, output?}, ...]
+      let currentStep = 0;
+      let isPaused = false;
+      let pauseResolve = null;
+      let isPlaying = false;
+
+      // AIDriver Python module - fast execution, collects trace
+      const aidriverModuleSource = `
+import time as _time
+
+DEBUG_AIDRIVER = False
+_trace = []
+_max_steps = 1000
+_start_time = None
+
+def _step_debug(line_num, line_code):
+    global _trace, _max_steps
+    if len(_trace) >= _max_steps:
+        raise Exception("MAX_STEPS_EXCEEDED: Execution trace limit reached")
+    _trace.append(str(line_num) + ":" + line_code)
+    # No delay during trace collection!
+
+def _get_trace():
+    return _trace
+
+def _clear_trace():
+    global _trace
+    _trace = []
+
+def hold_state(seconds):
+    # During trace collection, we skip actual delays
+    # Just record it happened
+    pass
+
+class AIDriver:
+    def __init__(self):
+        print("[ROBOT] AIDriver initialized")
+    
+    def drive_forward(self, left, right):
+        print("[ROBOT] drive_forward(" + str(left) + ", " + str(right) + ")")
+    
+    def drive_backward(self, left, right):
+        print("[ROBOT] drive_backward(" + str(left) + ", " + str(right) + ")")
+    
+    def brake(self):
+        print("[ROBOT] brake()")
+`;
+
+      // Inject debug calls into code
+      function injectDebugCalls(code) {
+        const lines = code.split("\n");
+        const result = [];
+
+        // Add import at the beginning
+        result.push(
+          "from aidriver import _step_debug, _get_trace, _clear_trace"
+        );
+        result.push("_clear_trace()");
+        result.push("");
+
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          const lineNum = i + 1;
+          const trimmed = line.trim();
+
+          // Skip empty lines and pure comments
+          if (trimmed === "" || trimmed.startsWith("#")) {
+            result.push(line);
+            continue;
+          }
+
+          // Skip import statements
+          if (trimmed.startsWith("import ") || trimmed.startsWith("from ")) {
+            result.push(line);
+            continue;
+          }
+
+          // Skip structural keywords
+          if (
+            trimmed.startsWith("else:") ||
+            trimmed.startsWith("elif ") ||
+            trimmed.startsWith("except") ||
+            trimmed.startsWith("finally:")
+          ) {
+            result.push(line);
+            continue;
+          }
+
+          // Get indentation
+          const indent = line.match(/^(\s*)/)[1];
+
+          // Escape the line code for Python string
+          const escapedLine = trimmed
+            .replace(/\\/g, "\\\\")
+            .replace(/"/g, '\\"')
+            .replace(/'/g, "\\'");
+
+          // Add debug call before the line
+          result.push(`${indent}_step_debug(${lineNum}, "${escapedLine}")`);
+          result.push(line);
+        }
+
+        // Add trace retrieval at end
+        result.push("");
+        result.push("_final_trace = _get_trace()");
+
+        return result.join("\n");
+      }
+
+      // Collected outputs during trace run
+      let collectedOutputs = [];
+
+      // Handle output from print statements
+      function handleOutput(text) {
+        const trimmed = text.trimEnd();
+        if (trimmed) {
+          collectedOutputs.push(trimmed);
+        }
+      }
+
+      // Initialize Skulpt
+      function initSkulpt() {
+        Sk.builtinFiles = Sk.builtinFiles || { files: {} };
+        Sk.builtinFiles["files"]["src/lib/aidriver.py"] = aidriverModuleSource;
+
+        Sk.configure({
+          output: handleOutput,
+          read: (x) => {
+            if (Sk.builtinFiles["files"][x] !== undefined) {
+              return Sk.builtinFiles["files"][x];
+            }
+            throw "File not found: '" + x + "'";
+          },
+          yieldLimit: 100,
+          execLimit: MAX_EXECUTION_TIME, // Timeout for infinite loops
+          killableFor: true,
+          killableWhile: true,
+          __future__: Sk.python3,
+        });
+      }
+
+      // Collect execution trace by running instrumented code
+      async function collectTrace(code) {
+        executionTrace = [];
+        collectedOutputs = [];
+        currentStep = 0;
+
+        initSkulpt();
+
+        const instrumentedCode = injectDebugCalls(code);
+        log("Instrumented code generated", "info");
+        log(
+          "Running to collect trace (max " +
+            MAX_TRACE_STEPS +
+            " steps, " +
+            MAX_EXECUTION_TIME / 1000 +
+            "s timeout)...",
+          "info"
+        );
+
+        try {
+          const module = await Sk.misceval.asyncToPromise(() =>
+            Sk.importMainWithBody("<stdin>", false, instrumentedCode, true)
+          );
+
+          // Get the trace from Python
+          const traceVar = module.$d._final_trace;
+          if (traceVar) {
+            const traceList = Sk.ffi.remapToJs(traceVar);
+            executionTrace = traceList.map((item) => {
+              const colonIdx = item.indexOf(":");
+              return {
+                line: parseInt(item.substring(0, colonIdx)),
+                code: item.substring(colonIdx + 1),
+              };
+            });
+          }
+
+          traceCountEl.textContent = executionTrace.length;
+          log("Trace collected: " + executionTrace.length + " steps", "pass");
+
+          // Show trace preview
+          if (executionTrace.length > 0) {
+            const preview = executionTrace
+              .slice(0, 20)
+              .map((t, i) => `${i + 1}. Line ${t.line}: ${t.code}`)
+              .join("\n");
+            traceEl.textContent =
+              preview + (executionTrace.length > 20 ? "\n..." : "");
+          }
+
+          // Show collected outputs
+          if (collectedOutputs.length > 0) {
+            log("Robot outputs during trace:", "info");
+            collectedOutputs.forEach((o) => log("  " + o, "output"));
+          }
+
+          return true;
+        } catch (error) {
+          const errStr = error.toString();
+          if (errStr.includes("MAX_STEPS_EXCEEDED")) {
+            log(
+              "Trace limit reached (" +
+                MAX_TRACE_STEPS +
+                " steps) - possible infinite loop",
+              "warn"
+            );
+            log("Partial trace collected", "info");
+            // Still show what we got
+            traceCountEl.textContent = executionTrace.length + " (limit)";
+            return true;
+          } else if (errStr.includes("time limit")) {
+            log(
+              "Execution timeout (" +
+                MAX_EXECUTION_TIME / 1000 +
+                "s) - infinite loop detected",
+              "fail"
+            );
+            return false;
+          } else {
+            log("Error: " + errStr, "fail");
+            console.error(error);
+            return false;
+          }
+        }
+      }
+
+      // Play through the trace with delays
+      async function playTrace() {
+        if (executionTrace.length === 0) {
+          log("No trace to play. Click 'Collect Trace' first.", "warn");
+          return;
+        }
+
+        isPlaying = true;
+        isPaused = false;
+        log("Starting playback from step " + (currentStep + 1) + "...", "info");
+
+        while (currentStep < executionTrace.length && isPlaying) {
+          // Check for pause
+          while (isPaused && isPlaying) {
+            await new Promise((resolve) => {
+              pauseResolve = resolve;
+            });
+          }
+
+          if (!isPlaying) break;
+
+          const step = executionTrace[currentStep];
+          log(`Step mode - ${step.line} ${step.code}`, "warn");
+
+          currentStep++;
+
+          // Wait before next step
+          await new Promise((resolve) => setTimeout(resolve, STEP_DELAY));
+        }
+
+        if (currentStep >= executionTrace.length) {
+          log("Playback completed!", "pass");
+        }
+        isPlaying = false;
+      }
+
+      // Display original code with line numbers
+      function displayCode() {
+        const lines = CODE.split("\n");
+        const numbered = lines
+          .map((line, i) => `${String(i + 1).padStart(2, " ")} | ${line}`)
+          .join("\n");
+        codeEl.textContent = numbered;
+      }
+
+      displayCode();
+
+      // Collect button
+      document
+        .getElementById("btnCollect")
+        .addEventListener("click", async () => {
+          clearLog();
+          log("=== COLLECTING EXECUTION TRACE ===", "info");
+          await collectTrace(CODE);
+        });
+
+      // Step button
+      document.getElementById("btnStep").addEventListener("click", () => {
+        if (isPlaying) {
+          log("Already playing", "info");
+          return;
+        }
+        playTrace();
+      });
+
+      // Pause button
+      document.getElementById("btnPause").addEventListener("click", () => {
+        if (!isPlaying) return;
+
+        if (isPaused) {
+          isPaused = false;
+          log("Resumed", "info");
+          if (pauseResolve) {
+            pauseResolve();
+            pauseResolve = null;
+          }
+        } else {
+          isPaused = true;
+          log("Paused at step " + currentStep, "info");
+        }
+      });
+
+      // Reset button
+      document.getElementById("btnReset").addEventListener("click", () => {
+        isPlaying = false;
+        isPaused = false;
+        currentStep = 0;
+        executionTrace = [];
+        traceCountEl.textContent = "0";
+        traceEl.textContent = "";
+        if (pauseResolve) {
+          pauseResolve();
+          pauseResolve = null;
+        }
+        clearLog();
+        log("Reset - Click 'Collect Trace' to start", "info");
+      });
+
+      log(
+        'Click "Collect Trace" to run code and collect execution steps',
+        "info"
+      );
+      log('Then click "Step Through" to play back with delays', "info");
+    </script>
+  </body>
+</html>

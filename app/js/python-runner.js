@@ -11,10 +11,22 @@ const PythonRunner = {
   currentSuspension: null,
   executionId: 0, // Track current execution to ignore stale callbacks
 
-  // Step mode
+  // Step mode with trace collection
   stepMode: false,
-  stepResolve: null,
-  currentLine: 0,
+  stepDelay: 750, // Delay between steps in playback (ms)
+  stepPaused: false, // Is playback paused?
+  stepResumeResolve: null, // Promise resolver for resuming
+  sourceCode: "", // Store source code for line display
+  sourceLines: [], // Source code split by lines
+
+  // Trace collection for step mode
+  executionTrace: [], // Collected trace: [{line, code}, ...]
+  traceOutputs: [], // Robot outputs during trace
+  currentTraceStep: 0, // Current position in trace playback
+  isCollectingTrace: false, // True during trace collection phase
+  isPlayingTrace: false, // True during trace playback phase
+  maxTraceSteps: 1000, // Limit to prevent infinite loops
+  maxTraceTime: 5000, // 5 second timeout for trace collection
 
   // Execution promise
   executionPromise: null,
@@ -59,12 +71,64 @@ const PythonRunner = {
    * Get Python source for aidriver module
    * This uses a simple approach - call window functions from Python
    */
-  getAIDriverPythonModule() {
+  getAIDriverPythonModule(forTraceCollection = false) {
     // Get speed multiplier from App (default to 1)
     const speedMult =
       typeof App !== "undefined" && App.speedMultiplier
         ? App.speedMultiplier
         : 1;
+    const maxSteps = this.maxTraceSteps;
+
+    // During trace collection, skip delays. During normal run, no step debug.
+    const stepDebugCode = forTraceCollection
+      ? `
+# Trace collection mode - collect execution trace with commands, no delays
+_trace = []
+_max_steps = ${maxSteps}
+_pending_commands = []  # Commands issued since last step
+
+def _step_debug(line_num, line_code):
+    """Collect trace entry with any pending commands"""
+    global _trace, _pending_commands, _command_queue
+    if len(_trace) >= _max_steps:
+        raise Exception("MAX_STEPS_EXCEEDED: Trace limit reached")
+    # Capture any commands that were queued and add to trace
+    cmds = _command_queue[:]
+    _command_queue = []
+    _trace.append({
+        "line": line_num,
+        "code": line_code,
+        "commands": cmds
+    })
+
+def _get_trace():
+    global _trace, _command_queue
+    # Capture any final commands
+    if len(_command_queue) > 0:
+        _trace.append({
+            "line": 0,
+            "code": "[final commands]",
+            "commands": _command_queue[:]
+        })
+        _command_queue = []
+    return _trace
+
+def _clear_trace():
+    global _trace
+    _trace = []
+`
+      : `
+# Normal run mode - step debug just prints marker
+def _step_debug(line_num, line_code):
+    print("__STEP_DEBUG__:" + str(line_num) + ":" + line_code)
+
+def _get_trace():
+    return []
+
+def _clear_trace():
+    pass
+`;
+
     return `
 # AIDriver module for browser simulator
 # This is a Python implementation that works with Skulpt
@@ -74,6 +138,10 @@ _SPEED_MULTIPLIER = ${speedMult}
 
 # Command queue - will be read by JavaScript
 _command_queue = []
+
+import time
+
+${stepDebugCode}
 
 def _queue_command(cmd_type, params=None):
     """Queue a command for the JavaScript simulator"""
@@ -345,10 +413,26 @@ def ticks_diff(t1, t2):
 
   /**
    * Handle Python print output
+   * Intercepts step debug messages and displays them specially
    */
   handleOutput(text) {
+    const trimmed = text.trimEnd();
+
+    // Check for step debug marker
+    if (trimmed.startsWith("__STEP_DEBUG__:")) {
+      const parts = trimmed.substring(15).split(":");
+      const lineNum = parts[0];
+      const lineCode = parts.slice(1).join(":"); // Rejoin in case line has colons
+
+      if (typeof DebugPanel !== "undefined") {
+        DebugPanel.info(`Step mode - ${lineNum} ${lineCode}`);
+      }
+      return; // Don't log the raw debug message
+    }
+
+    // Normal output
     if (typeof DebugPanel !== "undefined") {
-      DebugPanel.log(text.trimEnd(), "output");
+      DebugPanel.log(trimmed, "output");
     } else {
       console.log("[Python]", text);
     }
@@ -403,6 +487,10 @@ def ticks_diff(t1, t2):
       return;
     }
 
+    // Store source code for line display
+    this.sourceCode = code;
+    this.sourceLines = code.split("\n");
+
     // Validate code first
     if (typeof Validator !== "undefined") {
       const validation = Validator.validate(code);
@@ -421,7 +509,6 @@ def ticks_diff(t1, t2):
 
     this.isRunning = true;
     this.shouldStop = false;
-    this.stepMode = false;
     this.executionId++; // Increment to invalidate stale callbacks
 
     // Clear command queue
@@ -438,12 +525,17 @@ def ticks_diff(t1, t2):
       // Re-register external modules (in case they were cleared)
       this.registerMicroPythonModules();
 
+      // Store reference to this for callbacks
+      const self = this;
+
       // Configure Skulpt for async execution
       Sk.configure({
         output: this.handleOutput.bind(this),
         read: this.handleRead.bind(this),
         yieldLimit: 100, // Yield every 100 ops to prevent blocking
         execLimit: Number.MAX_SAFE_INTEGER,
+        killableFor: true,
+        killableWhile: true,
         __future__: Sk.python3,
       });
 
@@ -451,13 +543,35 @@ def ticks_diff(t1, t2):
       const promise = Sk.misceval.asyncToPromise(
         () => Sk.importMainWithBody("<stdin>", false, code, true),
         {
-          "*": () => {
+          // Handle time.sleep promises with pause support
+          "Sk.promise": function (susp) {
+            if (self.shouldStop) {
+              throw new Sk.builtin.KeyboardInterrupt("Execution stopped");
+            }
+
+            // Process any queued commands BEFORE the sleep starts
+            self.processCommandQueue();
+
+            // If paused in step mode, wait for resume
+            if (self.stepMode && self.stepPaused) {
+              return new Promise((resolve) => {
+                self.stepResumeResolve = () => {
+                  // After resume, continue with original promise
+                  susp.data.promise.then(resolve);
+                };
+              });
+            }
+
+            // Return the sleep promise - animation loop will handle physics
+            return susp.data.promise;
+          },
+          "*": function () {
             // Check if we should stop
-            if (this.shouldStop) {
+            if (self.shouldStop) {
               throw new Sk.builtin.KeyboardInterrupt("Execution stopped");
             }
             // Process commands on each yield
-            this.processCommandQueue();
+            self.processCommandQueue();
 
             // Trigger render if robot is moving
             if (typeof App !== "undefined" && App.robot && App.robot.isMoving) {
@@ -472,34 +586,442 @@ def ticks_diff(t1, t2):
       this.executionPromise = promise;
       await promise;
 
+      console.log(
+        "[PythonRunner] Execution promise resolved successfully - this is unexpected for infinite loops!"
+      );
+
       if (typeof DebugPanel !== "undefined") {
         DebugPanel.log("[Python] Execution completed", "success");
       }
     } catch (error) {
+      console.log("[PythonRunner] Execution threw error:", error);
       this.handleError(error);
     } finally {
+      console.log("[PythonRunner] Stopped (finally block)");
       this.isRunning = false;
+      this.stepMode = false;
       this.executionPromise = null;
     }
   },
 
   /**
-   * Run code in step mode
-   * @param {string} code - Python source code
+   * Transform code to inject debug calls before each line
+   * @param {string} code - Original Python code
+   * @returns {string} - Transformed code with debug calls
    */
-  async runStep(code) {
-    this.stepMode = true;
-    await this.run(code);
+  injectDebugCalls(code) {
+    const lines = code.split("\n");
+    const result = [];
+
+    // Add imports at the very beginning (includes _get_trace for trace collection)
+    result.push("from aidriver import _step_debug, _get_trace");
+    result.push("");
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const lineNum = i + 1;
+      const trimmed = line.trim();
+
+      // Skip empty lines and pure comments
+      if (trimmed === "" || trimmed.startsWith("#")) {
+        result.push(line);
+        continue;
+      }
+
+      // Skip import statements (already processed by the added import)
+      if (trimmed.startsWith("import ") || trimmed.startsWith("from ")) {
+        result.push(line);
+        continue;
+      }
+
+      // Skip structural keywords that can't have code before them
+      if (
+        trimmed.startsWith("else:") ||
+        trimmed.startsWith("elif ") ||
+        trimmed.startsWith("except") ||
+        trimmed.startsWith("finally:")
+      ) {
+        result.push(line);
+        continue;
+      }
+
+      // Get indentation
+      const indent = line.match(/^(\s*)/)[1];
+
+      // Escape the line code for Python string
+      const escapedLine = trimmed
+        .replace(/\\/g, "\\\\")
+        .replace(/"/g, '\\"')
+        .replace(/'/g, "\\'");
+
+      // Add debug call before the line (same indentation)
+      result.push(`${indent}_step_debug(${lineNum}, "${escapedLine}")`);
+      result.push(line);
+    }
+
+    return result.join("\n");
   },
 
   /**
-   * Execute next step (when in step mode)
+   * Run code in step mode with trace collection and playback
+   * Phase 1: Collect execution trace (fast, no delays)
+   * Phase 2: Play back trace with delays, showing each step
+   * @param {string} code - Python source code
    */
-  step() {
-    if (this.stepMode && this.stepResolve) {
-      this.stepResolve();
-      this.stepResolve = null;
+  async runStepMode(code) {
+    this.sourceCode = code;
+    this.sourceLines = code.split("\n");
+    this.stepMode = true;
+    this.stepPaused = false;
+    this.shouldStop = false;
+    this.executionTrace = [];
+    this.traceOutputs = [];
+    this.currentTraceStep = 0;
+
+    // Phase 1: Collect execution trace
+    if (typeof DebugPanel !== "undefined") {
+      DebugPanel.info("Collecting execution trace...");
     }
+
+    const traceCollected = await this.collectTrace(code);
+
+    if (!traceCollected || this.shouldStop) {
+      return;
+    }
+
+    if (typeof DebugPanel !== "undefined") {
+      DebugPanel.info(`Trace collected: ${this.executionTrace.length} steps`);
+      DebugPanel.info("Starting step-by-step playback...");
+    }
+
+    // Phase 2: Play back the trace with delays
+    await this.playTrace();
+  },
+
+  /**
+   * Phase 1: Collect execution trace by running code fast without delays
+   * @param {string} code - Python source code
+   * @returns {boolean} - True if trace collected successfully
+   */
+  async collectTrace(code) {
+    this.isCollectingTrace = true;
+    this.executionTrace = [];
+    this.traceOutputs = [];
+
+    // Get the trace collection version of the module
+    const traceModule = this.getAIDriverPythonModule(true);
+
+    // Register modules with trace collection mode
+    Sk.builtinFiles = Sk.builtinFiles || { files: {} };
+    Sk.builtinFiles["files"]["src/lib/aidriver.py"] = traceModule;
+
+    // Clear any cached aidriver module to force reimport with trace version
+    if (Sk.sysmodules && Sk.sysmodules.mp$ass_subscript) {
+      try {
+        Sk.sysmodules.mp$del_subscript(new Sk.builtin.str("aidriver"));
+      } catch (e) {
+        // Ignore if not found
+      }
+    }
+
+    // Custom read function for trace collection
+    const self = this;
+    const traceRead = function (filename) {
+      if (
+        filename === "src/lib/aidriver.py" ||
+        filename === "./aidriver.py" ||
+        filename === "aidriver.py" ||
+        filename === "src/lib/aidriver/__init__.py"
+      ) {
+        return traceModule;
+      }
+      if (Sk.builtinFiles && Sk.builtinFiles["files"][filename]) {
+        return Sk.builtinFiles["files"][filename];
+      }
+      throw new Sk.builtin.ImportError("No module named " + filename);
+    };
+
+    // Reconfigure Skulpt with timeout for infinite loop protection
+    Sk.configure({
+      output: (text) => {
+        const trimmed = text.trimEnd();
+        if (trimmed) {
+          this.traceOutputs.push(trimmed);
+        }
+      },
+      read: traceRead,
+      inputfunTakesPrompt: true,
+      __future__: Sk.python3,
+      execLimit: this.maxTraceTime, // Timeout for infinite loops
+      killableWhile: true,
+      killableFor: true,
+    });
+
+    // Inject debug calls and add trace retrieval
+    const instrumentedCode =
+      this.injectDebugCalls(code) + "\n_final_trace = _get_trace()";
+    console.log("[PythonRunner] Trace collection code:", instrumentedCode);
+
+    try {
+      const module = await Sk.misceval.asyncToPromise(() =>
+        Sk.importMainWithBody("<stdin>", false, instrumentedCode, true)
+      );
+
+      // Get the trace from Python - now includes commands
+      const traceVar = module.$d._final_trace;
+      console.log("[PythonRunner] traceVar:", traceVar);
+      if (traceVar) {
+        const traceList = Sk.ffi.remapToJs(traceVar);
+        console.log("[PythonRunner] traceList from Python:", traceList);
+        this.executionTrace = traceList.map((item) => {
+          // New format: {line, code, commands}
+          return {
+            line: item.line || 0,
+            code: item.code || "",
+            commands: item.commands || [],
+          };
+        });
+        console.log(
+          "[PythonRunner] executionTrace after mapping:",
+          this.executionTrace
+        );
+      }
+
+      this.isCollectingTrace = false;
+      return true;
+    } catch (error) {
+      this.isCollectingTrace = false;
+      const errStr = error.toString();
+
+      if (errStr.includes("MAX_STEPS_EXCEEDED")) {
+        if (typeof DebugPanel !== "undefined") {
+          DebugPanel.warn(
+            `Trace limit reached (${this.maxTraceSteps} steps) - possible infinite loop`
+          );
+          DebugPanel.info("Partial trace will be played back");
+        }
+        return true; // Still play back what we collected
+      } else if (
+        errStr.includes("time limit") ||
+        errStr.includes("TimeLimitError")
+      ) {
+        if (typeof DebugPanel !== "undefined") {
+          DebugPanel.error(
+            `Execution timeout (${
+              this.maxTraceTime / 1000
+            }s) - infinite loop detected`
+          );
+        }
+        return false;
+      } else {
+        if (typeof DebugPanel !== "undefined") {
+          DebugPanel.error("Error during trace collection: " + errStr);
+        }
+        console.error("[PythonRunner] Trace collection error:", error);
+        return false;
+      }
+    }
+  },
+
+  /**
+   * Phase 2: Play back the collected trace with delays and line highlighting
+   */
+  async playTrace() {
+    this.isPlayingTrace = true;
+    this.currentTraceStep = 0;
+
+    console.log(
+      "[PythonRunner] playTrace starting with",
+      this.executionTrace.length,
+      "steps"
+    );
+
+    while (
+      this.currentTraceStep < this.executionTrace.length &&
+      !this.shouldStop
+    ) {
+      console.log(
+        "[PythonRunner] Loop iteration:",
+        this.currentTraceStep,
+        "shouldStop:",
+        this.shouldStop,
+        "stepPaused:",
+        this.stepPaused
+      );
+
+      // Check for pause
+      while (this.stepPaused && !this.shouldStop) {
+        await new Promise((resolve) => {
+          this.stepResumeResolve = resolve;
+        });
+      }
+
+      if (this.shouldStop) break;
+
+      const step = this.executionTrace[this.currentTraceStep];
+
+      // Skip the "[final commands]" step for display
+      if (step.line > 0) {
+        // Highlight the line in the editor
+        if (typeof Editor !== "undefined" && Editor.highlightLine) {
+          Editor.highlightLine(step.line);
+        }
+
+        // Display the step in debug panel
+        if (typeof DebugPanel !== "undefined") {
+          DebugPanel.info(`Step mode - ${step.line} ${step.code}`);
+        }
+      }
+
+      // Execute any robot commands from this step
+      if (step.commands && step.commands.length > 0) {
+        for (const cmd of step.commands) {
+          this.executeRobotCommand(cmd);
+        }
+        // Trigger a render to show robot movement
+        if (typeof render === "function") {
+          render();
+        }
+      }
+
+      this.currentTraceStep++;
+
+      // Wait before next step
+      console.log(
+        "[PythonRunner] Waiting",
+        this.stepDelay,
+        "ms before next step"
+      );
+      await new Promise((resolve) => setTimeout(resolve, this.stepDelay));
+      console.log("[PythonRunner] Delay complete, continuing");
+    }
+
+    // Clear line highlight
+    if (typeof Editor !== "undefined" && Editor.clearHighlight) {
+      Editor.clearHighlight();
+    }
+
+    // Show any robot outputs that were collected (filter out step debug messages)
+    const filteredOutputs = this.traceOutputs.filter(
+      (output) => !output.startsWith("__STEP_DEBUG__:")
+    );
+    if (filteredOutputs.length > 0 && typeof DebugPanel !== "undefined") {
+      DebugPanel.info("--- Robot outputs ---");
+      filteredOutputs.forEach((output) => {
+        DebugPanel.log(output, "output");
+      });
+    }
+
+    this.isPlayingTrace = false;
+
+    if (this.currentTraceStep >= this.executionTrace.length) {
+      if (typeof DebugPanel !== "undefined") {
+        DebugPanel.success("Step mode playback completed");
+      }
+    }
+  },
+
+  /**
+   * Pause step mode playback
+   */
+  pauseStep() {
+    this.stepPaused = true;
+    if (typeof DebugPanel !== "undefined") {
+      DebugPanel.info(
+        `Paused at step ${this.currentTraceStep} of ${this.executionTrace.length}`
+      );
+    }
+  },
+
+  /**
+   * Resume step mode playback
+   */
+  resumeStep() {
+    this.stepPaused = false;
+    if (this.stepResumeResolve) {
+      this.stepResumeResolve();
+      this.stepResumeResolve = null;
+    }
+    if (typeof DebugPanel !== "undefined") {
+      DebugPanel.info("Step mode resumed");
+    }
+  },
+
+  /**
+   * Execute a single robot command during step playback
+   * @param {object} cmd - Command object with type and params
+   */
+  executeRobotCommand(cmd) {
+    if (typeof App === "undefined" || !App.robot) {
+      console.log("[PythonRunner] Cannot execute command - no App.robot");
+      return;
+    }
+
+    console.log("[PythonRunner] Step executing command:", cmd.type, cmd.params);
+
+    switch (cmd.type) {
+      case "drive_forward":
+        App.robot.leftSpeed = cmd.params.leftSpeed;
+        App.robot.rightSpeed = cmd.params.rightSpeed;
+        App.robot.isMoving = true;
+        break;
+
+      case "drive_backward":
+        App.robot.leftSpeed = -cmd.params.leftSpeed;
+        App.robot.rightSpeed = -cmd.params.rightSpeed;
+        App.robot.isMoving = true;
+        break;
+
+      case "rotate_left":
+        App.robot.leftSpeed = -cmd.params.turnSpeed;
+        App.robot.rightSpeed = cmd.params.turnSpeed;
+        App.robot.isMoving = true;
+        break;
+
+      case "rotate_right":
+        App.robot.leftSpeed = cmd.params.turnSpeed;
+        App.robot.rightSpeed = -cmd.params.turnSpeed;
+        App.robot.isMoving = true;
+        break;
+
+      case "brake":
+        App.robot.leftSpeed = 0;
+        App.robot.rightSpeed = 0;
+        App.robot.isMoving = false;
+        break;
+
+      case "init":
+        // Robot initialized
+        break;
+
+      case "hold_state":
+        // Hold current state - physics handled by startAnimationLoop()
+        break;
+
+      default:
+        console.log("[PythonRunner] Unknown command type:", cmd.type);
+    }
+
+    // Note: Physics updates are handled by startAnimationLoop() which calls Simulator.step()
+    // Just trigger a render to show the updated state
+    if (typeof render === "function") {
+      render();
+    }
+  },
+
+  /**
+   * Get the current line info for debugging
+   * @param {number} lineNum - 1-based line number
+   * @returns {object} - { lineNum, lineCode }
+   */
+  getLineInfo(lineNum) {
+    if (lineNum > 0 && lineNum <= this.sourceLines.length) {
+      return {
+        lineNum: lineNum,
+        lineCode: this.sourceLines[lineNum - 1].trim(),
+      };
+    }
+    return { lineNum: lineNum, lineCode: "" };
   },
 
   /**
@@ -509,10 +1031,12 @@ def ticks_diff(t1, t2):
     this.shouldStop = true;
     this.isRunning = false;
     this.stepMode = false;
-
-    if (this.stepResolve) {
-      this.stepResolve();
-      this.stepResolve = null;
+    this.stepPaused = false;
+    this.isCollectingTrace = false;
+    this.isPlayingTrace = false;
+    if (this.stepResumeResolve) {
+      this.stepResumeResolve();
+      this.stepResumeResolve = null;
     }
 
     // Clear command queue
@@ -555,6 +1079,11 @@ def ticks_diff(t1, t2):
             if (result && result.v) {
               // Convert Python list to JavaScript array
               commands = Sk.ffi.remapToJs(result);
+              console.log(
+                "[PythonRunner] Got commands from Python:",
+                commands.length,
+                commands.map((c) => c.type)
+              );
             }
           }
         }
@@ -569,6 +1098,12 @@ def ticks_diff(t1, t2):
       commands.push(AIDriverStub.getNextCommand());
     }
 
+    if (commands.length === 0) {
+      return; // No commands to process
+    }
+
+    console.log("[PythonRunner] Processing", commands.length, "commands");
+
     // Process all commands
     for (const cmd of commands) {
       console.log("[PythonRunner] Processing command:", cmd.type, cmd.params);
@@ -580,6 +1115,12 @@ def ticks_diff(t1, t2):
             App.robot.leftSpeed = cmd.params.leftSpeed;
             App.robot.rightSpeed = cmd.params.rightSpeed;
             App.robot.isMoving = true;
+            console.log(
+              "[PythonRunner] Robot set to move:",
+              App.robot.leftSpeed,
+              App.robot.rightSpeed,
+              App.robot.isMoving
+            );
             console.log(
               "[PythonRunner] Robot moving forward:",
               App.robot.leftSpeed,
