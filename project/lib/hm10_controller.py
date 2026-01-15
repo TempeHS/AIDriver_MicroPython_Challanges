@@ -139,5 +139,3 @@ class HM10Controller:
 
     def any(self):
         return self._uart.any()
-
-```}``` Reponse truncated. need finishing: ensure file ends newline maybe not truncated? we created closing curly? there is stray ```? oh we inserted triple back? In create file we included closing braces? After `return self._uart.any()` we should ensure newline. But there may also be leftover because we used create_file? Provided content ended with 
