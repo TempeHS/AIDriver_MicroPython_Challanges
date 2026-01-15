@@ -1,0 +1,74 @@
+name: Build and Release Firmware
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Tag to create (e.g. v1.0.0)"
+        required: true
+      release_name:
+        description: "Release title (defaults to tag)"
+        required: false
+      prerelease:
+        type: boolean
+        description: "Mark release as pre-release"
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    name: Build firmware and publish release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build python3 python3-pip python3-venv pkg-config libffi-dev gcc-arm-none-eabi libnewlib-arm-none-eabi
+          python3 -m pip install --upgrade pip
+
+      - name: Prepare workspace layout for build scripts
+        run: |
+          sudo mkdir -p /workspaces
+          sudo ln -sfn "$GITHUB_WORKSPACE" /workspaces/AIDriver_MicroPython_Challanges
+
+      - name: Build firmware
+        run: ./.devcontainer/build_firmware.sh --force-clean --skip-update
+
+      - name: Summarize build output
+        run: |
+          ls -lh _Firmware
+          cat _Firmware/build_info.txt
+
+      - name: Derive release metadata
+        id: release_meta
+        run: |
+          if [ -z "$RELEASE_NAME" ]; then
+            echo "name=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=$RELEASE_NAME" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          RELEASE_NAME: ${{ inputs.release_name }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: ${{ inputs.release_tag }}
+          name: ${{ steps.release_meta.outputs.name }}
+          target_commitish: ${{ github.sha }}
+          prerelease: ${{ inputs.prerelease }}
+          generate_release_notes: true
+          body_path: _Firmware/build_info.txt
+          files: |
+            _Firmware/AI_Driver_RP2040.uf2
+            _Firmware/build_info.txt
