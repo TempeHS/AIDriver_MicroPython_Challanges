@@ -767,7 +767,8 @@ const Gamepad = (function () {
    */
   function toBleByte(value) {
     const clamped = clamp(Math.round(value), -MAX_SPEED, MAX_SPEED);
-    return clamped < 0 ? 256 + clamped : clamped;
+    const scaled = clamp(Math.round((clamped * 127) / MAX_SPEED), -127, 127);
+    return scaled < 0 ? 256 + scaled : scaled;
   }
 
   /**
