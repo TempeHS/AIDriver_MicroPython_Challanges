@@ -8,7 +8,7 @@ Original licenses maintained: GNU GPL for code, Creative Commons for content
 Dependencies: machine, time modules (built into MicroPython)
 """
 
-from machine import Pin, PWM, time_pulse_us, Timer
+from machine import Pin, PWM, time_pulse_us
 from time import sleep_us, sleep_ms, sleep as _sleep, ticks_ms, ticks_diff
 
 try:
@@ -67,18 +67,13 @@ DEBUG_AIDRIVER = False
 
 
 # Onboard status LED (UNO-style RP2040: D13 → GPIO 13).
-try:
-    _STATUS_LED = Pin(13, Pin.OUT)
-except Exception:
-    _STATUS_LED = None
+# Using PWM for heartbeat - runs entirely in hardware with zero CPU impact.
+_STATUS_LED_PIN = 13
+_STATUS_LED_PWM = None  # Initialized lazily in AIDriver.__init__()
 
 
-# Internal state for non-blocking heartbeat timing
+# Internal state for non-blocking heartbeat timing (legacy, kept for compatibility)
 _last_heartbeat_ms = 0
-
-
-# Hardware timer for background heartbeat (initialized lazily).
-_HEARTBEAT_TIMER = None
 
 
 # Ultrasonic sensor inline warning state
@@ -120,42 +115,45 @@ def _ultrasonic_warn_clear():
     _ultrasonic_last_warn_ms = 0
 
 
-def _timer_heartbeat_callback(timer):
-    """Timer ISR: toggle the onboard LED.
+def _start_pwm_heartbeat():
+    """Start PWM-based heartbeat on the onboard LED.
 
-    This callback must stay extremely small and not allocate memory.
-    It is intended only for the automatic background heartbeat.
+    Uses hardware PWM at ~1Hz with 50% duty cycle - runs entirely in
+    hardware with zero CPU interrupts or blocking.
     """
+    global _STATUS_LED_PWM
+    if _STATUS_LED_PWM is not None:
+        return  # Already running
 
-    if _STATUS_LED is not None:
-        try:
-            _STATUS_LED.toggle()
-        except Exception:
-            # Never raise from an interrupt; ignore any LED issues.
-            pass
+    try:
+        _STATUS_LED_PWM = PWM(Pin(_STATUS_LED_PIN))
+        _STATUS_LED_PWM.freq(1)  # 1Hz = 1 blink per second
+        _STATUS_LED_PWM.duty_u16(32768)  # 50% duty cycle
+        _d("PWM heartbeat started (1Hz, hardware-driven)")
+    except Exception as exc:
+        _d("Failed to start PWM heartbeat:", exc)
+        _STATUS_LED_PWM = None
 
 
 def heartbeat(period_ms=1000):
-    """Non-blocking heartbeat helper for the onboard LED.
+    """Adjust the PWM heartbeat frequency.
 
-    This function can be called frequently (for example from a main loop
-    or from the AIDriver.service() method). It only toggles the onboard
-    status LED when at least ``period_ms`` milliseconds have passed since
-    the last toggle, so it never blocks student code.
+    With PWM-based heartbeat, this adjusts the blink rate.
+    The LED blinks automatically in hardware - no need to call this
+    from a loop. Use it only if you want to change the blink speed.
 
-    The default period is 1000 ms, giving a 1 Hz toggle rate.
+    Args:
+        period_ms: Blink period in milliseconds (default 1000 = 1Hz)
     """
-
-    if _STATUS_LED is None:
+    if _STATUS_LED_PWM is None:
         return
 
-    global _last_heartbeat_ms
-
-    now = ticks_ms()
-    # ticks_diff handles wrap-around of the millisecond counter.
-    if ticks_diff(now, _last_heartbeat_ms) >= period_ms:
-        _STATUS_LED.toggle()
-        _last_heartbeat_ms = now
+    try:
+        # Convert period to frequency (Hz)
+        freq = max(1, 1000 // period_ms)
+        _STATUS_LED_PWM.freq(freq)
+    except Exception:
+        pass
 
 
 def _explain_error(exc):
@@ -264,24 +262,13 @@ def hold_state(seconds):
 
 
 def _led_heartbeat_ok():
-    """Toggle the onboard LED once per call.
+    """Legacy function - heartbeat is now automatic via PWM.
 
-    Intended for use in the main control loop to show an "alive and well" state:
-
-        import aidriver
-        from aidriver import AIDriver
-
-        robot = AIDriver()
-
-        while True:
-            aidriver._led_heartbeat_ok()
-            # rest of control logic
-
-    If no onboard LED is available, this does nothing.
+    The onboard LED now blinks automatically using hardware PWM when
+    AIDriver is instantiated. This function is kept for compatibility
+    but does nothing.
     """
-    if _STATUS_LED is None:
-        return
-    _STATUS_LED.toggle()
+    pass
 
 
 class UltrasonicSensor:
@@ -546,20 +533,9 @@ class AIDriver:
 
         _d("AIDriver initialized - debug logging active")
 
-        # Start a hardware-timer-based heartbeat so the onboard LED
-        # blinks in the background without any changes to main.py.
-        # This is shared across all AIDriver instances.
-        global _HEARTBEAT_TIMER
-        try:
-            if _HEARTBEAT_TIMER is None and _STATUS_LED is not None:
-                _HEARTBEAT_TIMER = Timer(-1)
-                # 1000 ms period -> roughly 1 Hz LED toggle
-                _HEARTBEAT_TIMER.init(
-                    period=1000, mode=Timer.PERIODIC, callback=_timer_heartbeat_callback
-                )
-                _d("Heartbeat timer started (1s period)")
-        except Exception as exc:
-            _d("Failed to start heartbeat timer:", exc)
+        # Start PWM-based heartbeat - runs entirely in hardware
+        # with zero CPU interrupts or impact on motor control.
+        _start_pwm_heartbeat()
 
     def read_distance(self):
         """

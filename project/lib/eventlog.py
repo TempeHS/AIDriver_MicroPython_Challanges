@@ -7,10 +7,6 @@ their current run with the previous one. Only two files are ever kept.
 Files:
     event_log.txt      - Current run (written to)
     event_log_prev.txt - Previous run (read-only reference)
-
-Non-blocking mode:
-    Set ``BUFFERED = True`` to buffer logs in memory instead of writing
-    to flash on every call. Call ``flush()`` to write buffered entries.
 """
 
 import time
@@ -26,11 +22,6 @@ _LOG_PREV_PATH = "event_log_prev.txt"
 _start_ticks = time.ticks_ms()
 _LOG_ENABLED = True
 _initialized = False
-
-# Non-blocking buffered mode settings
-BUFFERED = True  # Buffer logs in memory; call flush() to write to flash
-BUFFER_MAX = 10  # Auto-flush when buffer reaches this size (0 = never)
-_buffer = []
 
 
 def _rotate_logs():
@@ -133,10 +124,7 @@ def log_separator():
 
 
 def log_event(message):
-    """Append a single-line, human-readable event to the log.
-
-    If BUFFERED is True, entries are stored in memory until flush() is called.
-    """
+    """Append a single-line, human-readable event to the log."""
     if not _LOG_ENABLED:
         return
 
@@ -144,41 +132,8 @@ def log_event(message):
     _rotate_logs()
 
     t = _elapsed_s()
-    line = "t+{:.2f}s : {}\n".format(t, message)
-
-    if BUFFERED:
-        _buffer.append(line)
-        # Auto-flush if buffer is full
-        if BUFFER_MAX > 0 and len(_buffer) >= BUFFER_MAX:
-            flush()
-    else:
-        try:
-            with open(_LOG_PATH, "a") as f:
-                f.write(line)
-        except Exception:
-            pass
-
-
-def flush():
-    """Write all buffered log entries to flash.
-
-    Call this during idle periods (e.g., after robot.brake()) to avoid
-    blocking during motor operation. Safe to call even if buffer is empty.
-    """
-    global _buffer
-    if not _buffer:
-        return
-
-    _rotate_logs()  # Ensure initialized
-
     try:
         with open(_LOG_PATH, "a") as f:
-            f.write("".join(_buffer))
-        _buffer = []
+            f.write("t+{:.2f}s : {}\n".format(t, message))
     except Exception:
         pass
-
-
-def get_buffer_count():
-    """Return the number of entries waiting in the buffer."""
-    return len(_buffer)
