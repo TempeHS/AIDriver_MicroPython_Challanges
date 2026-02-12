@@ -66,9 +66,10 @@ def _describe_rotation(direction, turn_speed):
 DEBUG_AIDRIVER = False
 
 
-# Onboard status LED (UNO-style RP2040: D13 → GPIO 13).
+# Onboard status LED – use GPIO 25 (Raspberry Pi Pico onboard LED).
+# GPIO 13 cannot be used here because it is the left-motor direction pin.
 # Using PWM for heartbeat - runs entirely in hardware with zero CPU impact.
-_STATUS_LED_PIN = 13
+_STATUS_LED_PIN = 25
 _STATUS_LED_PWM = None  # Initialized lazily in AIDriver.__init__()
 
 
@@ -127,9 +128,9 @@ def _start_pwm_heartbeat():
 
     try:
         _STATUS_LED_PWM = PWM(Pin(_STATUS_LED_PIN))
-        _STATUS_LED_PWM.freq(1)  # 1Hz = 1 blink per second
+        _STATUS_LED_PWM.freq(8)  # RP2040 minimum PWM freq is ~8Hz
         _STATUS_LED_PWM.duty_u16(32768)  # 50% duty cycle
-        _d("PWM heartbeat started (1Hz, hardware-driven)")
+        _d("PWM heartbeat started (8Hz, hardware-driven)")
     except Exception as exc:
         _d("Failed to start PWM heartbeat:", exc)
         _STATUS_LED_PWM = None
