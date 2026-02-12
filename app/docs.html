@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -65,9 +65,36 @@
         margin-bottom: 0;
       }
 
-      /* Style for [!Important] callouts */
-      .markdown-body blockquote:has(strong:first-child) {
+      .markdown-alert {
+        padding: 0.5rem 1rem;
+        margin: 0 0 1rem 0;
+        border-left: 0.25rem solid #30363d;
+        background-color: #161b22;
+      }
+
+      .markdown-alert-title {
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+      }
+
+      .markdown-alert-note {
+        border-left-color: #58a6ff;
+      }
+
+      .markdown-alert-tip {
+        border-left-color: #3fb950;
+      }
+
+      .markdown-alert-important {
         border-left-color: #a371f7;
+      }
+
+      .markdown-alert-warning {
+        border-left-color: #d29922;
+      }
+
+      .markdown-alert-caution {
+        border-left-color: #f85149;
       }
 
       /* Card fills the width */
@@ -380,6 +407,52 @@
           .replace(/src="\.\/images\//g, `src="${GITHUB_IMAGES_BASE}`);
       }
 
+      // Convert GitHub-style alerts to the same HTML structure GitHub renders
+      function transformMarkdownAlerts(html) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, "text/html");
+        const alertTypes = {
+          NOTE: "note",
+          TIP: "tip",
+          IMPORTANT: "important",
+          WARNING: "warning",
+          CAUTION: "caution",
+        };
+
+        doc.querySelectorAll("blockquote").forEach((blockquote) => {
+          const firstParagraph = blockquote.querySelector("p");
+          if (!firstParagraph) return;
+
+          const text = firstParagraph.textContent || "";
+          const match = text.match(
+            /^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/i,
+          );
+          if (!match) return;
+
+          const type = match[1].toUpperCase();
+          const slug = alertTypes[type];
+          if (!slug) return;
+
+          firstParagraph.textContent = text.replace(match[0], "");
+
+          const alert = doc.createElement("div");
+          alert.className = `markdown-alert markdown-alert-${slug}`;
+
+          const title = doc.createElement("p");
+          title.className = "markdown-alert-title";
+          title.textContent = type.charAt(0) + type.slice(1).toLowerCase();
+          alert.appendChild(title);
+
+          while (blockquote.firstChild) {
+            alert.appendChild(blockquote.firstChild);
+          }
+
+          blockquote.replaceWith(alert);
+        });
+
+        return doc.body.innerHTML;
+      }
+
       // Load and render markdown
       async function loadMarkdown(docName) {
         const spinner = document.getElementById("loadingSpinner");
@@ -407,6 +480,9 @@
 
           // Fix image URLs
           html = fixImageUrls(html);
+
+          // Convert GitHub-style alerts
+          html = transformMarkdownAlerts(html);
 
           // Sanitize HTML
           html = DOMPurify.sanitize(html, {
@@ -439,7 +515,7 @@
             if (href && href.startsWith("docs.html?doc=")) {
               e.preventDefault();
               const docName = new URLSearchParams(href.split("?")[1]).get(
-                "doc"
+                "doc",
               );
               if (docName) {
                 window.history.pushState({}, "", href);
