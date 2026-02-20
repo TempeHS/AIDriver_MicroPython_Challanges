@@ -22,7 +22,9 @@
   "python.analysis.typeshedPaths": ["~/.micropico-stubs/included"],
   "python.analysis.extraPaths": [
     "~/.micropico-stubs/included",
-    "./examples/smooth_"
+    "./examples/smooth_",
+    "/root/.vscode-remote/extensions/benpaddlejones.pico-bridge-2.0.2/emulator/mock/typings",
+    "/root/.vscode-remote/extensions/benpaddlejones.pico-bridge-2.0.2/emulator/mock/micropython"
   ],
   "micropico.syncFolder": "project",
   "workbench.colorTheme": "Default Dark+",
