@@ -290,10 +290,9 @@ class UltrasonicSensor:
         self.trig_pin.off()
 
         # Sensor configuration
-        self.sound_speed_mm_us = 0.343  # Speed of sound in mm/μs
         self.max_distance_mm = 2000  # Max sensor range in mm
-        # Calculate timeout based on max distance
-        self.timeout_us = int(self.max_distance_mm * 2.5 / self.sound_speed_mm_us)
+        # Timeout: 30,000μs allows ~2x longer echo wait (500 * 2 * 30)
+        self.timeout_us = 30000
 
     def read_distance_mm(self):
         """
@@ -302,46 +301,69 @@ class UltrasonicSensor:
         Returns:
             int: Distance in millimeters, or -1 if the reading is out of range or fails.
         """
-        # Add a delay to allow the sensor to settle between readings.
-        sleep_ms(30)
+        # Pre-check: ensure echo pin is LOW (not stuck high from wiring issue)
+        if self.echo_pin.value() != 0:
+            _ultrasonic_warn_inline("Echo pin stuck HIGH – check wiring")
+            if _ultrasonic_fail_count <= 3 and eventlog is not None:
+                try:
+                    eventlog.log_event("ultrasonic echo pin stuck high")
+                except Exception:
+                    pass
+            return -1
 
-        # Send a 10μs trigger pulse
+        # Send a 10μs trigger pulse with 5μs stabilization
         self.trig_pin.off()
-        sleep_us(2)
+        sleep_us(5)
         self.trig_pin.on()
         sleep_us(10)
         self.trig_pin.off()
 
         try:
-            # Measure the duration of the echo pulse
+            # Measure the duration of the echo pulse (with retry on failure)
             duration = time_pulse_us(self.echo_pin, 1, self.timeout_us)
 
             # time_pulse_us returns -1 on timeout and -2 on invalid state
             if duration < 0:
-                _ultrasonic_warn_inline("Sensor error – check wiring")
-                # Only log to eventlog on first few failures to avoid log spam
-                if _ultrasonic_fail_count <= 3 and eventlog is not None:
-                    try:
-                        eventlog.log_event("ultrasonic timeout or invalid echo")
-                    except Exception:
-                        pass
-                return -1
+                # Retry once after brief delay to handle transient issues
+                sleep_ms(20)  # Let sensor settle
+                self.trig_pin.off()
+                sleep_us(5)
+                self.trig_pin.on()
+                sleep_us(10)
+                self.trig_pin.off()
+                duration = time_pulse_us(self.echo_pin, 1, self.timeout_us)
+                
+                # If still failing after retry, report error
+                if duration < 0:
+                    _ultrasonic_warn_inline("Sensor error – check wiring")
+                    # Only log to eventlog on first few failures to avoid log spam
+                    if _ultrasonic_fail_count <= 3 and eventlog is not None:
+                        try:
+                            eventlog.log_event("ultrasonic timeout or invalid echo")
+                        except Exception:
+                            pass
+                    return -1
 
-            # Calculate distance in mm: (duration * speed_of_sound) / 2
-            distance_mm = (duration * self.sound_speed_mm_us) / 2
+            # Calculate distance in mm using integer math (avoids floating point)
+            # Sound speed: 343.2 m/s = 0.3432 mm/μs
+            # distance = (time * speed) / 2, so: time * 100 // 582
+            distance_mm = duration * 100 // 582
 
             # Check if the reading is within the valid range (20mm to 2000mm)
             if 20 <= distance_mm <= self.max_distance_mm:
                 # Clear any inline warning since we got a good reading
                 _ultrasonic_warn_clear()
+                result = int(distance_mm)
+                
+                # Log AFTER timing-sensitive measurement is complete
                 if eventlog is not None:
                     try:
                         eventlog.log_event(
-                            "distance reading: {} mm".format(int(distance_mm))
+                            "distance reading: {} mm".format(result)
                         )
                     except Exception:
                         pass
-                return int(distance_mm)
+                return result
 
             # Out of range – likely too close, too far, or pointing into open space
             _ultrasonic_warn_inline("Out of range ({}mm)".format(int(distance_mm)))
@@ -467,26 +489,26 @@ class AIDriver:
 
     def __init__(
         self,
-        right_speed_pin=3,  # GP2 (PWM capable)
-        left_speed_pin=11,  # GP3 (PWM capable)
-        right_dir_pin=12,  # GP4
-        right_brake_pin=9,  # GP5
-        left_dir_pin=13,  # GP6
-        left_brake_pin=8,  # GP7
-        trig_pin=6,  # GP8
-        echo_pin=7,  # GP9
+        right_speed_pin=3,  # GP3 (PWM capable)
+        left_speed_pin=11,  # GP11 (PWM capable)
+        right_dir_pin=12,  # GP12
+        right_brake_pin=9,  # GP9
+        left_dir_pin=13,  # GP13
+        left_brake_pin=8,  # GP8
+        trig_pin=6,  # GP6
+        echo_pin=7,  # GP7
     ):
         """Initialize RP2040 based AIDriver differential drive robot.
 
         Args:
-            right_speed_pin: PWM pin for right motor speed (default GP2)
-            left_speed_pin: PWM pin for left motor speed (default GP3)
-            right_dir_pin: Digital pin for right motor direction (default GP4)
-            right_brake_pin: Digital pin for right motor brake (default GP5)
-            left_dir_pin: Digital pin for left motor direction (default GP6)
-            left_brake_pin: Digital pin for left motor brake (default GP7)
-            trig_pin: Ultrasonic sensor trigger pin (default GP8)
-            echo_pin: Ultrasonic sensor echo pin (default GP9)
+            right_speed_pin: PWM pin for right motor speed (default GP3)
+            left_speed_pin: PWM pin for left motor speed (default GP11)
+            right_dir_pin: Digital pin for right motor direction (default GP12)
+            right_brake_pin: Digital pin for right motor brake (default GP9)
+            left_dir_pin: Digital pin for left motor direction (default GP13)
+            left_brake_pin: Digital pin for left motor brake (default GP8)
+            trig_pin: Ultrasonic sensor trigger pin (default GP6)
+            echo_pin: Ultrasonic sensor echo pin (default GP7)
         """
 
         # Library-side preflight: log pin config and attempt a quick sensor ping
