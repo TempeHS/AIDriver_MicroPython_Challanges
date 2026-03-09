@@ -8,13 +8,8 @@ Original licenses maintained: GNU GPL for code, Creative Commons for content
 Dependencies: machine, time modules (built into MicroPython)
 """
 
-from machine import Pin, PWM
-from time import sleep_ms, sleep as _sleep, ticks_ms, ticks_diff
-
-try:
-    from hcsr04 import HCSR04
-except ImportError:
-    HCSR04 = None
+from machine import Pin, PWM, time_pulse_us
+from time import sleep_us, sleep_ms, sleep as _sleep, ticks_ms, ticks_diff
 
 try:
     import eventlog
@@ -82,8 +77,43 @@ _STATUS_LED_PWM = None  # Initialized lazily in AIDriver.__init__()
 _last_heartbeat_ms = 0
 
 
-# Ultrasonic sensor consecutive-failure counter (for throttled warnings)
+# Ultrasonic sensor inline warning state
 _ultrasonic_fail_count = 0
+_ultrasonic_warned = False  # Have we printed the initial warning?
+
+
+def _ultrasonic_warn_inline(message):
+    """Print a warning once, then add dots for each subsequent failure.
+
+    This approach works in all terminals including Arduino Lab which
+    doesn't support carriage return for in-place updates.
+    """
+    global _ultrasonic_fail_count, _ultrasonic_warned
+
+    _ultrasonic_fail_count += 1
+
+    # Print the initial warning (no newline)
+    if not _ultrasonic_warned:
+        # Use separate print to ensure message appears
+        print()  # newline first to separate from previous output
+        print("[AIDriver] " + message, end="")
+        _ultrasonic_warned = True
+    else:
+        # Just add a dot for each subsequent failure
+        print(".", end="")
+
+
+def _ultrasonic_warn_clear():
+    """End the warning line and reset the failure counter."""
+    global _ultrasonic_fail_count, _ultrasonic_warned
+
+    if _ultrasonic_warned:
+        # End the line with newline
+        print()  # newline
+
+    _ultrasonic_fail_count = 0
+    _ultrasonic_warned = False
+    _ultrasonic_last_warn_ms = 0
 
 
 def _start_pwm_heartbeat():
@@ -242,6 +272,123 @@ def _led_heartbeat_ok():
     pass
 
 
+class UltrasonicSensor:
+    """
+    HC-SR04 Ultrasonic Sensor class for distance measurement.
+    """
+
+    def __init__(self, trig_pin, echo_pin):
+        """
+        Initialize ultrasonic sensor.
+
+        Args:
+            trig_pin: GPIO pin for trigger signal.
+            echo_pin: GPIO pin for echo signal.
+        """
+        self.trig_pin = Pin(trig_pin, Pin.OUT)
+        self.echo_pin = Pin(echo_pin, Pin.IN)
+        self.trig_pin.off()
+
+        # Sensor configuration
+        self.max_distance_mm = 2000  # Max sensor range in mm
+        # Timeout: 30,000μs allows ~2x longer echo wait (500 * 2 * 30)
+        self.timeout_us = 30000
+
+    def read_distance_mm(self):
+        """
+        Read distance from the sensor and return it in millimeters.
+
+        Returns:
+            int: Distance in millimeters, or -1 if the reading is out of range or fails.
+        """
+        # Pre-check: ensure echo pin is LOW (not stuck high from wiring issue)
+        if self.echo_pin.value() != 0:
+            _ultrasonic_warn_inline("Echo pin stuck HIGH – check wiring")
+            if _ultrasonic_fail_count <= 3 and eventlog is not None:
+                try:
+                    eventlog.log_event("ultrasonic echo pin stuck high")
+                except Exception:
+                    pass
+            return -1
+
+        # Send a 10μs trigger pulse with 5μs stabilization
+        self.trig_pin.off()
+        sleep_us(5)
+        self.trig_pin.on()
+        sleep_us(10)
+        self.trig_pin.off()
+
+        try:
+            # Measure the duration of the echo pulse (with retry on failure)
+            duration = time_pulse_us(self.echo_pin, 1, self.timeout_us)
+
+            # time_pulse_us returns -1 on timeout and -2 on invalid state
+            if duration < 0:
+                # Retry once after brief delay to handle transient issues
+                sleep_ms(20)  # Let sensor settle
+                self.trig_pin.off()
+                sleep_us(5)
+                self.trig_pin.on()
+                sleep_us(10)
+                self.trig_pin.off()
+                duration = time_pulse_us(self.echo_pin, 1, self.timeout_us)
+                
+                # If still failing after retry, report error
+                if duration < 0:
+                    _ultrasonic_warn_inline("Sensor error – check wiring")
+                    # Only log to eventlog on first few failures to avoid log spam
+                    if _ultrasonic_fail_count <= 3 and eventlog is not None:
+                        try:
+                            eventlog.log_event("ultrasonic timeout or invalid echo")
+                        except Exception:
+                            pass
+                    return -1
+
+            # Calculate distance in mm using integer math (avoids floating point)
+            # Sound speed: 343.2 m/s = 0.3432 mm/μs
+            # distance = (time * speed) / 2, so: time * 100 // 582
+            distance_mm = duration * 100 // 582
+
+            # Check if the reading is within the valid range (20mm to 2000mm)
+            if 20 <= distance_mm <= self.max_distance_mm:
+                # Clear any inline warning since we got a good reading
+                _ultrasonic_warn_clear()
+                result = int(distance_mm)
+                
+                # Log AFTER timing-sensitive measurement is complete
+                if eventlog is not None:
+                    try:
+                        eventlog.log_event(
+                            "distance reading: {} mm".format(result)
+                        )
+                    except Exception:
+                        pass
+                return result
+
+            # Out of range – likely too close, too far, or pointing into open space
+            _ultrasonic_warn_inline("Out of range ({}mm)".format(int(distance_mm)))
+            # Only log to eventlog on first few failures to avoid log spam
+            if _ultrasonic_fail_count <= 3 and eventlog is not None:
+                try:
+                    eventlog.log_event(
+                        "ultrasonic out of range: {} mm".format(int(distance_mm))
+                    )
+                except Exception:
+                    pass
+            return -1
+
+        except OSError as exc:
+            # This can occur if there's an issue with time_pulse_us or pin configuration
+            _ultrasonic_warn_inline("OSError – check pins & power")
+            # Only log to eventlog on first few failures to avoid log spam
+            if _ultrasonic_fail_count <= 3 and eventlog is not None:
+                try:
+                    eventlog.log_event("ultrasonic OSError: {}".format(exc))
+                except Exception:
+                    pass
+            return -1
+
+
 class L298N:
     """
     L298N Motor Driver class for controlling a single motor
@@ -348,8 +495,8 @@ class AIDriver:
         right_brake_pin=9,  # GP9
         left_dir_pin=13,  # GP13
         left_brake_pin=8,  # GP8
-        trig_pin=7,  # GP7
-        echo_pin=6,  # GP6
+        trig_pin=6,  # GP6
+        echo_pin=7,  # GP7
     ):
         """Initialize RP2040 based AIDriver differential drive robot.
 
@@ -360,8 +507,8 @@ class AIDriver:
             right_brake_pin: Digital pin for right motor brake (default GP9)
             left_dir_pin: Digital pin for left motor direction (default GP13)
             left_brake_pin: Digital pin for left motor brake (default GP8)
-            trig_pin: Ultrasonic sensor trigger pin (default GP7)
-            echo_pin: Ultrasonic sensor echo pin (default GP6)
+            trig_pin: Ultrasonic sensor trigger pin (default GP6)
+            echo_pin: Ultrasonic sensor echo pin (default GP7)
         """
 
         # Library-side preflight: log pin config and attempt a quick sensor ping
@@ -389,30 +536,23 @@ class AIDriver:
         self.motor_right = L298N(right_speed_pin, right_dir_pin, right_brake_pin)
         self.motor_left = L298N(left_speed_pin, left_dir_pin, left_brake_pin)
 
-        # Initialize ultrasonic sensor using proven HCSR04 driver
-        if HCSR04 is None:
-            _d("WARNING: hcsr04 module not found – ultrasonic disabled")
-            self.ultrasonic = None
-        else:
-            self.ultrasonic = HCSR04(
-                trigger_pin=trig_pin,
-                echo_pin=echo_pin,
+        # Initialize ultrasonic sensor
+        self.ultrasonic = UltrasonicSensor(trig_pin, echo_pin)
+
+        # Silent hardware sanity ping (only visible if DEBUG_AIDRIVER is True)
+        try:
+            d = self.ultrasonic.read_distance_mm()
+            if d == -1:
+                _d(
+                    "Ultrasonic preflight: reading -1. Check wiring, aim at object 2–200cm.",
+                )
+        except Exception as exc:
+            _d(
+                "Ultrasonic preflight error:",
+                type(exc).__name__,
+                str(exc),
+                "– check TRIG/ECHO pins and sensor power.",
             )
-            # Silent hardware sanity ping (only visible if DEBUG_AIDRIVER is True)
-            try:
-                d = self.ultrasonic.distance_mm()
-                _d("Ultrasonic preflight:", d, "mm")
-            except OSError:
-                _d(
-                    "Ultrasonic preflight: out of range.",
-                    "Check wiring, aim at object 2–400cm.",
-                )
-            except Exception as exc:
-                _d(
-                    "Ultrasonic preflight error:",
-                    type(exc).__name__,
-                    str(exc),
-                )
 
         _d("AIDriver initialized - debug logging active")
 
@@ -424,47 +564,15 @@ class AIDriver:
         """
         Read distance from ultrasonic sensor.
 
-        Uses the HCSR04 driver directly. All logging and debug output
-        happens AFTER the time-critical pulse measurement is complete
-        so nothing interferes with the echo timing.
-
         Returns:
-            Distance in millimeters, or -1 if sensor unavailable or out of range.
+            Distance in millimeters, or -1 if invalid reading.
         """
-        global _ultrasonic_fail_count
-
-        if self.ultrasonic is None:
+        distance_mm = self.ultrasonic.read_distance_mm()
+        if distance_mm == -1:
+            # Don't print debug here - inline warning handles user feedback
             return -1
-
-        # --- Time-critical section: no I/O, no logging, no exceptions ---
-        try:
-            distance_mm = self.ultrasonic.distance_mm()
-        except OSError:
-            distance_mm = -1
-        # --- End time-critical section ---
-
-        # Now safe to do debug + eventlog (sensor reading is already done)
-        if distance_mm < 0:
-            _ultrasonic_fail_count += 1
-            if _ultrasonic_fail_count <= 3:
-                _d("read_distance: out of range or error")
-                if eventlog is not None:
-                    try:
-                        eventlog.log_event("ultrasonic: out of range")
-                    except Exception:
-                        pass
-            return -1
-
-        _ultrasonic_fail_count = 0
         _d("read_distance:", distance_mm, "mm")
-        if eventlog is not None:
-            try:
-                eventlog.log_event(
-                    "distance reading: {} mm".format(distance_mm)
-                )
-            except Exception:
-                pass
-        return distance_mm
+        return int(distance_mm)
 
     def brake(self):
         """Stop both motors"""

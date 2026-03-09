@@ -136,4 +136,8 @@ def main():
         hold_state(0.5)
 
     print("All hardware tests completed.")
+
+
+if __name__ == "__main__":
+    main()
 ```
