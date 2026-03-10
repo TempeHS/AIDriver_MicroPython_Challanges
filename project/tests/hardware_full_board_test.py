@@ -120,7 +120,7 @@ if AIDriver is not None:
 
     # Verify ultrasonic was bound
     if robot is not None:
-        has_us = robot.ultrasonic is not None
+        has_us = robot.ultrasonic_1 is not None
         _record("AIDriver ultrasonic attached", has_us)
     else:
         _record("AIDriver ultrasonic attached", False, "robot not created")
