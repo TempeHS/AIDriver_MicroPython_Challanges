@@ -37,15 +37,12 @@ const PythonRunner = {
    * @returns {void}
    */
   init() {
-    // Register external modules FIRST (before configure)
-    this.registerMicroPythonModules();
-
     console.log(
       "[PythonRunner] Before Sk.configure - Sk.setTimeout:",
-      typeof Sk.setTimeout
+      typeof Sk.setTimeout,
     );
 
-    // Configure Skulpt - pass setTimeout as option (it gets reset during configure)
+    // Configure Skulpt FIRST, then register modules (configure may reset builtinFiles)
     Sk.configure({
       output: this.handleOutput.bind(this),
       read: this.handleRead.bind(this),
@@ -62,32 +59,42 @@ const PythonRunner = {
       },
     });
 
+    // Register external modules AFTER configure so entries are not lost
+    this.registerMicroPythonModules();
+
     console.log(
       "[PythonRunner] After Sk.configure - Sk.setTimeout:",
-      typeof Sk.setTimeout
+      typeof Sk.setTimeout,
     );
     console.log(
       "[PythonRunner] Sk.setTimeout function:",
-      Sk.setTimeout ? Sk.setTimeout.toString().substring(0, 100) : "undefined"
+      Sk.setTimeout ? Sk.setTimeout.toString().substring(0, 100) : "undefined",
     );
     console.log("[PythonRunner] Initialized with MicroPython module mocks");
   },
 
   /**
    * Register JavaScript-backed modules that emulate the MicroPython environment.
-   * Currently injects the aidriver stub needed by learner scripts.
+   * Injects the aidriver stub as a JS builtin file so Skulpt's import mechanism
+   * finds the .js module before falling through to the .py shim.
+   * Must be called AFTER Sk.configure() since configure may reset builtinFiles.
    * @returns {void}
    */
   registerMicroPythonModules() {
-    // Initialize builtin files
+    // Initialize builtin files (preserves stdlib entries from skulpt-stdlib.js)
     Sk.builtinFiles = Sk.builtinFiles || { files: {} };
 
-    // Register aidriver as a JavaScript builtin module (for proper suspension support)
-    // This uses AIDriverStub.getModule() which has promiseToSuspension for hold_state
-    Sk.builtinModules = Sk.builtinModules || {};
-    Sk.builtinModules["aidriver"] = AIDriverStub.getModule();
+    // Register aidriver as a JS builtin file so Skulpt's .js path search finds it.
+    // Skulpt 1.2.0 does NOT have Sk.builtinModules - it only checks builtinFiles.
+    // The $builtinmodule function is called by Skulpt with the module dict.
+    // We store the factory on a global so the eval'd string can reference it.
+    window.__aidriverModuleFactory = AIDriverStub.getModule();
+    Sk.builtinFiles["files"]["src/lib/aidriver.js"] =
+      "var $builtinmodule = function() { return window.__aidriverModuleFactory('aidriver'); };";
 
-    console.log("[PythonRunner] Registered aidriver JS builtin module");
+    console.log(
+      "[PythonRunner] Registered aidriver JS builtin module in builtinFiles",
+    );
   },
 
   /**
@@ -350,7 +357,7 @@ def hold_state(seconds):
           });
         },
         "Pin",
-        []
+        [],
       );
 
       // Pin constants
@@ -384,7 +391,7 @@ def hold_state(seconds):
           });
         },
         "PWM",
-        []
+        [],
       );
 
       // Timer class mock
@@ -405,7 +412,7 @@ def hold_state(seconds):
           });
         },
         "Timer",
-        []
+        [],
       );
 
       mod.Timer.PERIODIC = new Sk.builtin.int_(1);
@@ -520,10 +527,10 @@ def ticks_diff(t1, t2):
       filename === "src/lib/aidriver/__init__.py"
     ) {
       console.log(
-        "[PythonRunner] *** RETURNING PYTHON MODULE for aidriver ***"
+        "[PythonRunner] *** RETURNING PYTHON MODULE for aidriver ***",
       );
       console.log(
-        "[PythonRunner] This uses time.sleep() - not the JS builtin module!"
+        "[PythonRunner] This uses time.sleep() - not the JS builtin module!",
       );
       return this.getAIDriverPythonModule();
     }
@@ -546,7 +553,7 @@ def ticks_diff(t1, t2):
     if (typeof DebugPanel !== "undefined") {
       DebugPanel.log(
         "[Error] input() is not supported in the simulator",
-        "error"
+        "error",
       );
     }
     throw new Error("input() is not supported in the simulator");
@@ -576,7 +583,7 @@ def ticks_diff(t1, t2):
       if (!validation.valid) {
         if (typeof DebugPanel !== "undefined") {
           DebugPanel.error(
-            "Code has errors that must be fixed before running:"
+            "Code has errors that must be fixed before running:",
           );
           for (const error of validation.errors) {
             DebugPanel.error(`  Line ${error.line}: ${error.message}`);
@@ -601,18 +608,15 @@ def ticks_diff(t1, t2):
     }
 
     try {
-      // Re-register external modules (in case they were cleared)
-      this.registerMicroPythonModules();
-
       // Store reference to this for callbacks
       const self = this;
 
       console.log(
         "[PythonRunner] run() - Before Sk.configure, Sk.setTimeout:",
-        typeof Sk.setTimeout
+        typeof Sk.setTimeout,
       );
 
-      // Configure Skulpt for async execution
+      // Configure Skulpt FIRST, then re-register modules
       Sk.configure({
         output: this.handleOutput.bind(this),
         read: this.handleRead.bind(this),
@@ -626,19 +630,22 @@ def ticks_diff(t1, t2):
           console.log(
             "[Skulpt run()] setTimeout called with delay:",
             delay,
-            "ms"
+            "ms",
           );
           return setTimeout(fn, delay);
         },
       });
 
+      // Re-register external modules AFTER configure (configure may reset builtinFiles)
+      this.registerMicroPythonModules();
+
       console.log(
         "[PythonRunner] run() - After Sk.configure, Sk.setTimeout:",
-        typeof Sk.setTimeout
+        typeof Sk.setTimeout,
       );
       console.log(
         "[PythonRunner] run() - Sk.setTimeout:",
-        Sk.setTimeout ? Sk.setTimeout.toString().substring(0, 80) : "undefined"
+        Sk.setTimeout ? Sk.setTimeout.toString().substring(0, 80) : "undefined",
       );
 
       // Compile and run
@@ -649,7 +656,7 @@ def ticks_diff(t1, t2):
           "Sk.promise": function (susp) {
             console.log(
               "[PythonRunner] Sk.promise handler called, susp.data:",
-              susp.data
+              susp.data,
             );
             console.log("[PythonRunner] susp.data.promise:", susp.data.promise);
 
@@ -686,17 +693,17 @@ def ticks_diff(t1, t2):
             // "A suspension handler should return a Promise yielding the
             // return value of susp.resume()"
             console.log(
-              "[PythonRunner] Returning promise from Sk.promise handler"
+              "[PythonRunner] Returning promise from Sk.promise handler",
             );
             return susp.data.promise.then((result) => {
               console.log(
                 "[PythonRunner] Sleep promise resolved with:",
-                result
+                result,
               );
               // CRITICAL: Set the result and call resume() to continue Python
               susp.data.result = result;
               console.log(
-                "[PythonRunner] Calling susp.resume() to continue Python execution"
+                "[PythonRunner] Calling susp.resume() to continue Python execution",
               );
               return susp.resume();
             });
@@ -718,14 +725,14 @@ def ticks_diff(t1, t2):
               }
             }
           },
-        }
+        },
       );
 
       this.executionPromise = promise;
       await promise;
 
       console.log(
-        "[PythonRunner] Execution promise resolved successfully - this is unexpected for infinite loops!"
+        "[PythonRunner] Execution promise resolved successfully - this is unexpected for infinite loops!",
       );
 
       if (typeof DebugPanel !== "undefined") {
@@ -855,8 +862,10 @@ def ticks_diff(t1, t2):
     // Get the trace collection version of the module
     const traceModule = this.getAIDriverPythonModule(true);
 
-    // Register modules with trace collection mode
+    // Temporarily remove the JS module so Skulpt falls through to the Python trace module
     Sk.builtinFiles = Sk.builtinFiles || { files: {} };
+    const savedJsModule = Sk.builtinFiles["files"]["src/lib/aidriver.js"];
+    delete Sk.builtinFiles["files"]["src/lib/aidriver.js"];
     Sk.builtinFiles["files"]["src/lib/aidriver.py"] = traceModule;
 
     // Clear any cached aidriver module to force reimport with trace version
@@ -912,7 +921,7 @@ def ticks_diff(t1, t2):
 
     try {
       const module = await Sk.misceval.asyncToPromise(() =>
-        Sk.importMainWithBody("<stdin>", false, instrumentedCode, true)
+        Sk.importMainWithBody("<stdin>", false, instrumentedCode, true),
       );
 
       // Get the trace from Python - now includes commands
@@ -931,7 +940,7 @@ def ticks_diff(t1, t2):
         });
         console.log(
           "[PythonRunner] executionTrace after mapping:",
-          this.executionTrace
+          this.executionTrace,
         );
       }
 
@@ -944,7 +953,7 @@ def ticks_diff(t1, t2):
       if (errStr.includes("MAX_STEPS_EXCEEDED")) {
         if (typeof DebugPanel !== "undefined") {
           DebugPanel.warn(
-            `Trace limit reached (${this.maxTraceSteps} steps) - possible infinite loop`
+            `Trace limit reached (${this.maxTraceSteps} steps) - possible infinite loop`,
           );
           DebugPanel.info("Partial trace will be played back");
         }
@@ -957,7 +966,7 @@ def ticks_diff(t1, t2):
           DebugPanel.error(
             `Execution timeout (${
               this.maxTraceTime / 1000
-            }s) - infinite loop detected`
+            }s) - infinite loop detected`,
           );
         }
         return false;
@@ -968,6 +977,12 @@ def ticks_diff(t1, t2):
         console.error("[PythonRunner] Trace collection error:", error);
         return false;
       }
+    } finally {
+      // Restore the JS module registration for normal run mode
+      if (savedJsModule) {
+        Sk.builtinFiles["files"]["src/lib/aidriver.js"] = savedJsModule;
+      }
+      delete Sk.builtinFiles["files"]["src/lib/aidriver.py"];
     }
   },
 
@@ -986,7 +1001,7 @@ def ticks_diff(t1, t2):
     console.log(
       "[PythonRunner] playTrace starting with",
       this.executionTrace.length,
-      "steps"
+      "steps",
     );
 
     while (
@@ -999,7 +1014,7 @@ def ticks_diff(t1, t2):
         "shouldStop:",
         this.shouldStop,
         "stepPaused:",
-        this.stepPaused
+        this.stepPaused,
       );
 
       // Check for pause
@@ -1043,7 +1058,7 @@ def ticks_diff(t1, t2):
       console.log(
         "[PythonRunner] Waiting",
         this.stepDelay,
-        "ms before next step"
+        "ms before next step",
       );
       await new Promise((resolve) => setTimeout(resolve, this.stepDelay));
       console.log("[PythonRunner] Delay complete, continuing");
@@ -1056,7 +1071,7 @@ def ticks_diff(t1, t2):
 
     // Show any robot outputs that were collected (filter out step debug messages)
     const filteredOutputs = this.traceOutputs.filter(
-      (output) => !output.startsWith("__STEP_DEBUG__:")
+      (output) => !output.startsWith("__STEP_DEBUG__:"),
     );
     if (filteredOutputs.length > 0 && typeof DebugPanel !== "undefined") {
       DebugPanel.info("--- Robot outputs ---");
@@ -1082,7 +1097,7 @@ def ticks_diff(t1, t2):
     this.stepPaused = true;
     if (typeof DebugPanel !== "undefined") {
       DebugPanel.info(
-        `Paused at step ${this.currentTraceStep} of ${this.executionTrace.length}`
+        `Paused at step ${this.currentTraceStep} of ${this.executionTrace.length}`,
       );
     }
   },
@@ -1131,14 +1146,16 @@ def ticks_diff(t1, t2):
         break;
 
       case "rotate_left":
-        App.robot.leftSpeed = -cmd.params.turnSpeed;
-        App.robot.rightSpeed = cmd.params.turnSpeed;
+        // Left wheel forward, right wheel backward → counter-clockwise
+        App.robot.leftSpeed = cmd.params.turnSpeed;
+        App.robot.rightSpeed = -cmd.params.turnSpeed;
         App.robot.isMoving = true;
         break;
 
       case "rotate_right":
-        App.robot.leftSpeed = cmd.params.turnSpeed;
-        App.robot.rightSpeed = -cmd.params.turnSpeed;
+        // Left wheel backward, right wheel forward → clockwise
+        App.robot.leftSpeed = -cmd.params.turnSpeed;
+        App.robot.rightSpeed = cmd.params.turnSpeed;
         App.robot.isMoving = true;
         break;
 
@@ -1229,37 +1246,7 @@ def ticks_diff(t1, t2):
     // Try to get commands from Python's aidriver module
     let commands = [];
 
-    try {
-      // Access the aidriver module if it's been imported
-      if (Sk.sysmodules && Sk.sysmodules.mp$subscript) {
-        const aidriverMod = Sk.sysmodules.mp$subscript(
-          new Sk.builtin.str("aidriver")
-        );
-        if (aidriverMod) {
-          // Call _get_commands() to retrieve and clear the queue
-          const getCommandsFunc = aidriverMod.tp$getattr(
-            new Sk.builtin.str("_get_commands")
-          );
-          if (getCommandsFunc) {
-            const result = Sk.misceval.callsimOrSuspend(getCommandsFunc);
-            if (result && result.v) {
-              // Convert Python list to JavaScript array
-              commands = Sk.ffi.remapToJs(result);
-              console.log(
-                "[PythonRunner] Got commands from Python:",
-                commands.length,
-                commands.map((c) => c.type)
-              );
-            }
-          }
-        }
-      }
-    } catch (e) {
-      // Module not loaded yet or error - ignore
-      console.log("[PythonRunner] Could not get commands from Python:", e);
-    }
-
-    // Also check AIDriverStub for backwards compatibility
+    // Read commands from AIDriverStub queue (populated by the JS builtin module)
     while (AIDriverStub.hasCommands()) {
       commands.push(AIDriverStub.getNextCommand());
     }
@@ -1285,12 +1272,12 @@ def ticks_diff(t1, t2):
               "[PythonRunner] Robot set to move:",
               App.robot.leftSpeed,
               App.robot.rightSpeed,
-              App.robot.isMoving
+              App.robot.isMoving,
             );
             console.log(
               "[PythonRunner] Robot moving forward:",
               App.robot.leftSpeed,
-              App.robot.rightSpeed
+              App.robot.rightSpeed,
             );
             break;
 
@@ -1301,14 +1288,16 @@ def ticks_diff(t1, t2):
             break;
 
           case "rotate_left":
-            App.robot.leftSpeed = -cmd.params.turnSpeed;
-            App.robot.rightSpeed = cmd.params.turnSpeed;
+            // Left wheel forward, right wheel backward → counter-clockwise
+            App.robot.leftSpeed = cmd.params.turnSpeed;
+            App.robot.rightSpeed = -cmd.params.turnSpeed;
             App.robot.isMoving = true;
             break;
 
           case "rotate_right":
-            App.robot.leftSpeed = cmd.params.turnSpeed;
-            App.robot.rightSpeed = -cmd.params.turnSpeed;
+            // Left wheel backward, right wheel forward → clockwise
+            App.robot.leftSpeed = -cmd.params.turnSpeed;
+            App.robot.rightSpeed = cmd.params.turnSpeed;
             App.robot.isMoving = true;
             break;
 

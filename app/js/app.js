@@ -149,7 +149,7 @@ function cacheElements() {
 function initBootstrapComponents() {
   // Initialize all tooltips
   const tooltipTriggerList = document.querySelectorAll(
-    '[data-bs-toggle="tooltip"]'
+    '[data-bs-toggle="tooltip"]',
   );
   tooltipTriggerList.forEach((el) => new bootstrap.Tooltip(el));
 
@@ -248,7 +248,7 @@ function setupEventListeners() {
   // Reset code button - show modal
   App.elements.btnResetCode.addEventListener("click", () => {
     const modal = new bootstrap.Modal(
-      document.getElementById("resetCodeModal")
+      document.getElementById("resetCodeModal"),
     );
     modal.show();
   });
@@ -257,7 +257,7 @@ function setupEventListeners() {
   App.elements.btnConfirmReset.addEventListener("click", () => {
     resetToStarterCode();
     bootstrap.Modal.getInstance(
-      document.getElementById("resetCodeModal")
+      document.getElementById("resetCodeModal"),
     ).hide();
   });
 
@@ -507,7 +507,7 @@ function loadChallenge(challengeId) {
     `Challenge ${challengeId}: ${
       challenge ? challenge.title : "Unknown"
     } loaded`,
-    "info"
+    "info",
   );
   App.elements.challengeStatus.textContent = "Ready";
   App.elements.challengeStatus.className = "badge bg-secondary";
@@ -532,7 +532,7 @@ async function loadStarterCode(challengeId) {
   if (challengeId === "debug") {
     try {
       const response = await fetch(
-        "https://raw.githubusercontent.com/TempeHS/AIDriver_MicroPython_Challanges/refs/heads/main/project/main.py"
+        "https://raw.githubusercontent.com/TempeHS/AIDriver_MicroPython_Challanges/refs/heads/main/project/main.py",
       );
       if (response.ok) {
         const code = await response.text();
@@ -545,7 +545,7 @@ async function loadStarterCode(challengeId) {
     }
     // Fallback if fetch fails
     Editor.setCode(
-      "# Could not load project/main.py\n# Check your internet connection\n"
+      "# Could not load project/main.py\n# Check your internet connection\n",
     );
     return;
   }
@@ -806,7 +806,7 @@ async function stepCode() {
   App.elements.btnStop.disabled = false;
 
   DebugPanel.info(
-    "Step Mode - collecting execution trace and playing back with delays"
+    "Step Mode - collecting execution trace and playing back with delays",
   );
   updateStatus("Stepping...", "info");
   App.elements.challengeStatus.textContent = "Stepping";
@@ -1133,7 +1133,7 @@ function drawPath(ctx, scale) {
         path.center.y * scale,
         (path.radius + path.width / 2) * scale,
         0,
-        Math.PI * 2
+        Math.PI * 2,
       );
       ctx.arc(
         path.center.x * scale,
@@ -1141,7 +1141,7 @@ function drawPath(ctx, scale) {
         (path.radius - path.width / 2) * scale,
         0,
         Math.PI * 2,
-        true
+        true,
       );
       ctx.fill("evenodd");
 
@@ -1154,7 +1154,7 @@ function drawPath(ctx, scale) {
         path.center.y * scale,
         path.radius * scale,
         0,
-        Math.PI * 2
+        Math.PI * 2,
       );
       ctx.stroke();
 
@@ -1167,7 +1167,7 @@ function drawPath(ctx, scale) {
         path.center.y * scale,
         (path.radius - path.width / 2) * scale,
         0,
-        Math.PI * 2
+        Math.PI * 2,
       );
       ctx.stroke();
       ctx.beginPath();
@@ -1176,7 +1176,7 @@ function drawPath(ctx, scale) {
         path.center.y * scale,
         (path.radius + path.width / 2) * scale,
         0,
-        Math.PI * 2
+        Math.PI * 2,
       );
       ctx.stroke();
       break;
@@ -1195,7 +1195,7 @@ function drawPath(ctx, scale) {
         path.center.y * scale,
         loopRadius + laneW,
         0,
-        Math.PI * 2
+        Math.PI * 2,
       );
       ctx.arc(
         (path.center.x - path.loopRadius) * scale,
@@ -1203,7 +1203,7 @@ function drawPath(ctx, scale) {
         loopRadius - laneW,
         0,
         Math.PI * 2,
-        true
+        true,
       );
       ctx.fill("evenodd");
       // Right loop fill
@@ -1213,7 +1213,7 @@ function drawPath(ctx, scale) {
         path.center.y * scale,
         loopRadius + laneW,
         0,
-        Math.PI * 2
+        Math.PI * 2,
       );
       ctx.arc(
         (path.center.x + path.loopRadius) * scale,
@@ -1221,7 +1221,7 @@ function drawPath(ctx, scale) {
         loopRadius - laneW,
         0,
         Math.PI * 2,
-        true
+        true,
       );
       ctx.fill("evenodd");
 
@@ -1234,7 +1234,7 @@ function drawPath(ctx, scale) {
         path.center.y * scale,
         loopRadius,
         0,
-        Math.PI * 2
+        Math.PI * 2,
       );
       ctx.stroke();
       ctx.beginPath();
@@ -1243,7 +1243,7 @@ function drawPath(ctx, scale) {
         path.center.y * scale,
         loopRadius,
         0,
-        Math.PI * 2
+        Math.PI * 2,
       );
       ctx.stroke();
 
@@ -1257,7 +1257,7 @@ function drawPath(ctx, scale) {
         path.center.y * scale,
         loopRadius - laneW,
         0,
-        Math.PI * 2
+        Math.PI * 2,
       );
       ctx.stroke();
       ctx.beginPath();
@@ -1266,7 +1266,7 @@ function drawPath(ctx, scale) {
         path.center.y * scale,
         loopRadius + laneW,
         0,
-        Math.PI * 2
+        Math.PI * 2,
       );
       ctx.stroke();
       // Right loop boundaries
@@ -1276,7 +1276,7 @@ function drawPath(ctx, scale) {
         path.center.y * scale,
         loopRadius - laneW,
         0,
-        Math.PI * 2
+        Math.PI * 2,
       );
       ctx.stroke();
       ctx.beginPath();
@@ -1285,7 +1285,7 @@ function drawPath(ctx, scale) {
         path.center.y * scale,
         loopRadius + laneW,
         0,
-        Math.PI * 2
+        Math.PI * 2,
       );
       ctx.stroke();
       break;
@@ -1301,7 +1301,7 @@ function drawPath(ctx, scale) {
         1000 * scale - uHalfWidth,
         path.endY * scale,
         uHalfWidth * 2,
-        (path.startY - path.endY) * scale
+        (path.startY - path.endY) * scale,
       );
       ctx.fill();
 
@@ -1389,25 +1389,25 @@ function drawPath(ctx, scale) {
         x - markerSize / 2,
         y - markerSize / 2,
         markerSize,
-        markerSize
+        markerSize,
       );
       ctx.fillRect(
         x - markerSize / 2,
         y - size - markerSize / 2,
         markerSize,
-        markerSize
+        markerSize,
       );
       ctx.fillRect(
         x + size - markerSize / 2,
         y - size - markerSize / 2,
         markerSize,
-        markerSize
+        markerSize,
       );
       ctx.fillRect(
         x + size - markerSize / 2,
         y - markerSize / 2,
         markerSize,
-        markerSize
+        markerSize,
       );
       break;
 
@@ -1444,7 +1444,7 @@ function drawPath(ctx, scale) {
               (start.x - path.width / 2) * scale,
               minY * scale,
               path.width * scale,
-              (maxY - minY) * scale
+              (maxY - minY) * scale,
             );
           } else {
             const minX = Math.min(start.x, end.x);
@@ -1453,7 +1453,7 @@ function drawPath(ctx, scale) {
               minX * scale,
               (start.y - path.width / 2) * scale,
               (maxX - minX) * scale,
-              path.width * scale
+              path.width * scale,
             );
           }
 
@@ -1462,7 +1462,7 @@ function drawPath(ctx, scale) {
             (end.x - path.width / 2) * scale,
             (end.y - path.width / 2) * scale,
             path.width * scale,
-            path.width * scale
+            path.width * scale,
           );
         }
 
@@ -1471,7 +1471,7 @@ function drawPath(ctx, scale) {
           (wp[0].x - path.width / 2) * scale,
           (wp[0].y - path.width / 2) * scale,
           path.width * scale,
-          path.width * scale
+          path.width * scale,
         );
 
         // Draw lane boundaries
@@ -1492,7 +1492,7 @@ function drawPath(ctx, scale) {
               (start.x - path.width / 2) * scale,
               minY * scale,
               path.width * scale,
-              (maxY - minY) * scale
+              (maxY - minY) * scale,
             );
           } else {
             const minX = Math.min(start.x, end.x);
@@ -1501,7 +1501,7 @@ function drawPath(ctx, scale) {
               minX * scale,
               (start.y - path.width / 2) * scale,
               (maxX - minX) * scale,
-              path.width * scale
+              path.width * scale,
             );
           }
         }
@@ -1540,13 +1540,13 @@ function drawPath(ctx, scale) {
       zone.x * scale,
       zone.y * scale,
       zone.width * scale,
-      zone.height * scale
+      zone.height * scale,
     );
     ctx.strokeRect(
       zone.x * scale,
       zone.y * scale,
       zone.width * scale,
-      zone.height * scale
+      zone.height * scale,
     );
 
     // Draw "TARGET" label
@@ -1556,7 +1556,7 @@ function drawPath(ctx, scale) {
     ctx.fillText(
       "TARGET",
       (zone.x + zone.width / 2) * scale,
-      (zone.y + zone.height / 2 + 5) * scale
+      (zone.y + zone.height / 2 + 5) * scale,
     );
   }
 
@@ -1570,7 +1570,7 @@ function drawPath(ctx, scale) {
         obs.x * scale,
         obs.y * scale,
         obs.width * scale,
-        obs.height * scale
+        obs.height * scale,
       );
       // Border
       ctx.strokeStyle = "rgba(255, 100, 100, 0.9)";
@@ -1579,7 +1579,7 @@ function drawPath(ctx, scale) {
         obs.x * scale,
         obs.y * scale,
         obs.width * scale,
-        obs.height * scale
+        obs.height * scale,
       );
       // Label
       ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
@@ -1588,7 +1588,7 @@ function drawPath(ctx, scale) {
       ctx.fillText(
         "OBSTACLE",
         (obs.x + obs.width / 2) * scale,
-        (obs.y + obs.height / 2 + 4) * scale
+        (obs.y + obs.height / 2 + 4) * scale,
       );
     }
   }
@@ -1615,13 +1615,13 @@ function drawPath(ctx, scale) {
       zoneX * scale,
       zoneY * scale,
       zoneSize * scale,
-      zoneSize * scale
+      zoneSize * scale,
     );
     ctx.strokeRect(
       zoneX * scale,
       zoneY * scale,
       zoneSize * scale,
-      zoneSize * scale
+      zoneSize * scale,
     );
 
     // Draw "FINISH" label
@@ -1643,13 +1643,13 @@ function drawPath(ctx, scale) {
       zone.x * scale,
       zone.y * scale,
       zone.width * scale,
-      zone.height * scale
+      zone.height * scale,
     );
     ctx.strokeRect(
       zone.x * scale,
       zone.y * scale,
       zone.width * scale,
-      zone.height * scale
+      zone.height * scale,
     );
 
     // Draw "FINISH" label
@@ -1659,7 +1659,7 @@ function drawPath(ctx, scale) {
     ctx.fillText(
       "FINISH",
       (zone.x + zone.width / 2) * scale,
-      (zone.y + zone.height / 2 + 5) * scale
+      (zone.y + zone.height / 2 + 5) * scale,
     );
   }
 
@@ -1736,21 +1736,21 @@ function drawRobot(ctx, scale) {
     bodyX + carLength,
     bodyY,
     bodyX + carLength,
-    bodyY + radius
+    bodyY + radius,
   );
   ctx.lineTo(bodyX + carLength, bodyY + carWidth - radius);
   ctx.quadraticCurveTo(
     bodyX + carLength,
     bodyY + carWidth,
     bodyX + carLength - radius,
-    bodyY + carWidth
+    bodyY + carWidth,
   );
   ctx.lineTo(bodyX + radius, bodyY + carWidth);
   ctx.quadraticCurveTo(
     bodyX,
     bodyY + carWidth,
     bodyX,
-    bodyY + carWidth - radius
+    bodyY + carWidth - radius,
   );
   ctx.lineTo(bodyX, bodyY + radius);
   ctx.quadraticCurveTo(bodyX, bodyY, bodyX + radius, bodyY);
@@ -1797,7 +1797,7 @@ function drawRobot(ctx, scale) {
     3 * scale,
     0,
     0,
-    Math.PI * 2
+    Math.PI * 2,
   );
   ctx.fill();
   ctx.beginPath();
@@ -1808,7 +1808,7 @@ function drawRobot(ctx, scale) {
     3 * scale,
     0,
     0,
-    Math.PI * 2
+    Math.PI * 2,
   );
   ctx.fill();
 
@@ -1819,7 +1819,7 @@ function drawRobot(ctx, scale) {
     -carLength * 0.48,
     carWidth * 0.35 - 6 * scale,
     4 * scale,
-    6 * scale
+    6 * scale,
   );
 
   // Wheels (4 wheels at corners)
@@ -1829,28 +1829,28 @@ function drawRobot(ctx, scale) {
     carLength * 0.25,
     -carWidth / 2 - 4 * scale,
     12 * scale,
-    6 * scale
+    6 * scale,
   );
   // Front right
   ctx.fillRect(
     carLength * 0.25,
     carWidth / 2 - 2 * scale,
     12 * scale,
-    6 * scale
+    6 * scale,
   );
   // Rear left
   ctx.fillRect(
     -carLength * 0.37,
     -carWidth / 2 - 4 * scale,
     12 * scale,
-    6 * scale
+    6 * scale,
   );
   // Rear right
   ctx.fillRect(
     -carLength * 0.37,
     carWidth / 2 - 2 * scale,
     12 * scale,
-    6 * scale
+    6 * scale,
   );
 
   ctx.restore();
@@ -1866,7 +1866,7 @@ function updateRobotPosition() {
   // All physics updates are now handled by startAnimationLoop() -> Simulator.step()
   // which provides consistent physics regardless of speed multiplier.
   console.warn(
-    "[Deprecated] updateRobotPosition called - use Simulator.step() instead"
+    "[Deprecated] updateRobotPosition called - use Simulator.step() instead",
   );
 }
 
@@ -1974,24 +1974,17 @@ my_robot = AIDriver()
 while my_robot.read_distance() == -1:
     print("Robot too close, too far or sensor is in error state")
 
-my_counter = 0
-start_distance = my_robot.read_distance()
-current_distance = start_distance
-distance_remaining = current_distance - start_distance
 wheel_speed = 120
 speed_adjust = 0
-target_distance = 0  # Set to 1000 for the challenge
+target_distance = 0  # Stop when this close to the wall
 
-while True:
-    while distance_remaining < target_distance:
-        my_robot.drive_backward(wheel_speed - speed_adjust, wheel_speed + speed_adjust)
-        current_distance = my_robot.read_distance()
-        hold_state(0.1)
-        distance_remaining = current_distance - start_distance
-    my_robot.brake()
-    hold_state(1)
-    print(my_robot.read_distance())
+while my_robot.read_distance() > target_distance:
+    my_robot.drive_forward(wheel_speed - speed_adjust, wheel_speed + speed_adjust)
     hold_state(0.1)
+
+my_robot.brake()
+hold_state(1)
+print("Stopped at distance:", my_robot.read_distance())
 `,
     4: `# Challenge 4: Drive a Square
 # Make the robot drive in a square pattern
@@ -2138,7 +2131,7 @@ function startAnimationLoop() {
         App.robot.rightSpeed,
         "pos:",
         App.robot.x.toFixed(0),
-        App.robot.y.toFixed(0)
+        App.robot.y.toFixed(0),
       );
     }
 
@@ -2199,7 +2192,7 @@ function updateSessionTracking() {
     const crossover = App.currentChallengeConfig.successCriteria.crossoverPoint;
     const distToCenter = Math.hypot(
       App.robot.x - crossover.x,
-      App.robot.y - crossover.y
+      App.robot.y - crossover.y,
     );
     if (distToCenter < 100 && !App.session.nearCenter) {
       App.session.crossoverCount++;
@@ -2233,7 +2226,7 @@ function checkChallengeSuccess() {
   const result = Challenges.checkSuccess(
     App.currentChallenge,
     App.robot,
-    App.session
+    App.session,
   );
 
   if (result.success) {
