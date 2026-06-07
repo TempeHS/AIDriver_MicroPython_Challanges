@@ -11,13 +11,13 @@
 
 ## Step 1
 
-**Assemble to axel for the front wheel.**
+**Assemble the axle for the front wheel.**
 
 ![Step 1 Visual](images/step_1.png "Step 1 Visual")
 
 ## Step 2
 
-**Slide the omni wheel onto the middle of the axel.**
+**Slide the omni wheel onto the middle of the axle.**
 
 ![Animation of omni wheel sliding onto the axel](images/attach_motors.gif "Animation of omni wheel sliding onto the axel")
 

@@ -42,7 +42,7 @@ Enable students to control the AIDriver robot from any Chrome-based browser via 
   - `left = clamp(base + x * |y| * MAX_SPEED, -255, 255)`.
   - `right = clamp(base - x * |y| * MAX_SPEED, -255, 255)`.
 - Hard left/right (`x` near ±1 with low |y|) results in spin turns by setting `left = -right = x * MAX_SPEED`.
-- Joystick centre (|x|, |y| < deadzone) sets both speeds to 0 (brake command flagged for immediate stop).
+- Joystick centre (|x|, |y| < dead zone) sets both speeds to 0 (brake command flagged for immediate stop).
 
 ## Web UI Requirements
 
@@ -90,7 +90,6 @@ Enable students to control the AIDriver robot from any Chrome-based browser via 
 - Add telemetry publisher capped at 5 Hz and configuration switches.
 
 3. **Web Application**
-
    - Build joystick UI component with pointer/touch support.
    - Implement Web Bluetooth connection flow (service/characteristic UUIDs, notifications, writes).
    - Encode joystick values into command packets and handle telemetry notifications.

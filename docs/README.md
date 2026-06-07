@@ -19,7 +19,7 @@ All components can be purchased from [AliExpress](https://www.aliexpress.com/) a
 4. [RP2040 Uno Development Board](https://www.aliexpress.com/item/1005009315359179.html)
 5. [Omni Wheel](https://www.aliexpress.com/item/32954940078.html)
 6. [L298NH Motor Shield](https://www.aliexpress.com/item/32801279582.html)
-7. 4x [Dupoint Cables](https://www.aliexpress.com/item/4000053353555.html)
+7. 4x [Dupont Cables](https://www.aliexpress.com/item/4000053353555.html)
 8. 2x [TT Tyre](https://www.aliexpress.com/item/1005005767062155.html)
 9. 2x [TT DC plastic geared motor](https://www.aliexpress.com/item/1005004854068015.html)
 10. [5x2.1 Barrel Jack](https://www.aliexpress.com/item/33024967273.html)
@@ -34,7 +34,7 @@ All components can be purchased from [AliExpress](https://www.aliexpress.com/) a
 | 1                                                                                                       | 2                                                                                                                    | 3                                                                                                                                             |
 | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | Using a precision knife, cut the VIN jumpers on underside of the motor shield and test with multimeter. | Cut 9v snap and solder cables to battery pack cables (red to red & black to black) then secure with small cable tie. | Fit motor shield to the headers, then build custom MicroPython firmware with integrated AIDriver libraries using the automated build process. |
-| ![Cut Vin on motorshield](images/prep_1.png "Cut Vin on motorshield")                                   | ![Solider 5.5mm jack to battery pack](images/prep_2.png "Solider 5.5mm jack to battery pack")                        | ![Fit motorshield and upload firmware](images/prep_3.png "Fit motorshield and upload firmware")                                               |
+| ![Cut Vin on motorshield](images/prep_1.png "Cut Vin on motorshield")                                   | ![Solder 5.5mm jack to battery pack](images/prep_2.png "Solder 5.5mm jack to battery pack")                          | ![Fit motorshield and upload firmware](images/prep_3.png "Fit motorshield and upload firmware")                                               |
 
 ### Assembly & Testing
 

@@ -1,6 +1,6 @@
 # Challenge 6
 
-In this final challenge students will design a maze navigation alorythm.
+In this final challenge students will design a maze navigation algorithm.
 
 ## Success Criteria
 
