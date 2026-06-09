@@ -1,4 +1,4 @@
-FROM ubuntu:24.04
+FROM ubuntu:26.04
 
 # Install build dependencies for MicroPython RP2 (Raspberry Pi Pico)
 RUN apt-get update && apt-get install -y \
