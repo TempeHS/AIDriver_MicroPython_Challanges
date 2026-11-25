@@ -76,7 +76,7 @@ If you get an error you don’t recognise, check `Common_Errors.md`.
 
 Add the drive forward command and a short **hold_state** command so the processor has time to respond and the pause is recorded in the event log.
 
-The code `my_robot.drive_forward(200, 200)` is an instruction to drive the robot forward with a speed setting of 200 on the left wheel and a speed setting of 200 on the right wheel. You can set the speed an where between 0 (slowest) and 255 (fastest).
+The code `my_robot.drive_forward(200, 200)` is an instruction to drive the robot forward with a speed setting of 200 on the right wheel and a speed setting of 200 on the left wheel (the first number is always the right wheel, the second the left wheel). You can set the speed an where between 0 (slowest) and 255 (fastest).
 
 > [!Important]
 >
@@ -113,8 +113,8 @@ Your challenge is to balance the motors. Due to various factors, the motors may 
 
 > [!Tip]
 >
-> - If your robot veers to the right, either increase the speed of the right wheel or decrease the speed of the left wheel (e.g., my_robot.drive_forward(200, 204)).
-> - If your robot veers to the left, either increase the speed of the left wheel or decrease the speed of the right wheel (e.g., my_robot.drive_forward(204, 200)).
+> - If your robot veers to the right, either increase the speed of the right wheel or decrease the speed of the left wheel (e.g., my_robot.drive_forward(204, 200)).
+> - If your robot veers to the left, either increase the speed of the left wheel or decrease the speed of the right wheel (e.g., my_robot.drive_forward(200, 204)).
 > - Continue fine-tuning the speed values and testing until your robot moves as straight as possible.
 
 ## Debugging Tips – Test Small, Test Often

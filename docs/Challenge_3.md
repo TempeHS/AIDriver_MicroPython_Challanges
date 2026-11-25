@@ -96,7 +96,7 @@ If you get stuck or see strange error messages, see `Common_Errors.md`.
 
 Your challenge is to:
 
-1. Review the algorithm math behind my_robot.drive_forward(L, R) and modify the values assigned to `target_distance` to achieve the required distance.
+1. Review the algorithm math behind my_robot.drive_forward(R, L) (right wheel first, then left wheel) and modify the values assigned to `target_distance` to achieve the required distance.
 2. Modify the code to achieve the following:
    1. Drive forward if the robot is more than 1000mm from the object.
    2. Progressively decelerate the robot to a stop at the correct distance.

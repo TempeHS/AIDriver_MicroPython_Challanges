@@ -29,10 +29,10 @@ Browser globals provide loose coupling between modules. Each JavaScript file reg
    - The AIDriver stub bridges Python commands into the JavaScript simulator queue
    - `Simulator.step()` updates the robot pose while render loops display state
 
-3. **Trace / Step mode**
+3. **Step mode**
 
-   - `PythonRunner.collectTrace()` swaps in a trace-enabled aidriver implementation
-   - `PythonRunner.playTrace()` replays the captured execution one line at a time, calling `Simulator` as commands require
+   - `PythonRunner.runStepMode()` runs the program live with Skulpt debugging enabled, pausing before each line
+   - Robot physics are frozen during each pause and advanced a small fixed time per line, so sensor loops behave like a normal run
 
 4. **Telemetry and gamepad**
    - `gamepad.js` synchronises HM-10 BLE input with the simulator robot state
@@ -52,6 +52,6 @@ Browser globals provide loose coupling between modules. Each JavaScript file reg
 
 ## Extending the Simulator
 
-- Add new robot behaviours by updating both the AIDriver stub (JavaScript) and MicroPython shim (Python generated in `python-runner.js`)
+- Add new robot behaviours by updating the AIDriver module in `aidriver-stub.js` and the real `project/lib/aidriver.py`
 - Introduce additional sensors by extending `Simulator.step()` and the AIDriver interfaces
 - UI/UX enhancements should be wired through `app/js/app.js` to keep state changes centralised

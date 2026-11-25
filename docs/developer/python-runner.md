@@ -23,39 +23,25 @@
 
 ## Step Mode
 
-Step mode consists of two phases managed by `runStepMode(code)`:
+`runStepMode(code)` runs the learner's program **live** through the normal `run()` pipeline, using the same JavaScript `aidriver` module, simulator physics and ultrasonic readings as a normal run. Skulpt is configured with `debugging: true`, so it raises an `Sk.debug` suspension before every line of the learner's code:
 
-1. **Trace collection** – `collectTrace(code)` swaps in a tracing version of the MicroPython aidriver module. It instrumented the learner code with `_step_debug()` calls via `injectDebugCalls()`. Each Python line records:
-
-   - Line number and trimmed source text
-   - Commands issued during that line
-   - Any textual output (captured separately)
-
-2. **Playback** – `playTrace()` replays the captured trace with configurable delays. It highlights source lines, dispatches robot commands, and renders the simulator world after each step. `pauseStep()` and `resumeStep()` manipulate an internal promise to halt/resume the loop.
-
-If trace collection hits the step/time limits, partial traces still play back while warning the learner.
-
-## AIDriver Shim Generation
-
-`getAIDriverPythonModule(forTraceCollection)` emits the Python implementation of `aidriver` that Skulpt imports. Two variants exist:
-
-- **Normal mode** – Minimally wraps commands and prints debug markers when `DEBUG_AIDRIVER` is true.
-- **Trace mode** – Disables `time.sleep()` delays, records commands per line, and exposes `_get_trace()` for later retrieval.
-
-Whenever the learner runs code, the JavaScript-side `AIDriverStub` mirrors the Python interface to ensure command queues behave consistently even if the Python module fails to load.
+- `handleStepSuspension()` highlights the line (line numbers are the learner's own, because the code is not rewritten), waits `stepDelay` ms, and waits further while `stepPaused` is set by `pauseStep()`/`resumeStep()`.
+- While waiting, `freezePhysics` stops the animation loop from moving the robot. After each line the robot is advanced by `stepLineTime` simulated seconds, so busy loops such as `while robot.read_distance() > 300:` still make progress at a realistic rate.
+- `hold_state()` behaves exactly as in a normal run (real time, physics running).
+- `stop()` releases any pending pause and the next suspension raises the stop error.
 
 ## Command Queue Processing
 
-`processCommandQueue()` pulls commands from both the active Skulpt module (`aidriver._get_commands()`) and the legacy `AIDriverStub` queue. Each command updates `App.robot` directly (wheel speeds, braking, etc.) and triggers a render if motion occurs.
+`processCommandQueue()` drains the `AIDriverStub` queue filled by the JavaScript `aidriver` module. Each command updates `App.robot` directly (wheel speeds, braking, etc.) and triggers a render if motion occurs.
 
 ## Error Handling Strategies
 
 - **Validation failures**: Prevent execution and surface errors before Skulpt runs.
 - **Runtime errors**: Routed through `handleError()` which extracts line numbers, annotates the editor, and logs formatted messages.
-- **Infinite loops**: Enforced via `maxTraceTime` (trace collection) and cooperative yields during normal execution; step mode exposes partial traces with warnings when limits trigger.
+- **Infinite loops**: Skulpt's `killableWhile`/`killableFor` suspensions and yields let `stop()` interrupt any loop, in both normal and step mode.
 
 ## Extending the Pipeline
 
-- To add new simulator operations, update both the Python shim (command emission) and `processCommandQueue()` (execution).
+- To add new simulator operations, update the JavaScript `aidriver` module in `aidriver-stub.js` (command emission) and `processCommandQueue()` (execution).
 - For custom learner libraries, register them alongside `aidriver` within `registerMicroPythonModules()` and handle import resolution in `handleRead()`.
 - When adjusting sleep semantics, remember that Skulpt expects suspensions to resolve with `susp.resume()` as implemented in the `Sk.promise` handler.

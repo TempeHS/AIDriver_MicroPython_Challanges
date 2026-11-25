@@ -76,7 +76,7 @@ If you see an error while editing this code, check `Common_Errors.md`.
 
 Your challenge is to:
 
-1. Review the math behind my_robot.drive_forward(L, R) and modify the values assigned to wheel_speed and speed_adjust so your robot moves in the desired circle size.
+1. Review the math behind my_robot.drive_forward(R, L) (right wheel first, then left wheel) and modify the values assigned to wheel_speed and speed_adjust so your robot moves in the desired circle size.
 2. Update the value of move_time so the robot travels for approximately the time needed to complete one full circle.
 3. Then further modify your code to:
    1. Drive a circle forward.

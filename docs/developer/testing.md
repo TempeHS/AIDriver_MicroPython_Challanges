@@ -4,6 +4,7 @@ Testing lives inside `app/tests/` and uses Jest with the `jest-environment-jsdom
 
 - `tests/unit/` – Focused coverage for individual modules like the simulator engine, validator, and editor wiring
 - `tests/integration/` – Cross-module scenarios covering Python execution, BLE gamepad integration, and end-to-end challenge completion
+- `tests/integration/real-runtime.test.js` – Loads the real `js/` modules and runs learner code through the real Skulpt interpreter (the `skulpt` dev dependency, pinned to the CDN version). Most other suites test inline copies or mocks, so add behaviour tests here when changing the runner, stub, or simulator
 - `tests/lint/` – Static analysis harnesses that ensure every HTML and JavaScript file under `app/` stays standards-compliant
 - Standalone HTML harnesses (e.g. `tests/integration-test.html`) exist for manual verification in the browser
 
@@ -38,4 +39,4 @@ Coverage data is emitted to `app/coverage/` in multiple formats (`lcov`, `json`,
 
 - Open `app/index.html` in a browser and use DevTools to watch `DebugPanel` output while running learner code
 - The integration HTML pages provide minimal bootstrapping when diagnosing issues that are hard to reproduce under Jest
-- When modifying the MicroPython shim, load `python-runner` step mode to confirm command sequencing looks correct
+- When modifying the `aidriver` module or step mode, run code in step mode in the browser to confirm line highlighting and robot motion look correct
