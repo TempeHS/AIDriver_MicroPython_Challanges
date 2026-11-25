@@ -34,7 +34,7 @@ def test_drive_forward_arc_message(monkeypatch):
     _module, robot, messages = _make_robot(monkeypatch)
     robot.drive_forward(200, 150)
 
-    assert any("arc toward the right" in msg for msg in messages)
+    assert any("arc toward the left" in msg for msg in messages)
 
 
 def test_drive_forward_speed_band(monkeypatch):

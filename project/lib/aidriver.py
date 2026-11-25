@@ -42,9 +42,10 @@ def _describe_drive(direction, right_speed, left_speed):
     band = _speed_band(max_speed)
     message = f"{direction} at {band} speed" f" (R={right_speed}, L={left_speed})"
 
+    # A faster right wheel turns the robot to the left, and vice versa
     speed_diff = right_speed - left_speed
     if abs(speed_diff) > 20:
-        arc_direction = "right" if speed_diff > 0 else "left"
+        arc_direction = "left" if speed_diff > 0 else "right"
         message += f"; expect an arc toward the {arc_direction}"
 
     return message
