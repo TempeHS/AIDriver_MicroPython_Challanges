@@ -11,22 +11,17 @@ const PythonRunner = {
   currentSuspension: null,
   executionId: 0, // Track current execution to ignore stale callbacks
 
-  // Step mode with trace collection
+  // Step mode: the program runs live and pauses before each line
   stepMode: false,
-  stepDelay: 750, // Delay between steps in playback (ms)
-  stepPaused: false, // Is playback paused?
+  stepDelay: 750, // Pause before each line in step mode (ms)
+  stepLineTime: 0.02, // Simulated seconds of robot motion per stepped line
+  stepPaused: false, // Is stepping paused by the user?
   stepResumeResolve: null, // Promise resolver for resuming
+  isStepping: false, // True while a step mode run is active
+  currentStepLine: 0, // Line about to execute in step mode
+  freezePhysics: false, // Robot physics paused while waiting on a step
   sourceCode: "", // Store source code for line display
   sourceLines: [], // Source code split by lines
-
-  // Trace collection for step mode
-  executionTrace: [], // Collected trace: [{line, code}, ...]
-  traceOutputs: [], // Robot outputs during trace
-  currentTraceStep: 0, // Current position in trace playback
-  isCollectingTrace: false, // True during trace collection phase
-  isPlayingTrace: false, // True during trace playback phase
-  maxTraceSteps: 1000, // Limit to prevent infinite loops
-  maxTraceTime: 5000, // 5 second timeout for trace collection
 
   // Execution promise
   executionPromise: null,
@@ -95,220 +90,6 @@ const PythonRunner = {
     console.log(
       "[PythonRunner] Registered aidriver JS builtin module in builtinFiles",
     );
-  },
-
-  /**
-   * Generate the Python shim for the aidriver module consumed by user code.
-   * Embeds optional tracing utilities when collecting execution traces.
-   * @param {boolean} [forTraceCollection=false] Toggle trace-enhanced implementation.
-   * @returns {string} Python source string defining the aidriver module.
-   */
-  getAIDriverPythonModule(forTraceCollection = false) {
-    // Get speed multiplier from App (default to 1)
-    const speedMult =
-      typeof App !== "undefined" && App.speedMultiplier
-        ? App.speedMultiplier
-        : 1;
-    const maxSteps = this.maxTraceSteps;
-
-    // During trace collection, skip delays. During normal run, no step debug.
-    const stepDebugCode = forTraceCollection
-      ? `
-# Trace collection mode - collect execution trace with commands, no delays
-_trace = []
-_max_steps = ${maxSteps}
-_pending_commands = []  # Commands issued since last step
-
-def _step_debug(line_num, line_code):
-    """Collect trace entry with any pending commands"""
-    global _trace, _pending_commands, _command_queue
-    if len(_trace) >= _max_steps:
-        raise Exception("MAX_STEPS_EXCEEDED: Trace limit reached")
-    # Capture any commands that were queued and add to trace
-    cmds = _command_queue[:]
-    _command_queue = []
-    _trace.append({
-        "line": line_num,
-        "code": line_code,
-        "commands": cmds
-    })
-
-def _get_trace():
-    global _trace, _command_queue
-    # Capture any final commands
-    if len(_command_queue) > 0:
-        _trace.append({
-            "line": 0,
-            "code": "[final commands]",
-            "commands": _command_queue[:]
-        })
-        _command_queue = []
-    return _trace
-
-def _clear_trace():
-    global _trace
-    _trace = []
-`
-      : `
-# Normal run mode - step debug just prints marker
-def _step_debug(line_num, line_code):
-    print("__STEP_DEBUG__:" + str(line_num) + ":" + line_code)
-
-def _get_trace():
-    return []
-
-def _clear_trace():
-    pass
-`;
-
-    return `
-# AIDriver module for browser simulator
-# This is a Python implementation that works with Skulpt
-
-DEBUG_AIDRIVER = False
-_SPEED_MULTIPLIER = ${speedMult}
-
-# Command queue - will be read by JavaScript
-_command_queue = []
-
-import time
-
-${stepDebugCode}
-
-def _queue_command(cmd_type, params=None):
-    """Queue a command for the JavaScript simulator"""
-    global _command_queue
-    if params is None:
-        params = {}
-    _command_queue.append({"type": cmd_type, "params": params})
-
-def _get_commands():
-    """Get all queued commands and clear the queue"""
-    global _command_queue
-    cmds = _command_queue[:]
-    _command_queue = []
-    return cmds
-
-class AIDriver:
-    """AIDriver robot controller for the simulator"""
-    
-    def __init__(self):
-        """Initialize the robot"""
-        global DEBUG_AIDRIVER
-        self._right_speed = 0
-        self._left_speed = 0
-        self._is_moving = False
-        _queue_command("init")
-        if DEBUG_AIDRIVER:
-            print("[AIDriver] Robot initialized")
-    
-    def drive_forward(self, right_speed, left_speed):
-        """Drive the robot forward with specified wheel speeds"""
-        global DEBUG_AIDRIVER
-        self._right_speed = int(right_speed)
-        self._left_speed = int(left_speed)
-        self._is_moving = True
-        _queue_command("drive_forward", {
-            "rightSpeed": self._right_speed,
-            "leftSpeed": self._left_speed
-        })
-        if DEBUG_AIDRIVER:
-            print("[AIDriver] drive_forward:", right_speed, left_speed)
-    
-    def drive_backward(self, right_speed, left_speed):
-        """Drive the robot backward with specified wheel speeds"""
-        global DEBUG_AIDRIVER
-        self._right_speed = int(right_speed)
-        self._left_speed = int(left_speed)
-        self._is_moving = True
-        _queue_command("drive_backward", {
-            "rightSpeed": self._right_speed,
-            "leftSpeed": self._left_speed
-        })
-        if DEBUG_AIDRIVER:
-            print("[AIDriver] drive_backward:", right_speed, left_speed)
-    
-    def rotate_left(self, turn_speed):
-        """Rotate the robot left"""
-        global DEBUG_AIDRIVER
-        self._is_moving = True
-        _queue_command("rotate_left", {"turnSpeed": int(turn_speed)})
-        if DEBUG_AIDRIVER:
-            print("[AIDriver] rotate_left:", turn_speed)
-    
-    def rotate_right(self, turn_speed):
-        """Rotate the robot right"""
-        global DEBUG_AIDRIVER
-        self._is_moving = True
-        _queue_command("rotate_right", {"turnSpeed": int(turn_speed)})
-        if DEBUG_AIDRIVER:
-            print("[AIDriver] rotate_right:", turn_speed)
-    
-    def brake(self):
-        """Stop the robot"""
-        global DEBUG_AIDRIVER
-        self._right_speed = 0
-        self._left_speed = 0
-        self._is_moving = False
-        _queue_command("brake")
-        if DEBUG_AIDRIVER:
-            print("[AIDriver] brake")
-    
-    def read_distance(self):
-        """Read ultrasonic sensor distance in mm"""
-        global DEBUG_AIDRIVER
-        # This will be overridden by JavaScript
-        _queue_command("read_distance")
-        distance_mm = 1000  # Placeholder, JS overrides actual value
-        if DEBUG_AIDRIVER:
-            print("[AIDriver] read_distance:", distance_mm, "mm")
-        return distance_mm
-    
-    def service(self):
-        """Run background housekeeping tasks (no-op in simulator)"""
-        # In real robot this handles LED heartbeat
-        # In simulator we don't need it but provide for API compatibility
-        pass
-    
-    def set_motor_speeds(self, right_speed, left_speed):
-        """Set motor speeds directly"""
-        global DEBUG_AIDRIVER
-        self._right_speed = int(right_speed)
-        self._left_speed = int(left_speed)
-        if right_speed != 0 or left_speed != 0:
-            self._is_moving = True
-        else:
-            self._is_moving = False
-        _queue_command("set_motor_speeds", {
-            "rightSpeed": self._right_speed,
-            "leftSpeed": self._left_speed
-        })
-        if DEBUG_AIDRIVER:
-            print("[AIDriver] set_motor_speeds:", right_speed, left_speed)
-    
-    def is_moving(self):
-        """Check if robot is moving"""
-        return self._is_moving
-    
-    def get_motor_speeds(self):
-        """Get current motor speeds as tuple (right, left)"""
-        return (self._right_speed, self._left_speed)
-
-
-def hold_state(seconds):
-    """Hold the current state for specified seconds (adjusted by speed multiplier)"""
-    global DEBUG_AIDRIVER
-    import time
-    print("[Python] hold_state called with seconds:", seconds)
-    if DEBUG_AIDRIVER:
-        print("[AIDriver] hold_state:", seconds, "seconds")
-    _queue_command("hold_state", {"seconds": float(seconds)})
-    # Divide sleep time by speed multiplier so faster speeds = shorter real time
-    actual_sleep = float(seconds) / _SPEED_MULTIPLIER
-    print("[Python] calling time.sleep with actual_sleep:", actual_sleep)
-    time.sleep(actual_sleep)
-    print("[Python] time.sleep returned for hold_state:", seconds)
-`;
   },
 
   /**
@@ -491,18 +272,6 @@ def ticks_diff(t1, t2):
   handleOutput(text) {
     const trimmed = text.trimEnd();
 
-    // Check for step debug marker
-    if (trimmed.startsWith("__STEP_DEBUG__:")) {
-      const parts = trimmed.substring(15).split(":");
-      const lineNum = parts[0];
-      const lineCode = parts.slice(1).join(":"); // Rejoin in case line has colons
-
-      if (typeof DebugPanel !== "undefined") {
-        DebugPanel.info(`Step mode - ${lineNum} ${lineCode}`);
-      }
-      return; // Don't log the raw debug message
-    }
-
     // Normal output
     if (typeof DebugPanel !== "undefined") {
       DebugPanel.log(trimmed, "output");
@@ -518,22 +287,6 @@ def ticks_diff(t1, t2):
    */
   handleRead(filename) {
     console.log("[PythonRunner] handleRead called for:", filename);
-
-    // Handle aidriver module - return the Python module
-    if (
-      filename === "src/lib/aidriver.py" ||
-      filename === "./aidriver.py" ||
-      filename === "aidriver.py" ||
-      filename === "src/lib/aidriver/__init__.py"
-    ) {
-      console.log(
-        "[PythonRunner] *** RETURNING PYTHON MODULE for aidriver ***",
-      );
-      console.log(
-        "[PythonRunner] This uses time.sleep() - not the JS builtin module!",
-      );
-      return this.getAIDriverPythonModule();
-    }
 
     // Check builtin files
     if (Sk.builtinFiles && Sk.builtinFiles["files"][filename]) {
@@ -625,6 +378,8 @@ def ticks_diff(t1, t2):
         killableFor: true,
         killableWhile: true,
         __future__: Sk.python3,
+        // Step mode: suspend before every line of the learner's program
+        debugging: self.stepMode,
         // CRITICAL: Provide setTimeout for time.sleep() to work
         setTimeout: function (fn, delay) {
           console.log(
@@ -652,6 +407,9 @@ def ticks_diff(t1, t2):
       const promise = Sk.misceval.asyncToPromise(
         () => Sk.importMainWithBody("<stdin>", false, code, true),
         {
+          "Sk.debug": function (susp) {
+            return self.handleStepSuspension(susp);
+          },
           // Handle time.sleep promises with pause support
           "Sk.promise": function (susp) {
             console.log(
@@ -750,361 +508,107 @@ def ticks_diff(t1, t2):
   },
 
   /**
-   * Instrument learner code by inserting _step_debug markers ahead of executable lines.
-   * @param {string} code Original Python source.
-   * @returns {string} Transformed source with debug hooks.
-   */
-  injectDebugCalls(code) {
-    const lines = code.split("\n");
-    const result = [];
-
-    // Add imports at the very beginning (includes _get_trace for trace collection)
-    result.push("from aidriver import _step_debug, _get_trace");
-    result.push("");
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      const lineNum = i + 1;
-      const trimmed = line.trim();
-
-      // Skip empty lines and pure comments
-      if (trimmed === "" || trimmed.startsWith("#")) {
-        result.push(line);
-        continue;
-      }
-
-      // Skip import statements (already processed by the added import)
-      if (trimmed.startsWith("import ") || trimmed.startsWith("from ")) {
-        result.push(line);
-        continue;
-      }
-
-      // Skip structural keywords that can't have code before them
-      if (
-        trimmed.startsWith("else:") ||
-        trimmed.startsWith("elif ") ||
-        trimmed.startsWith("except") ||
-        trimmed.startsWith("finally:")
-      ) {
-        result.push(line);
-        continue;
-      }
-
-      // Get indentation
-      const indent = line.match(/^(\s*)/)[1];
-
-      // Escape the line code for Python string
-      const escapedLine = trimmed
-        .replace(/\\/g, "\\\\")
-        .replace(/"/g, '\\"')
-        .replace(/'/g, "\\'");
-
-      // Add debug call before the line (same indentation)
-      result.push(`${indent}_step_debug(${lineNum}, "${escapedLine}")`);
-      result.push(line);
-    }
-
-    return result.join("\n");
-  },
-
-  /**
-   * Execute code through trace collection and controlled playback phases for
-   * step mode. Resets trace state, captures a deterministic execution log, and
-   * then replays it with UI highlights so the learner can step through their
-   * program without re-running Python code.
+   * Run learner code in step mode. The program runs live against the
+   * simulator (same aidriver module and sensor readings as a normal run), but
+   * Skulpt's debugger suspends before every line so it can be highlighted and
+   * paused. Robot physics are frozen during each pause; each stepped line then
+   * advances the robot by stepLineTime to approximate real execution time.
    *
    * @param {string} code Learner Python source.
-   * @returns {Promise<void>} Resolves after playback finishes or the run is cancelled.
+   * @returns {Promise<void>} Resolves when the program finishes or is stopped.
    */
   async runStepMode(code) {
-    this.sourceCode = code;
-    this.sourceLines = code.split("\n");
     this.stepMode = true;
     this.stepPaused = false;
-    this.shouldStop = false;
-    this.executionTrace = [];
-    this.traceOutputs = [];
-    this.currentTraceStep = 0;
-
-    // Phase 1: Collect execution trace
-    if (typeof DebugPanel !== "undefined") {
-      DebugPanel.info("Collecting execution trace...");
-    }
-
-    const traceCollected = await this.collectTrace(code);
-
-    if (!traceCollected || this.shouldStop) {
-      return;
-    }
-
-    if (typeof DebugPanel !== "undefined") {
-      DebugPanel.info(`Trace collected: ${this.executionTrace.length} steps`);
-      DebugPanel.info("Starting step-by-step playback...");
-    }
-
-    // Phase 2: Play back the trace with delays
-    await this.playTrace();
-  },
-
-  /**
-   * Collect an execution trace by running the program without delays. Swaps in
-   * a tracing variant of the aidriver module so each Python line emits command
-   * metadata, making it possible to replay the run deterministically.
-   *
-   * @param {string} code Learner Python source.
-   * @returns {Promise<boolean>} Resolves true when a trace (even partial) is gathered, false on fatal errors.
-   */
-  async collectTrace(code) {
-    this.isCollectingTrace = true;
-    this.executionTrace = [];
-    this.traceOutputs = [];
-
-    // Get the trace collection version of the module
-    const traceModule = this.getAIDriverPythonModule(true);
-
-    // Temporarily remove the JS module so Skulpt falls through to the Python trace module
-    Sk.builtinFiles = Sk.builtinFiles || { files: {} };
-    const savedJsModule = Sk.builtinFiles["files"]["src/lib/aidriver.js"];
-    delete Sk.builtinFiles["files"]["src/lib/aidriver.js"];
-    Sk.builtinFiles["files"]["src/lib/aidriver.py"] = traceModule;
-
-    // Clear any cached aidriver module to force reimport with trace version
-    if (Sk.sysmodules && Sk.sysmodules.mp$ass_subscript) {
-      try {
-        Sk.sysmodules.mp$del_subscript(new Sk.builtin.str("aidriver"));
-      } catch (e) {
-        // Ignore if not found
-      }
-    }
-
-    // Custom read function for trace collection
-    const self = this;
-    const traceRead = function (filename) {
-      if (
-        filename === "src/lib/aidriver.py" ||
-        filename === "./aidriver.py" ||
-        filename === "aidriver.py" ||
-        filename === "src/lib/aidriver/__init__.py"
-      ) {
-        return traceModule;
-      }
-      if (Sk.builtinFiles && Sk.builtinFiles["files"][filename]) {
-        return Sk.builtinFiles["files"][filename];
-      }
-      throw new Sk.builtin.ImportError("No module named " + filename);
-    };
-
-    // Reconfigure Skulpt with timeout for infinite loop protection
-    Sk.configure({
-      output: (text) => {
-        const trimmed = text.trimEnd();
-        if (trimmed) {
-          this.traceOutputs.push(trimmed);
-        }
-      },
-      read: traceRead,
-      inputfunTakesPrompt: true,
-      __future__: Sk.python3,
-      execLimit: this.maxTraceTime, // Timeout for infinite loops
-      killableWhile: true,
-      killableFor: true,
-      // CRITICAL: Provide setTimeout for time.sleep() to work
-      setTimeout: function (fn, delay) {
-        return setTimeout(fn, delay);
-      },
-    });
-
-    // Inject debug calls and add trace retrieval
-    const instrumentedCode =
-      this.injectDebugCalls(code) + "\n_final_trace = _get_trace()";
-    console.log("[PythonRunner] Trace collection code:", instrumentedCode);
-
+    this.isStepping = true;
+    this.currentStepLine = 0;
     try {
-      const module = await Sk.misceval.asyncToPromise(() =>
-        Sk.importMainWithBody("<stdin>", false, instrumentedCode, true),
-      );
-
-      // Get the trace from Python - now includes commands
-      const traceVar = module.$d._final_trace;
-      console.log("[PythonRunner] traceVar:", traceVar);
-      if (traceVar) {
-        const traceList = Sk.ffi.remapToJs(traceVar);
-        console.log("[PythonRunner] traceList from Python:", traceList);
-        this.executionTrace = traceList.map((item) => {
-          // New format: {line, code, commands}
-          return {
-            line: item.line || 0,
-            code: item.code || "",
-            commands: item.commands || [],
-          };
-        });
-        console.log(
-          "[PythonRunner] executionTrace after mapping:",
-          this.executionTrace,
-        );
-      }
-
-      this.isCollectingTrace = false;
-      return true;
-    } catch (error) {
-      this.isCollectingTrace = false;
-      const errStr = error.toString();
-
-      if (errStr.includes("MAX_STEPS_EXCEEDED")) {
-        if (typeof DebugPanel !== "undefined") {
-          DebugPanel.warn(
-            `Trace limit reached (${this.maxTraceSteps} steps) - possible infinite loop`,
-          );
-          DebugPanel.info("Partial trace will be played back");
-        }
-        return true; // Still play back what we collected
-      } else if (
-        errStr.includes("time limit") ||
-        errStr.includes("TimeLimitError")
-      ) {
-        if (typeof DebugPanel !== "undefined") {
-          DebugPanel.error(
-            `Execution timeout (${
-              this.maxTraceTime / 1000
-            }s) - infinite loop detected`,
-          );
-        }
-        return false;
-      } else {
-        if (typeof DebugPanel !== "undefined") {
-          DebugPanel.error("Error during trace collection: " + errStr);
-        }
-        console.error("[PythonRunner] Trace collection error:", error);
-        return false;
-      }
+      await this.run(code);
     } finally {
-      // Restore the JS module registration for normal run mode
-      if (savedJsModule) {
-        Sk.builtinFiles["files"]["src/lib/aidriver.js"] = savedJsModule;
+      this.isStepping = false;
+      this.stepMode = false;
+      this.stepPaused = false;
+      this.freezePhysics = false;
+      if (typeof Editor !== "undefined" && Editor.clearHighlight) {
+        Editor.clearHighlight();
       }
-      delete Sk.builtinFiles["files"]["src/lib/aidriver.py"];
     }
   },
 
   /**
-   * Phase 2: Replay the collected execution trace, highlighting source lines and
-   * dispatching any queued robot commands for each step. The trace is generated
-   * by collectTrace() and is played back sequentially until exhausted, paused,
-   * or forcibly stopped.
+   * Handle a Skulpt "Sk.debug" suspension raised before a learner line in
+   * step mode: highlight the line, wait stepDelay (and while paused), then
+   * resume Python.
    *
-   * @returns {Promise<void>} Resolves after playback completes, pauses, or a stop request occurs.
+   * @param {Sk.misceval.Suspension} susp Debug suspension from Skulpt.
+   * @returns {Promise<*>} Promise resolving to susp.resume().
    */
-  async playTrace() {
-    this.isPlayingTrace = true;
-    this.currentTraceStep = 0;
+  async handleStepSuspension(susp) {
+    // The innermost learner frame carries the line about to run
+    let lineNum = 0;
+    for (let s = susp; s; s = s.child) {
+      if (s.$filename === "<stdin>.py" && s.$lineno) {
+        lineNum = s.$lineno;
+      }
+    }
+    this.currentStepLine = lineNum;
 
-    console.log(
-      "[PythonRunner] playTrace starting with",
-      this.executionTrace.length,
-      "steps",
-    );
+    if (lineNum > 0) {
+      if (typeof Editor !== "undefined" && Editor.highlightLine) {
+        Editor.highlightLine(lineNum);
+      }
+      if (typeof DebugPanel !== "undefined") {
+        const info = this.getLineInfo(lineNum);
+        DebugPanel.info(`Step mode - ${info.lineNum} ${info.lineCode}`);
+      }
+    }
 
-    while (
-      this.currentTraceStep < this.executionTrace.length &&
-      !this.shouldStop
-    ) {
-      console.log(
-        "[PythonRunner] Loop iteration:",
-        this.currentTraceStep,
-        "shouldStop:",
-        this.shouldStop,
-        "stepPaused:",
-        this.stepPaused,
-      );
-
-      // Check for pause
+    this.freezePhysics = true;
+    try {
+      await new Promise((resolve) => setTimeout(resolve, this.stepDelay));
       while (this.stepPaused && !this.shouldStop) {
         await new Promise((resolve) => {
           this.stepResumeResolve = resolve;
         });
       }
-
-      if (this.shouldStop) break;
-
-      const step = this.executionTrace[this.currentTraceStep];
-
-      // Skip the "[final commands]" step for display
-      if (step.line > 0) {
-        // Highlight the line in the editor
-        if (typeof Editor !== "undefined" && Editor.highlightLine) {
-          Editor.highlightLine(step.line);
-        }
-
-        // Display the step in debug panel
-        if (typeof DebugPanel !== "undefined") {
-          DebugPanel.info(`Step mode - ${step.line} ${step.code}`);
-        }
-      }
-
-      // Execute any robot commands from this step
-      if (step.commands && step.commands.length > 0) {
-        for (const cmd of step.commands) {
-          this.executeRobotCommand(cmd);
-        }
-        // Trigger a render to show robot movement
-        if (typeof render === "function") {
-          render();
-        }
-      }
-
-      this.currentTraceStep++;
-
-      // Wait before next step
-      console.log(
-        "[PythonRunner] Waiting",
-        this.stepDelay,
-        "ms before next step",
-      );
-      await new Promise((resolve) => setTimeout(resolve, this.stepDelay));
-      console.log("[PythonRunner] Delay complete, continuing");
+    } finally {
+      this.freezePhysics = false;
     }
 
-    // Clear line highlight
-    if (typeof Editor !== "undefined" && Editor.clearHighlight) {
-      Editor.clearHighlight();
+    if (this.shouldStop) {
+      const err = new Error("Execution stopped");
+      err.isStopExecution = true;
+      throw err;
     }
 
-    // Show any robot outputs that were collected (filter out step debug messages)
-    const filteredOutputs = this.traceOutputs.filter(
-      (output) => !output.startsWith("__STEP_DEBUG__:"),
-    );
-    if (filteredOutputs.length > 0 && typeof DebugPanel !== "undefined") {
-      DebugPanel.info("--- Robot outputs ---");
-      filteredOutputs.forEach((output) => {
-        DebugPanel.log(output, "output");
-      });
-    }
-
-    this.isPlayingTrace = false;
-
-    if (this.currentTraceStep >= this.executionTrace.length) {
-      if (typeof DebugPanel !== "undefined") {
-        DebugPanel.success("Step mode playback completed");
+    this.processCommandQueue();
+    if (
+      typeof App !== "undefined" &&
+      App.robot &&
+      typeof Simulator !== "undefined"
+    ) {
+      App.robot = Simulator.step(App.robot, this.stepLineTime);
+      if (typeof render === "function") {
+        render();
       }
     }
+
+    return susp.resume();
   },
 
   /**
-   * Pause step mode playback. Playback remains idle until resumeStep() is
-   * invoked or stop() aborts execution.
+   * Pause step mode before the next line. Execution stays suspended until
+   * resumeStep() is invoked or stop() aborts execution.
    */
   pauseStep() {
     this.stepPaused = true;
     if (typeof DebugPanel !== "undefined") {
-      DebugPanel.info(
-        `Paused at step ${this.currentTraceStep} of ${this.executionTrace.length}`,
-      );
+      DebugPanel.info(`Paused at line ${this.currentStepLine}`);
     }
   },
 
   /**
-   * Resume step mode playback if previously paused. Resolves any outstanding
-   * promise created while waiting in playTrace().
+   * Resume step mode if previously paused.
    */
   resumeStep() {
     this.stepPaused = false;
@@ -1118,75 +622,8 @@ def ticks_diff(t1, t2):
   },
 
   /**
-   * Execute a single robot command emitted by the Python aidriver module during
-   * trace playback. Updates the simulator robot state immediately and triggers a
-   * render to show the new pose.
-   *
-   * @param {{type: string, params: object}} cmd Command describing the robot action to perform.
-   */
-  executeRobotCommand(cmd) {
-    if (typeof App === "undefined" || !App.robot) {
-      console.log("[PythonRunner] Cannot execute command - no App.robot");
-      return;
-    }
-
-    console.log("[PythonRunner] Step executing command:", cmd.type, cmd.params);
-
-    switch (cmd.type) {
-      case "drive_forward":
-        App.robot.leftSpeed = cmd.params.leftSpeed;
-        App.robot.rightSpeed = cmd.params.rightSpeed;
-        App.robot.isMoving = true;
-        break;
-
-      case "drive_backward":
-        App.robot.leftSpeed = -cmd.params.leftSpeed;
-        App.robot.rightSpeed = -cmd.params.rightSpeed;
-        App.robot.isMoving = true;
-        break;
-
-      case "rotate_left":
-        // Left wheel forward, right wheel backward → counter-clockwise
-        App.robot.leftSpeed = cmd.params.turnSpeed;
-        App.robot.rightSpeed = -cmd.params.turnSpeed;
-        App.robot.isMoving = true;
-        break;
-
-      case "rotate_right":
-        // Left wheel backward, right wheel forward → clockwise
-        App.robot.leftSpeed = -cmd.params.turnSpeed;
-        App.robot.rightSpeed = cmd.params.turnSpeed;
-        App.robot.isMoving = true;
-        break;
-
-      case "brake":
-        App.robot.leftSpeed = 0;
-        App.robot.rightSpeed = 0;
-        App.robot.isMoving = false;
-        break;
-
-      case "init":
-        // Robot initialized
-        break;
-
-      case "hold_state":
-        // Hold current state - physics handled by startAnimationLoop()
-        break;
-
-      default:
-        console.log("[PythonRunner] Unknown command type:", cmd.type);
-    }
-
-    // Note: Physics updates are handled by startAnimationLoop() which calls Simulator.step()
-    // Just trigger a render to show the updated state
-    if (typeof render === "function") {
-      render();
-    }
-  },
-
-  /**
    * Lookup source text for a given 1-based line number previously supplied by
-   * Skulpt during trace playback or error reporting.
+   * Skulpt during step mode or error reporting.
    *
    * @param {number} lineNum Line number to inspect. Values outside the source range are tolerated.
    * @returns {{lineNum: number, lineCode: string}} Canonicalised line metadata with trimmed source text.
@@ -1203,7 +640,7 @@ def ticks_diff(t1, t2):
 
   /**
    * Stop execution, clearing simulator state, pending commands, and any
-   * outstanding trace playback promises. Safe to call repeatedly.
+   * outstanding step mode promises. Safe to call repeatedly.
    */
   stop() {
     console.log("[PythonRunner] stop() called - stack trace:");
@@ -1213,8 +650,8 @@ def ticks_diff(t1, t2):
     this.isRunning = false;
     this.stepMode = false;
     this.stepPaused = false;
-    this.isCollectingTrace = false;
-    this.isPlayingTrace = false;
+    this.isStepping = false;
+    this.freezePhysics = false;
     if (this.stepResumeResolve) {
       this.stepResumeResolve();
       this.stepResumeResolve = null;
@@ -1320,6 +757,10 @@ def ticks_diff(t1, t2):
 
           case "read_distance":
             // Just logging, no action needed
+            break;
+
+          case "set_motor_speeds":
+            // As on the robot, stored speeds apply at the next drive/rotate
             break;
 
           default:

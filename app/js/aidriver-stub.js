@@ -14,11 +14,62 @@ const AIDriverStub = {
   // Robot instance state
   robotInstance: null,
 
+  // Speed warnings already shown during this run
+  speedWarnings: new Set(),
+
+  // Speeds at or below this are reported by the real library as too low to move
+  STOPPED_SPEED_MAX: 80,
+
   /**
    * Reset the simulator command queue so pending actions are discarded.
    */
   clearQueue() {
     this.commandQueue = [];
+    this.speedWarnings = new Set();
+  },
+
+  /**
+   * Validate a speed argument the same way the robot's L298N.set_speed does
+   * and convert it to the 0-255 scale used by the physics engine. Values above
+   * 255 are raw 16-bit PWM on the robot (so 300 is almost stopped).
+   * @param {*} value Python speed argument.
+   * @returns {{requested: number, effective: number}} Requested and physics speed.
+   * @throws {Sk.builtin.TypeError|Sk.builtin.ValueError} For non-numeric or negative speeds.
+   */
+  toMotorSpeed(value) {
+    const speed = Number(Sk.ffi.remapToJs(value));
+    if (isNaN(speed)) {
+      throw new Sk.builtin.TypeError("Speed must be a number");
+    }
+    if (speed < 0) {
+      throw new Sk.builtin.ValueError(
+        `Speed must be between 0 and 255, got ${speed}`
+      );
+    }
+    if (speed > 255) {
+      this.warnSpeed(
+        `Speed ${speed} is above 255 - the real robot treats it as a raw PWM value (0-65535), so it will barely move`
+      );
+      return { requested: speed, effective: Math.min(speed, 65535) / 257 };
+    }
+    if (speed > 0 && speed <= this.STOPPED_SPEED_MAX) {
+      this.warnSpeed(
+        `Speed ${speed} is in the stopped range (0-${this.STOPPED_SPEED_MAX}) - the real robot may not move`
+      );
+    }
+    return { requested: speed, effective: speed };
+  },
+
+  /**
+   * Show a speed warning in the debug panel once per run.
+   * @param {string} message Warning text.
+   */
+  warnSpeed(message) {
+    if (this.speedWarnings.has(message)) return;
+    this.speedWarnings.add(message);
+    if (typeof DebugPanel !== "undefined") {
+      DebugPanel.warn(`[AIDriver] ${message}`);
+    }
   },
 
   /**
@@ -106,16 +157,16 @@ const AIDriverStub = {
             rightSpeed,
             leftSpeed
           ) {
-            const rs = Sk.ffi.remapToJs(rightSpeed);
-            const ls = Sk.ffi.remapToJs(leftSpeed);
+            const rs = AIDriverStub.toMotorSpeed(rightSpeed);
+            const ls = AIDriverStub.toMotorSpeed(leftSpeed);
 
-            self.rightSpeed = rs;
-            self.leftSpeed = ls;
+            self.rightSpeed = rs.requested;
+            self.leftSpeed = ls.requested;
             self.isMoving = true;
 
             AIDriverStub.queueCommand({
               type: "drive_forward",
-              params: { rightSpeed: rs, leftSpeed: ls },
+              params: { rightSpeed: rs.effective, leftSpeed: ls.effective },
             });
 
             return Sk.builtin.none.none$;
@@ -132,16 +183,16 @@ const AIDriverStub = {
             rightSpeed,
             leftSpeed
           ) {
-            const rs = Sk.ffi.remapToJs(rightSpeed);
-            const ls = Sk.ffi.remapToJs(leftSpeed);
+            const rs = AIDriverStub.toMotorSpeed(rightSpeed);
+            const ls = AIDriverStub.toMotorSpeed(leftSpeed);
 
-            self.rightSpeed = rs;
-            self.leftSpeed = ls;
+            self.rightSpeed = rs.requested;
+            self.leftSpeed = ls.requested;
             self.isMoving = true;
 
             AIDriverStub.queueCommand({
               type: "drive_backward",
-              params: { rightSpeed: rs, leftSpeed: ls },
+              params: { rightSpeed: rs.effective, leftSpeed: ls.effective },
             });
 
             return Sk.builtin.none.none$;
@@ -153,15 +204,15 @@ const AIDriverStub = {
            * @returns {null}
            */
           $loc.rotate_left = new Sk.builtin.func(function (self, turnSpeed) {
-            const ts = Sk.ffi.remapToJs(turnSpeed);
+            const ts = AIDriverStub.toMotorSpeed(turnSpeed);
 
-            self.rightSpeed = ts;
-            self.leftSpeed = ts;
+            self.rightSpeed = ts.requested;
+            self.leftSpeed = ts.requested;
             self.isMoving = true;
 
             AIDriverStub.queueCommand({
               type: "rotate_left",
-              params: { turnSpeed: ts },
+              params: { turnSpeed: ts.effective },
             });
 
             return Sk.builtin.none.none$;
@@ -173,15 +224,15 @@ const AIDriverStub = {
            * @returns {null}
            */
           $loc.rotate_right = new Sk.builtin.func(function (self, turnSpeed) {
-            const ts = Sk.ffi.remapToJs(turnSpeed);
+            const ts = AIDriverStub.toMotorSpeed(turnSpeed);
 
-            self.rightSpeed = ts;
-            self.leftSpeed = ts;
+            self.rightSpeed = ts.requested;
+            self.leftSpeed = ts.requested;
             self.isMoving = true;
 
             AIDriverStub.queueCommand({
               type: "rotate_right",
-              params: { turnSpeed: ts },
+              params: { turnSpeed: ts.effective },
             });
 
             return Sk.builtin.none.none$;
@@ -228,6 +279,14 @@ const AIDriverStub = {
           });
 
           /**
+           * Background housekeeping (LED heartbeat on the robot); no-op here.
+           * @returns {null}
+           */
+          $loc.service = new Sk.builtin.func(function (self) {
+            return Sk.builtin.none.none$;
+          });
+
+          /**
            * Report whether motion commands are currently active.
            * @returns {Sk.builtin.bool} True when the robot is moving.
            */
@@ -236,18 +295,21 @@ const AIDriverStub = {
           });
 
           /**
-           * Return a tuple capturing the cached motor speeds.
-           * @returns {Sk.builtin.tuple} Pair of right and left speed integers.
+           * Return the requested motor speeds, or (0, 0) while stopped, matching
+           * the robot library.
+           * @returns {Sk.builtin.tuple} Pair of right and left speeds.
            */
           $loc.get_motor_speeds = new Sk.builtin.func(function (self) {
+            const moving = self.isMoving;
             return new Sk.builtin.tuple([
-              new Sk.builtin.int_(self.rightSpeed),
-              new Sk.builtin.int_(self.leftSpeed),
+              Sk.ffi.remapToPy(moving ? self.rightSpeed : 0),
+              Sk.ffi.remapToPy(moving ? self.leftSpeed : 0),
             ]);
           });
 
           /**
-           * Update the cached motor speeds without changing direction indicators.
+           * Update the stored motor speeds. As on the robot, the new speeds only
+           * take effect at the next drive or rotate call.
            * @param {Sk.builtin.int_} rightSpeed New right wheel speed.
            * @param {Sk.builtin.int_} leftSpeed New left wheel speed.
            * @returns {null}
@@ -257,15 +319,15 @@ const AIDriverStub = {
             rightSpeed,
             leftSpeed
           ) {
-            const rs = Sk.ffi.remapToJs(rightSpeed);
-            const ls = Sk.ffi.remapToJs(leftSpeed);
+            const rs = AIDriverStub.toMotorSpeed(rightSpeed);
+            const ls = AIDriverStub.toMotorSpeed(leftSpeed);
 
-            self.rightSpeed = rs;
-            self.leftSpeed = ls;
+            self.rightSpeed = rs.requested;
+            self.leftSpeed = ls.requested;
 
             AIDriverStub.queueCommand({
               type: "set_motor_speeds",
-              params: { rightSpeed: rs, leftSpeed: ls },
+              params: { rightSpeed: rs.effective, leftSpeed: ls.effective },
             });
 
             return Sk.builtin.none.none$;

@@ -408,6 +408,25 @@
           window.App.robot = this.robot;
         },
 
+        recordStepLines() {
+          const lines = [];
+          const original = PythonRunner.handleStepSuspension;
+          const originalDelay = PythonRunner.stepDelay;
+          PythonRunner.stepDelay = 1;
+          PythonRunner.handleStepSuspension = function (susp) {
+            const result = original.call(this, susp);
+            lines.push(this.currentStepLine);
+            return result;
+          };
+          return {
+            lines,
+            restore() {
+              PythonRunner.handleStepSuspension = original;
+              PythonRunner.stepDelay = originalDelay;
+            },
+          };
+        },
+
         // ============================================
         // RENDERING
         // ============================================
@@ -521,8 +540,8 @@
                   "PythonRunner.run is not a function"
                 );
                 this.assert(
-                  typeof PythonRunner.collectTrace === "function",
-                  "collectTrace is not a function"
+                  typeof PythonRunner.runStepMode === "function",
+                  "runStepMode is not a function"
                 );
                 return "PythonRunner module loaded";
               },
@@ -960,7 +979,7 @@ robot.brake()
 
             // ========== STEP MODE TESTS ==========
             {
-              name: "Step: Trace collection works",
+              name: "Step: Runs live and steps each line",
               run: async () => {
                 const code = `
 from aidriver import AIDriver, hold_state
@@ -969,77 +988,43 @@ robot.drive_forward(200, 200)
 hold_state(0.1)
 robot.brake()
 `;
-                let success;
+                const { lines, restore } = this.recordStepLines();
                 try {
-                  success = await PythonRunner.collectTrace(code);
-                } catch (e) {
-                  throw new Error(`collectTrace threw: ${e.message}`);
+                  await PythonRunner.runStepMode(code);
+                } finally {
+                  restore();
                 }
-
                 this.assert(
-                  success === true,
-                  `collectTrace returned: ${success}`
+                  lines.join(",") === "2,3,4,5,6",
+                  `Expected lines 2-6, got ${lines.join(",")}`
                 );
-
-                const trace = PythonRunner.executionTrace;
-                this.assert(
-                  trace !== null && trace !== undefined,
-                  "executionTrace is null/undefined"
-                );
-                this.assert(
-                  Array.isArray(trace),
-                  `executionTrace is not an array: ${typeof trace}`
-                );
-                this.assert(trace.length > 0, "Trace array is empty");
-                this.assert(
-                  trace.length >= 3,
-                  `Expected 3+ trace entries, got ${trace.length}`
-                );
-                return `Collected ${trace.length} trace entries`;
+                this.assert(!PythonRunner.isStepping, "Still stepping");
+                return `Stepped lines ${lines.join(",")}`;
               },
             },
             {
-              name: "Step: Commands captured in trace",
+              name: "Step: Sensor loop uses real readings",
               run: async () => {
+                this.resetRobot(1000, 1000, 0);
+                window.App.robot = this.robot;
                 const code = `
-from aidriver import AIDriver, hold_state
+from aidriver import AIDriver
 robot = AIDriver()
 robot.drive_forward(200, 200)
-hold_state(0.1)
+d = robot.read_distance()
+while d > 600:
+    d = robot.read_distance()
+robot.brake()
 `;
-                let success;
+                const { lines, restore } = this.recordStepLines();
                 try {
-                  success = await PythonRunner.collectTrace(code);
-                } catch (e) {
-                  throw new Error(`collectTrace threw: ${e.message}`);
+                  await PythonRunner.runStepMode(code);
+                } finally {
+                  restore();
                 }
-
-                this.assert(
-                  success === true,
-                  `collectTrace returned: ${success}`
-                );
-
-                const trace = PythonRunner.executionTrace;
-                this.assert(
-                  Array.isArray(trace),
-                  `executionTrace is not an array: ${typeof trace}`
-                );
-
-                const allCommands = [];
-                for (const t of trace) {
-                  if (t.commands && Array.isArray(t.commands)) {
-                    allCommands.push(...t.commands);
-                  }
-                }
-                const types = allCommands.map((c) => c.type);
-
-                this.log(`  Commands: ${types.join(", ") || "(none)"}`, "info");
-                this.assert(types.includes("init"), "Missing init command");
-                this.assert(
-                  types.includes("drive_forward"),
-                  "Missing drive_forward command"
-                );
-                return `Commands: ${types.join(", ")}`;
+                const y = window.App.robot.y;
+                this.assert(y < 1000, `Robot did not move (y=${y.toFixed(0)})`);
+                return `Loop ended after ${lines.length} steps at y=${y.toFixed(0)}`;
               },
             },
 

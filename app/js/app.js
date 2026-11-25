@@ -82,6 +82,10 @@ function init() {
   // Set up event listeners
   setupEventListeners();
 
+  // Sync speed from the slider (browsers may restore its value on reload) so
+  // hold_state timing and robot velocity use the same multiplier
+  syncSimulationSpeed();
+
   // Load challenge from URL parameter or default to 0
   const urlParams = new URLSearchParams(window.location.search);
   const challengeParam = urlParams.get("challenge");
@@ -262,15 +266,7 @@ function setupEventListeners() {
   });
 
   // Speed slider
-  App.elements.speedSlider.addEventListener("input", (e) => {
-    App.speedMultiplier = parseInt(e.target.value);
-    App.elements.speedValue.textContent = `${App.speedMultiplier}x`;
-
-    // Update Simulator speed
-    if (typeof Simulator !== "undefined") {
-      Simulator.setSpeed(App.speedMultiplier);
-    }
-  });
+  App.elements.speedSlider.addEventListener("input", syncSimulationSpeed);
 
   // Challenge selector
   document.querySelectorAll("[data-challenge]").forEach((item) => {
@@ -762,13 +758,35 @@ function stopExecution() {
 }
 
 /**
- * Run code in deterministic step mode by capturing a trace and replaying it with delays.
- * The first pass collects execution trace without delays, then the trace is replayed for visualization.
+ * Apply the speed slider value to both hold_state timing (App.speedMultiplier)
+ * and robot velocity (Simulator.setSpeed). They must always match, otherwise
+ * timed moves cover the wrong distance.
+ * @returns {void}
+ */
+function syncSimulationSpeed() {
+  const sliderValue = App.elements.speedSlider
+    ? parseInt(App.elements.speedSlider.value)
+    : NaN;
+  if (!isNaN(sliderValue)) {
+    App.speedMultiplier = sliderValue;
+  }
+  if (App.elements.speedValue) {
+    App.elements.speedValue.textContent = `${App.speedMultiplier}x`;
+  }
+  if (typeof Simulator !== "undefined") {
+    Simulator.setSpeed(App.speedMultiplier);
+  }
+}
+
+/**
+ * Run code in step mode: the program runs live against the simulator and
+ * pauses before each line so it can be highlighted. Clicking again while
+ * stepping toggles pause/resume.
  * @returns {Promise<void>} Resolves when stepping completes or rejects on failure.
  */
 async function stepCode() {
   // If already playing trace, toggle pause
-  if (PythonRunner.stepMode && PythonRunner.isPlayingTrace) {
+  if (PythonRunner.isStepping) {
     if (PythonRunner.stepPaused) {
       PythonRunner.resumeStep();
       App.elements.btnStep.textContent = "Pause";
@@ -805,15 +823,12 @@ async function stepCode() {
   App.elements.btnStep.textContent = "Pause";
   App.elements.btnStop.disabled = false;
 
-  DebugPanel.info(
-    "Step Mode - collecting execution trace and playing back with delays",
-  );
+  DebugPanel.info("Step Mode - running live, pausing before each line");
   updateStatus("Stepping...", "info");
   App.elements.challengeStatus.textContent = "Stepping";
   App.elements.challengeStatus.className = "badge bg-info";
 
   try {
-    // Run in step mode with trace collection and playback
     await PythonRunner.runStepMode(code);
     DebugPanel.success("Step mode completed - click Reset to run again");
   } catch (error) {
@@ -848,13 +863,9 @@ function resetRobot() {
   // Clear hasRun flag FIRST - so stopExecution doesn't disable Run button
   App.hasRun = false;
 
-  // Reset step mode and trace state
+  // Reset step mode state
   PythonRunner.stepMode = false;
   PythonRunner.stepPaused = false;
-  PythonRunner.isCollectingTrace = false;
-  PythonRunner.isPlayingTrace = false;
-  PythonRunner.executionTrace = [];
-  PythonRunner.currentTraceStep = 0;
 
   // Stop any running script
   if (App.isRunning) {
@@ -2135,11 +2146,15 @@ function startAnimationLoop() {
       );
     }
 
-    // Update robot using Simulator physics if moving
+    // Update robot using Simulator physics if moving. Physics are frozen
+    // while step mode is paused on a line (PythonRunner advances it instead).
+    const physicsFrozen =
+      typeof PythonRunner !== "undefined" && PythonRunner.freezePhysics;
     if (
-      App.robot.isMoving ||
-      App.robot.leftSpeed !== 0 ||
-      App.robot.rightSpeed !== 0
+      !physicsFrozen &&
+      (App.robot.isMoving ||
+        App.robot.leftSpeed !== 0 ||
+        App.robot.rightSpeed !== 0)
     ) {
       if (typeof Simulator !== "undefined") {
         App.robot = Simulator.step(App.robot, dt);
@@ -2210,8 +2225,8 @@ function updateSessionTracking() {
 function checkChallengeSuccess() {
   if (!App.currentChallengeConfig || typeof Challenges === "undefined") return;
 
-  // Don't check success during step mode playback
-  if (PythonRunner.isPlayingTrace) return;
+  // Don't check success during step mode
+  if (PythonRunner.isStepping) return;
 
   // Require at least 2 seconds of running before checking success
   if (App.session && App.session.startTime) {

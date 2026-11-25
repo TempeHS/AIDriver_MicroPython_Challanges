@@ -18,8 +18,8 @@ describe("AIDriver API Consistency", () => {
     const realPath = path.join(__dirname, "../../../project/lib/aidriver.py");
     realAidriverSource = fs.readFileSync(realPath, "utf8");
 
-    // Read the simulator's python-runner.js to extract the stub
-    const simulatorPath = path.join(__dirname, "../../js/python-runner.js");
+    // Read the simulator's aidriver module (Skulpt JS builtin used by learner code)
+    const simulatorPath = path.join(__dirname, "../../js/aidriver-stub.js");
     simulatorAidriverSource = fs.readFileSync(simulatorPath, "utf8");
   });
 
@@ -55,6 +55,30 @@ describe("AIDriver API Consistency", () => {
     }
 
     return methods;
+  }
+
+  /**
+   * Extract Sk.builtin.func definitions assigned to `${target}.name` in the
+   * simulator's JS aidriver module, dropping the leading `self` for methods.
+   */
+  function extractStubFunctions(source, target, isMethod) {
+    const functions = [];
+    const pattern = new RegExp(
+      `\\${target}\\.([a-z_][a-z0-9_]*)\\s*=\\s*new Sk\\.builtin\\.func\\(\\s*function\\s*\\(([^)]*)\\)`,
+      "gi"
+    );
+    let match;
+    while ((match = pattern.exec(source)) !== null) {
+      const params = match[2]
+        .split(",")
+        .map((p) => p.trim())
+        .filter((p) => p);
+      functions.push({
+        name: match[1],
+        params: isMethod ? params.slice(1) : params,
+      });
+    }
+    return functions;
   }
 
   /**
@@ -105,9 +129,10 @@ describe("AIDriver API Consistency", () => {
 
     beforeAll(() => {
       realMethods = extractPythonMethods(realAidriverSource, "AIDriver");
-      simulatorMethods = extractPythonMethods(
+      simulatorMethods = extractStubFunctions(
         simulatorAidriverSource,
-        "AIDriver"
+        "$loc",
+        true
       );
     });
 
@@ -223,7 +248,11 @@ describe("AIDriver API Consistency", () => {
   describe("Module-level functions", () => {
     test("hold_state should exist in both implementations", () => {
       const realFunctions = extractPythonFunctions(realAidriverSource);
-      const simFunctions = extractPythonFunctions(simulatorAidriverSource);
+      const simFunctions = extractStubFunctions(
+        simulatorAidriverSource,
+        "mod",
+        false
+      );
 
       const realHoldState = realFunctions.find((f) => f.name === "hold_state");
       const simHoldState = simFunctions.find((f) => f.name === "hold_state");
@@ -295,9 +324,10 @@ describe("AIDriver API Consistency", () => {
   describe("API differences report", () => {
     test("generate comprehensive API comparison", () => {
       const realMethods = extractPythonMethods(realAidriverSource, "AIDriver");
-      const simMethods = extractPythonMethods(
+      const simMethods = extractStubFunctions(
         simulatorAidriverSource,
-        "AIDriver"
+        "$loc",
+        true
       );
 
       const realMethodNames = new Set(realMethods.map((m) => m.name));
