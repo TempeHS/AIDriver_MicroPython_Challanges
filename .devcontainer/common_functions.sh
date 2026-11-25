@@ -20,6 +20,7 @@ export PROJECT_MAIN="$PROJECT_DIR/main.py"
 export MICROPYTHON_DIR="$PROJECT_BASE/micropython"
 export MODULES_DIR="$MICROPYTHON_DIR/ports/rp2/modules"
 export BUILD_DIR="$MICROPYTHON_DIR/ports/rp2"
+export BOOT_PY_REL="ports/rp2/modules/_boot.py"
 export FIRMWARE_DEST="$PROJECT_BASE/_Firmware/AI_Driver_RP2040.uf2"
 
 # Custom module files to copy to frozen modules (centralized list)
@@ -220,7 +221,8 @@ copy_custom_modules() {
 
 # Function to check internet connectivity
 check_internet() {
-    if ping -c 1 -W 3 github.com &> /dev/null; then
+    # ICMP is blocked in Codespaces/CI, so test reachability of the git remote
+    if timeout 15 git -C "$MICROPYTHON_DIR" ls-remote --exit-code origin HEAD &> /dev/null; then
         return 0
     else
         return 1
@@ -257,6 +259,16 @@ create_boot_with_main() {
     
     if [[ ! -f "$main_py_path" ]]; then
         log_error "main.py not found at $main_py_path"
+        return 1
+    fi
+    
+    # Always start from the stock _boot.py of the checked-out MicroPython
+    # commit so a stale backup or a previously patched file is never reused.
+    if git -C "$MICROPYTHON_DIR" show "HEAD:$BOOT_PY_REL" > "$boot_backup_path.tmp"; then
+        mv "$boot_backup_path.tmp" "$boot_backup_path"
+    else
+        rm -f "$boot_backup_path.tmp"
+        log_error "❌ Could not read stock _boot.py from MicroPython git"
         return 1
     fi
     

@@ -56,13 +56,8 @@ main() {
     
     show_status
     
-    # Step 1: Copy custom modules
-    copy_custom_modules
-    
-    # Step 1.5: Create _boot.py with embedded main.py
-    create_boot_with_main
-    
-    # Step 2: Update MicroPython (if requested)
+    # Step 1: Update MicroPython (if requested). This must run before the
+    # custom files are added so a pull/rollback cannot discard them.
     if [ "$SKIP_UPDATE" = false ]; then
         update_micropython
     else
@@ -70,6 +65,12 @@ main() {
         cd "$MICROPYTHON_DIR"
         log_info "📋 Using MicroPython version: $(get_micropython_version)"
     fi
+    
+    # Step 2: Copy custom modules
+    copy_custom_modules
+    
+    # Step 2.5: Create _boot.py with embedded main.py
+    create_boot_with_main
     
     # Step 3: Build firmware
     build_firmware
@@ -91,6 +92,10 @@ update_micropython() {
     # Check if we have internet connectivity
     if check_internet; then
         log_info "📡 Fetching latest MicroPython code..."
+        
+        # Discard the patched _boot.py from a previous build so it cannot
+        # block the pull; it is regenerated after the update.
+        git checkout -- "$BOOT_PY_REL"
         
         # Store current state for potential rollback
         local current_commit=$(git rev-parse HEAD)

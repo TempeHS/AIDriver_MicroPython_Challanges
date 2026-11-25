@@ -54,13 +54,19 @@ The script automatically:
 1. **Power off** the Pico
 2. **Connect GPIO pin 4 to ground** (use jumper wire to any GND pin)
 3. **Power on** or reset the Pico
-4. **Recovery activates** → `main.py` restored to default content
+4. **Recovery activates** → `main.py` restored to default content, event logs cleared, and files that would block the built-in libraries are renamed to `*.bak`
 5. **Remove jumper** from pin 4
 6. **Reset** → Normal operation resumes with fresh `main.py`
+
+Recovery renames these files (if present) instead of deleting them, so student work can still be retrieved:
+
+- `boot.py` - runs before `main.py`, so a broken one would stop the default code running
+- Root-level copies of the frozen libraries (`aidriver.py`, `eventlog.py`, `hm10_controller.py`, etc., and their `.mpy` versions) - MicroPython searches `/` before the frozen modules, so these would replace the built-in versions. Copies in `/lib` are not touched because frozen modules take priority over `/lib`.
 
 **Console output during recovery:**
 ```
 RECOVERY MODE: Pin 4 detected grounded - overwriting main.py with default
+RECOVERY MODE: renamed aidriver.py to aidriver.py.bak
 Recovery complete: main.py restored to default content
 ```
 

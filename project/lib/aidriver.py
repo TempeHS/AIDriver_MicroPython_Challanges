@@ -414,6 +414,7 @@ class L298N:
         self._pin_brake = Pin(pin_brake, Pin.OUT)
 
         self._pwm_val = 65535  # Max speed (16-bit PWM)
+        self._speed = 255  # Speed as requested by the caller
         self._is_moving = False
         self._can_move = True
         self._direction = self.STOP
@@ -427,23 +428,29 @@ class L298N:
 
         Args:
             speed: Speed value 0-255 (Arduino compatible) or 0-65535 (full RP2040 range)
+
+        Raises:
+            ValueError: If speed is negative (duty_u16 does not range-check it).
         """
+        if speed < 0:
+            raise ValueError("Speed must be between 0 and 255, got {}".format(speed))
         # Convert Arduino 0-255 range to RP2040 0-65535 range if needed
         if speed <= 255:
             self._pwm_val = int(speed * 257)  # 257 = 65535/255
         else:
-            self._pwm_val = min(speed, 65535)
+            self._pwm_val = int(min(speed, 65535))
+        self._speed = speed
 
-            _d("L298N set_speed: raw=", speed, "pwm=", self._pwm_val)
+        _d("L298N set_speed: raw=", speed, "pwm=", self._pwm_val)
 
     def get_speed(self):
         """
         Get current motor speed
 
         Returns:
-            Current speed (0 if stopped, otherwise the set PWM value)
+            Current speed as passed to set_speed (0 if stopped)
         """
-        return self._pwm_val if self._is_moving else 0
+        return self._speed if self._is_moving else 0
 
     def forward(self):
         """Move motor forward"""

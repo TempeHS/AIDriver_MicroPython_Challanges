@@ -1,6 +1,8 @@
 import importlib
 import sys
 
+import pytest
+
 
 def load_aidriver():
     if "aidriver" not in sys.modules:
@@ -54,3 +56,21 @@ def test_rotate_right_normal_speed(monkeypatch):
     robot.rotate_right(200)
 
     assert any("on the spot" in msg for msg in messages)
+
+
+def test_negative_speed_raises_value_error(monkeypatch):
+    _module, robot, _messages = _make_robot(monkeypatch)
+
+    with pytest.raises(ValueError, match="between 0 and 255"):
+        robot.drive_forward(-10, 100)
+
+
+def test_get_motor_speeds_returns_requested_speeds(monkeypatch):
+    _module, robot, _messages = _make_robot(monkeypatch)
+    robot.drive_forward(200, 150)
+
+    assert robot.get_motor_speeds() == (200, 150)
+    assert robot.motor_right._pwm_val == 200 * 257
+
+    robot.brake()
+    assert robot.get_motor_speeds() == (0, 0)

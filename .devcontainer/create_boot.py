@@ -7,12 +7,29 @@ Uses proper Python repr() for safe string embedding
 import sys
 import os
 
+def recovery_blockers(lib_dir):
+    """Return filesystem names that recovery must move aside.
+
+    A user ``boot.py`` runs before ``main.py``, and a root-level module with the
+    same name as a frozen library shadows it (sys.path is ['', '.frozen', '/lib']).
+    """
+    names = ["boot.py"]
+    if os.path.isdir(lib_dir):
+        for filename in sorted(os.listdir(lib_dir)):
+            if filename.endswith(".py"):
+                module = filename[:-3]
+                names.extend([module + ".py", module + ".mpy"])
+    return names
+
+
 def create_boot_with_main(main_py_path, boot_py_path, boot_backup_path):
     """Create _boot.py with embedded main.py content"""
     
     if not os.path.exists(main_py_path):
         print(f"Error: main.py not found at {main_py_path}")
         return False
+
+    blockers = recovery_blockers(os.path.join(os.path.dirname(main_py_path), "lib"))
     
     # Backup original _boot.py if not already backed up
     if not os.path.exists(boot_backup_path):
@@ -50,6 +67,9 @@ except Exception:
 # Embedded main.py content - properly escaped for Python
 MAIN_PY_CONTENT = {escaped_content}
 
+# Files that stop the frozen libraries or the default main.py from running
+RECOVERY_BLOCKERS = {tuple(blockers)!r}
+
 def check_recovery_mode():
     """Check if recovery mode is enabled (pin 4 connected to ground)"""
     try:
@@ -60,6 +80,24 @@ def check_recovery_mode():
     except Exception:
         # If there's any error with pin configuration, assume no recovery
         return False
+
+def move_recovery_blockers():
+    """Rename user boot.py and shadowing library copies to *.bak"""
+    try:
+        files = os.listdir('/')
+    except Exception:
+        return
+    for name in RECOVERY_BLOCKERS:
+        if name not in files:
+            continue
+        backup = name + '.bak'
+        try:
+            if backup in files:
+                os.remove(backup)
+            os.rename(name, backup)
+            print("RECOVERY MODE: renamed", name, "to", backup)
+        except Exception as e:
+            print("Warning: could not rename", name, ":", str(e))
 
 def create_main_py():
     """Create main.py on filesystem if it doesn't exist or if recovery mode is active"""
@@ -73,6 +111,7 @@ def create_main_py():
         
         if recovery_mode:
             print("RECOVERY MODE: Pin 4 detected grounded - overwriting main.py with default")
+            move_recovery_blockers()
             # When recovering, also clear any existing event log so that
             # students start with a blank log file for the fresh main.py
             if eventlog is not None:
@@ -104,8 +143,11 @@ if eventlog is not None:
     except Exception:
         pass
 
-# Clean up memory
+# Remove boot helpers from the REPL namespace and clean up memory
+del MAIN_PY_CONTENT, RECOVERY_BLOCKERS, check_recovery_mode
+del move_recovery_blockers, create_main_py, eventlog, Pin, os
 gc.collect()
+del gc
 '''
     
     # Write the new _boot.py
