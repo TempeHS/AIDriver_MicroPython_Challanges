@@ -68,7 +68,7 @@ const AIDriverStub = {
     if (this.speedWarnings.has(message)) return;
     this.speedWarnings.add(message);
     if (typeof DebugPanel !== "undefined") {
-      DebugPanel.warn(`[AIDriver] ${message}`);
+      DebugPanel.warning(`[AIDriver] ${message}`);
     }
   },
 
