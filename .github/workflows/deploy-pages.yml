@@ -16,10 +16,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  # Upload and deploy run as separate jobs (as in GitHub's Pages starter
+  # workflow) so the artifact is registered before deploy-pages looks it up.
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -36,6 +35,13 @@ jobs:
         with:
           path: app/
 
+  deploy:
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
