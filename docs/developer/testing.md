@@ -4,7 +4,7 @@ Testing lives inside `app/tests/` and uses Jest with the `jest-environment-jsdom
 
 - `tests/unit/` – Focused coverage for individual modules like the simulator engine, validator, and editor wiring
 - `tests/integration/` – Cross-module scenarios covering Python execution, BLE gamepad integration, and end-to-end challenge completion
-- `tests/integration/real-runtime.test.js` – Loads the real `js/` modules and runs learner code through the real Skulpt interpreter (the `skulpt` dev dependency, pinned to the CDN version). Most other suites test inline copies or mocks, so add behaviour tests here when changing the runner, stub, or simulator
+- `tests/helpers/load-app.js` – Shared loader used by the suites to run the **real** `js/` files (see below)
 - `tests/lint/` – Static analysis harnesses that ensure every HTML and JavaScript file under `app/` stays standards-compliant
 - Standalone HTML harnesses (e.g. `tests/integration-test.html`) exist for manual verification in the browser
 
@@ -26,14 +26,34 @@ The default script executes the full suite with coverage reporting and runs the 
 
 ## Coverage
 
-Coverage data is emitted to `app/coverage/` in multiple formats (`lcov`, `json`, HTML). Use these reports to identify untested branches when extending modules.
+`npm test` prints a text coverage summary. Note that the `js/` files are loaded with `eval` (see below), so Jest cannot instrument them and the summary does not reflect coverage of the app code.
 
 ## Writing New Tests
 
+Always test the real source files – never copy module code into a test.
+
+The `js/` files are plain browser scripts, so load them with `tests/helpers/load-app.js`:
+
+```js
+const { loadModules, loadSkulpt, captureDebugPanel, makeRobot } = require("../helpers/load-app");
+
+beforeAll(() => loadSkulpt()); // only when running Python
+beforeEach(() => {
+  loadModules(["simulator.js", "aidriver-stub.js", "python-runner.js", "app.js"]);
+  window.render = () => {}; // override dependencies after loading if needed
+});
+```
+
+- `loadModules(files)` evaluates the files as global scripts (top-level `const` becomes `var`), so each module (`Simulator`, `PythonRunner`, `App`, ...) is published on `window`, replacing the placeholder mocks from `tests/setup.js`. Calling it again gives fresh module state.
+- `loadSkulpt()` loads Skulpt from the `skulpt` dev dependency, pinned to the same version `simulator.html` loads from the CDN, so learner Python runs through the real interpreter.
+- `captureDebugPanel()` swaps in a recorder for debug-panel output; `makeRobot()` returns a fresh `App.robot`-shaped state.
+- `tests/integration/real-runtime.test.js` is a compact example of running Python end to end.
+
+Other conventions:
+
 1. Place unit tests under `tests/unit/` and mirror the module name, e.g. `simulator.test.js`
-2. Import modules via the `@/` alias (mapped to `app/js/` in `package.json`)
-3. When simulating Skulpt or BLE behaviour, isolate external dependencies with Jest mocks to avoid brittle async behaviour
-4. Keep test data deterministic; the simulator’s noise functions can be stubbed by overriding `Math.random`
+2. Keep test data deterministic; stub the ultrasonic noise with `jest.spyOn(Math, "random")`
+3. Test behaviour through the public API; do not assert on constants or restate the implementation
 
 ## Manual Verification
 

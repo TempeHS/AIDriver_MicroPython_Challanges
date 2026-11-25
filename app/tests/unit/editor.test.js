@@ -1,292 +1,342 @@
 /**
  * Editor Unit Tests
- * Tests for ACE editor integration
+ * Exercises the real js/editor.js. ACE is a CDN global in the browser, so a
+ * small in-memory fake of the ACE API that Editor uses replaces it here; the
+ * assertions are about Editor's own logic, not ACE.
  */
 
-describe("Editor", () => {
-  let EditorImpl;
-  let mockAceEditor;
+const { loadModules } = require("../helpers/load-app");
 
-  beforeEach(() => {
-    // Set up DOM
-    document.body.innerHTML = `<div id="codeEditor"></div>`;
+class FakeRange {
+  constructor(startRow, startCol, endRow, endCol) {
+    this.start = { row: startRow, column: startCol };
+    this.end = { row: endRow, column: endCol };
+  }
+}
 
-    // Create mock ACE editor instance
-    mockAceEditor = {
-      setTheme: jest.fn(),
-      getSession: jest.fn().mockReturnValue({
-        setMode: jest.fn(),
-        setUseWrapMode: jest.fn(),
-        on: jest.fn(),
-        setAnnotations: jest.fn(),
-        clearAnnotations: jest.fn(),
-        getAnnotations: jest.fn().mockReturnValue([]),
-      }),
-      setOptions: jest.fn(),
-      setValue: jest.fn(),
-      getValue: jest.fn().mockReturnValue(""),
-      resize: jest.fn(),
-      on: jest.fn(),
-      gotoLine: jest.fn(),
-      setReadOnly: jest.fn(),
-    };
+function createFakeAceEditor(containerId) {
+  const listeners = {};
+  let value = "";
+  let nextMarkerId = 1;
 
-    // Create Editor implementation
-    EditorImpl = {
-      ace: null,
-      code: "",
-      init: function () {
-        this.ace = mockAceEditor;
-        this.ace.setTheme("ace/theme/monokai");
-        this.ace.getSession().setMode("ace/mode/python");
+  const session = {
+    annotations: [],
+    markers: new Map(),
+    setMode: jest.fn(),
+    getAnnotations() {
+      return this.annotations;
+    },
+    setAnnotations(annotations) {
+      this.annotations = annotations;
+    },
+    addMarker(range, clazz, type, inFront) {
+      const id = nextMarkerId++;
+      this.markers.set(id, { range, clazz, type, inFront });
+      return id;
+    },
+    removeMarker(id) {
+      this.markers.delete(id);
+    },
+    getLength: () => value.split("\n").length,
+    getLine: (row) => value.split("\n")[row] ?? "",
+  };
+
+  return {
+    containerId,
+    session,
+    commands: {
+      byName: {},
+      addCommand(cmd) {
+        this.byName[cmd.name] = cmd;
       },
-      getCode: function () {
-        return this.code;
-      },
-      setCode: function (code) {
-        this.code = code;
-        if (this.ace) this.ace.setValue(code);
-      },
-      markError: function (line, message) {
-        if (this.ace) {
-          this.ace.getSession().setAnnotations([
-            {
-              row: line - 1,
-              column: 0,
-              text: message,
-              type: "error",
-            },
-          ]);
-        }
-      },
-      clearErrors: function () {
-        if (this.ace) {
-          this.ace.getSession().clearAnnotations();
-        }
-      },
-      resize: function () {
-        if (this.ace) this.ace.resize();
-      },
-      gotoLine: function (line) {
-        if (this.ace) this.ace.gotoLine(line);
-      },
-      setReadOnly: function (readOnly) {
-        if (this.ace) this.ace.setReadOnly(readOnly);
-      },
-      saveToLocalStorage: function () {
-        localStorage.setItem("aidriver_code", this.code);
-      },
-      loadFromLocalStorage: function () {
-        const saved = localStorage.getItem("aidriver_code");
-        if (saved) this.setCode(saved);
-        return saved;
-      },
-    };
-    EditorImpl.init();
+    },
+    setTheme: jest.fn(),
+    setOptions: jest.fn(),
+    scrollToLine: jest.fn(),
+    on(event, fn) {
+      (listeners[event] = listeners[event] || []).push(fn);
+    },
+    getValue: () => value,
+    // Like ACE, programmatic setValue also fires "change"
+    setValue(text, cursorPos) {
+      value = text;
+      this.lastCursorPos = cursorPos;
+      (listeners.change || []).forEach((fn) => fn({}));
+    },
+  };
+}
+
+function markerRows(session, clazz) {
+  return [...session.markers.values()]
+    .filter((m) => m.clazz === clazz)
+    .map((m) => m.range.start.row);
+}
+
+const CLEAN_CODE = [
+  "from aidriver import AIDriver, hold_state",
+  "robot = AIDriver()",
+  "robot.drive_forward(200, 200)",
+  "hold_state(1)",
+  "robot.brake()",
+].join("\n");
+
+const BROKEN_CODE = [
+  "from aidriver import AIDriver, hold_state",
+  "robot = AIDriver()",
+  "while True",
+  "    robot.drive_forward(200, 200)",
+  "    explode()",
+].join("\n");
+
+let Editor;
+let aceEditor;
+let session;
+
+beforeEach(() => {
+  // Editor debounces validation/saving with timers; keep them deterministic
+  jest.useFakeTimers();
+  document.body.innerHTML = `
+    <div id="editor"></div>
+    <span id="challengeStatus" class="badge bg-secondary">Ready</span>
+    <button id="btnRun"></button>
+  `;
+
+  window.ace = {
+    edit: jest.fn((id) => {
+      aceEditor = createFakeAceEditor(id);
+      return aceEditor;
+    }),
+    require: jest.fn((mod) => (mod === "ace/range" ? { Range: FakeRange } : {})),
+  };
+
+  // jsdom provides a real localStorage
+  localStorage.clear();
+
+  window.App = {
+    currentChallenge: 3,
+    isRunning: false,
+    hasRun: false,
+    elements: {
+      challengeStatus: document.getElementById("challengeStatus"),
+      btnRun: document.getElementById("btnRun"),
+    },
+  };
+  window.runCode = jest.fn();
+  window.stopExecution = jest.fn();
+
+  ({ Editor } = loadModules(["validator.js", "editor.js"]));
+  Editor.init();
+  session = aceEditor.session;
+});
+
+afterEach(() => {
+  jest.clearAllTimers();
+  jest.useRealTimers();
+  delete window.runCode;
+  delete window.stopExecution;
+});
+
+describe("init", () => {
+  test("creates a Python editor on the #editor element", () => {
+    expect(ace.edit).toHaveBeenCalledWith("editor");
+    expect(session.setMode).toHaveBeenCalledWith("ace/mode/python");
+    expect(Editor.instance).toBe(aceEditor);
   });
 
-  describe("Initialization", () => {
-    test("should have required methods", () => {
-      expect(typeof EditorImpl.init).toBe("function");
-      expect(typeof EditorImpl.getCode).toBe("function");
-      expect(typeof EditorImpl.setCode).toBe("function");
-    });
+  test("Ctrl+Enter runs code only when nothing is running", () => {
+    const run = aceEditor.commands.byName.runCode;
+    expect(run.bindKey).toEqual({ win: "Ctrl-Enter", mac: "Cmd-Enter" });
 
-    test("should initialize ACE editor", () => {
-      expect(EditorImpl.ace).toBeDefined();
-    });
+    run.exec();
+    expect(window.runCode).toHaveBeenCalledTimes(1);
 
-    test("should set Python mode", () => {
-      expect(mockAceEditor.getSession().setMode).toHaveBeenCalledWith(
-        "ace/mode/python"
-      );
-    });
-
-    test("should set monokai theme", () => {
-      expect(mockAceEditor.setTheme).toHaveBeenCalledWith("ace/theme/monokai");
-    });
+    App.isRunning = true;
+    run.exec();
+    expect(window.runCode).toHaveBeenCalledTimes(1);
   });
 
-  describe("setCode()", () => {
-    test("should set editor content", () => {
-      EditorImpl.setCode("print('hello')");
-      expect(EditorImpl.code).toBe("print('hello')");
-    });
+  test("Ctrl+. stops code only while running", () => {
+    const stop = aceEditor.commands.byName.stopCode;
+    expect(stop.bindKey).toEqual({ win: "Ctrl-.", mac: "Cmd-." });
 
-    test("should handle empty string", () => {
-      EditorImpl.setCode("");
-      expect(EditorImpl.code).toBe("");
-    });
+    stop.exec();
+    expect(window.stopExecution).not.toHaveBeenCalled();
 
-    test("should handle multiline code", () => {
-      const code = "def test():\n    return 42";
-      EditorImpl.setCode(code);
-      expect(EditorImpl.code).toBe(code);
-    });
+    App.isRunning = true;
+    stop.exec();
+    expect(window.stopExecution).toHaveBeenCalledTimes(1);
+  });
+});
 
-    test("should handle code with special characters", () => {
-      const code = "x = 'hello\\nworld'";
-      EditorImpl.setCode(code);
-      expect(EditorImpl.code).toBe(code);
-    });
+describe("getCode / setCode / clear", () => {
+  test("setCode replaces the buffer and moves the cursor to the top by default", () => {
+    Editor.setCode(CLEAN_CODE);
+    expect(Editor.getCode()).toBe(CLEAN_CODE);
+    expect(aceEditor.lastCursorPos).toBe(-1);
+
+    Editor.setCode("x = 1", 1);
+    expect(aceEditor.lastCursorPos).toBe(1);
+    expect(Editor.getLineCount()).toBe(1);
+    expect(Editor.getLine(1)).toBe("x = 1");
   });
 
-  describe("getCode()", () => {
-    test("should return editor content", () => {
-      EditorImpl.setCode("test code");
-      expect(EditorImpl.getCode()).toBe("test code");
-    });
+  test("setCode and clear remove error markers, annotations and the step highlight", () => {
+    Editor.markError(2, "bad");
+    Editor.markWarning(3, "hmm");
+    Editor.highlightLine(4);
 
-    test("should return empty string for empty editor", () => {
-      expect(EditorImpl.getCode()).toBe("");
-    });
+    Editor.setCode(CLEAN_CODE);
+    expect(session.annotations).toEqual([]);
+    expect(session.markers.size).toBe(0);
+    expect(Editor.markers).toEqual([]);
+
+    Editor.markError(1, "bad again");
+    Editor.clear();
+    expect(Editor.getCode()).toBe("");
+    expect(session.annotations).toEqual([]);
+    expect(session.markers.size).toBe(0);
+  });
+});
+
+describe("error and warning markers", () => {
+  test("markError adds a gutter annotation and a full-line marker on the 1-based line", () => {
+    Editor.markError(3, "Missing colon");
+    Editor.markError(5, "Undefined name");
+
+    expect(session.annotations).toEqual([
+      { row: 2, column: 0, text: "Missing colon", type: "error" },
+      { row: 4, column: 0, text: "Undefined name", type: "error" },
+    ]);
+    expect(markerRows(session, "ace_error-line")).toEqual([2, 4]);
+    expect([...session.markers.values()][0].type).toBe("fullLine");
   });
 
-  describe("Error Marking", () => {
-    test("should have markError method", () => {
-      expect(typeof EditorImpl.markError).toBe("function");
-    });
+  test("markWarning annotates the gutter without highlighting the line", () => {
+    Editor.markWarning(2, "Did you mean 'True'?");
 
-    test("should mark error at line", () => {
-      EditorImpl.markError(5, "Syntax error");
-      expect(mockAceEditor.getSession().setAnnotations).toHaveBeenCalled();
-    });
-
-    test("should clear errors", () => {
-      EditorImpl.clearErrors();
-      expect(mockAceEditor.getSession().clearAnnotations).toHaveBeenCalled();
-    });
-
-    test("should handle multiple errors", () => {
-      EditorImpl.markError(1, "Error 1");
-      EditorImpl.markError(2, "Error 2");
-      expect(mockAceEditor.getSession().setAnnotations).toHaveBeenCalledTimes(
-        2
-      );
-    });
+    expect(session.annotations).toEqual([
+      { row: 1, column: 0, text: "Did you mean 'True'?", type: "warning" },
+    ]);
+    expect(session.markers.size).toBe(0);
   });
 
-  describe("Line Navigation", () => {
-    test("should have gotoLine method", () => {
-      expect(typeof EditorImpl.gotoLine).toBe("function");
-    });
+  test("clearAllMarkers removes every marker that was added", () => {
+    Editor.markError(1, "a");
+    Editor.markError(2, "b");
+    Editor.clearAllMarkers();
 
-    test("should navigate to line", () => {
-      EditorImpl.gotoLine(10);
-      expect(mockAceEditor.gotoLine).toHaveBeenCalledWith(10);
-    });
+    expect(session.markers.size).toBe(0);
+    expect(session.annotations).toEqual([]);
+  });
+});
+
+describe("step-mode line highlight", () => {
+  test("highlightLine keeps exactly one executing-line marker and scrolls to it", () => {
+    Editor.setCode(CLEAN_CODE);
+    Editor.highlightLine(2);
+    Editor.highlightLine(4);
+
+    expect(markerRows(session, "ace_executing-line")).toEqual([3]);
+    expect(aceEditor.scrollToLine).toHaveBeenLastCalledWith(3, true, true);
   });
 
-  describe("Code Persistence", () => {
-    let mockSetItem;
-    let mockGetItem;
+  test("clearHighlight removes the executing line but keeps error markers", () => {
+    Editor.markError(1, "err");
+    Editor.highlightLine(2);
+    Editor.clearHighlight();
 
-    beforeEach(() => {
-      mockSetItem = jest.fn();
-      mockGetItem = jest.fn();
-      // Override EditorImpl's localStorage methods for testing
-      EditorImpl.saveToLocalStorage = function () {
-        mockSetItem("aidriver_code", this.code);
-      };
-      EditorImpl.loadFromLocalStorage = function () {
-        const saved = mockGetItem("aidriver_code");
-        if (saved) this.setCode(saved);
-        return saved;
-      };
-    });
+    expect(markerRows(session, "ace_executing-line")).toEqual([]);
+    expect(markerRows(session, "ace_error-line")).toEqual([0]);
+    expect(Editor.executingLine).toBeNull();
+  });
+});
 
-    test("should save code to localStorage", () => {
-      EditorImpl.setCode("saved code");
-      EditorImpl.saveToLocalStorage();
-      expect(mockSetItem).toHaveBeenCalledWith("aidriver_code", "saved code");
-    });
+describe("validateCode", () => {
+  test("marks validator errors and blocks the Run button", () => {
+    Editor.setCode(BROKEN_CODE);
+    const result = Editor.validateCode();
 
-    test("should load code from localStorage", () => {
-      mockGetItem.mockReturnValue("loaded code");
-      const result = EditorImpl.loadFromLocalStorage();
-      expect(result).toBe("loaded code");
-    });
-
-    test("should handle missing saved code", () => {
-      mockGetItem.mockReturnValue(null);
-      const result = EditorImpl.loadFromLocalStorage();
-      expect(result).toBeNull();
-    });
+    const status = App.elements.challengeStatus;
+    expect(result.errors.map((e) => e.line).sort()).toEqual([3, 5]);
+    expect(markerRows(session, "ace_error-line").sort()).toEqual([2, 4]);
+    expect(status.textContent).toBe("2 error(s)");
+    expect(status.className).toBe("badge bg-danger");
+    expect(App.elements.btnRun.disabled).toBe(true);
+    expect(App.elements.btnRun.title).toBe("Fix errors before running");
   });
 
-  describe("Editor Options", () => {
-    test("should set editor options", () => {
-      EditorImpl.ace.setOptions({ fontSize: 14 });
-      expect(mockAceEditor.setOptions).toHaveBeenCalled();
-    });
+  test("warnings (e.g. unknown robot method) are shown but do not block Run", () => {
+    Editor.setCode(CLEAN_CODE + "\nrobot.fly()");
+    App.elements.btnRun.disabled = true;
+    Editor.validateCode();
 
-    test("should enable line numbers", () => {
-      // Line numbers are enabled by default in ACE
-      expect(EditorImpl.ace).toBeDefined();
-    });
-
-    test("should set appropriate font size", () => {
-      EditorImpl.ace.setOptions({ fontSize: 14 });
-      expect(mockAceEditor.setOptions).toHaveBeenCalled();
-    });
+    expect(session.annotations).toContainEqual(
+      expect.objectContaining({ row: 5, type: "warning" }),
+    );
+    expect(App.elements.challengeStatus.textContent).toBe("1 warning(s)");
+    expect(App.elements.btnRun.disabled).toBe(false);
   });
 
-  describe("Event Handling", () => {
-    test("should register change listener", () => {
-      EditorImpl.ace.on("change", jest.fn());
-      expect(mockAceEditor.on).toHaveBeenCalled();
-    });
+  test("clean code clears old markers and shows Ready", () => {
+    Editor.markError(1, "stale");
+    Editor.setCode(CLEAN_CODE);
+    App.elements.btnRun.disabled = true;
+    Editor.validateCode();
 
-    test("should validate on change", () => {
-      const callback = jest.fn();
-      EditorImpl.ace.on("change", callback);
-      expect(mockAceEditor.on).toHaveBeenCalledWith("change", callback);
-    });
+    expect(session.annotations).toEqual([]);
+    expect(session.markers.size).toBe(0);
+    expect(App.elements.challengeStatus.textContent).toBe("Ready");
+    expect(App.elements.challengeStatus.className).toBe("badge bg-success");
+    expect(App.elements.btnRun.disabled).toBe(false);
   });
 
-  describe("Resize Handling", () => {
-    test("should have resize method", () => {
-      expect(typeof EditorImpl.resize).toBe("function");
-    });
+  test("does not re-enable Run after a run until the robot is reset", () => {
+    Editor.setCode(CLEAN_CODE);
+    App.hasRun = true;
+    App.elements.btnRun.disabled = true;
+    Editor.validateCode();
 
-    test("should resize editor", () => {
-      EditorImpl.resize();
-      expect(mockAceEditor.resize).toHaveBeenCalled();
-    });
+    expect(App.elements.challengeStatus.textContent).toBe("Ready");
+    expect(App.elements.btnRun.disabled).toBe(true);
   });
+});
 
-  describe("Read-Only Mode", () => {
-    test("should support read-only mode", () => {
-      EditorImpl.setReadOnly(true);
-      expect(mockAceEditor.setReadOnly).toHaveBeenCalledWith(true);
-    });
+describe("auto-validate and auto-save on edit", () => {
+  test("edits are validated after 500ms and saved per challenge after 1s (debounced)", () => {
+    aceEditor.setValue("from aidriver import AIDriver\nwhile True", 1);
+    aceEditor.setValue(BROKEN_CODE, 1);
+
+    jest.advanceTimersByTime(499);
+    expect(session.markers.size).toBe(0);
+    jest.advanceTimersByTime(1);
+    expect(markerRows(session, "ace_error-line").sort()).toEqual([2, 4]);
+
+    const setItem = jest.spyOn(Storage.prototype, "setItem");
+    jest.advanceTimersByTime(499);
+    expect(setItem).not.toHaveBeenCalled();
+    jest.advanceTimersByTime(1);
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem("aidriver_challenge_3_code")).toBe(BROKEN_CODE);
+    setItem.mockRestore();
   });
+});
 
-  describe("Autocompletion", () => {
-    test("should enable basic autocomplete", () => {
-      // ACE autocomplete is enabled via require
-      expect(EditorImpl.ace).toBeDefined();
-    });
+describe("saved code storage", () => {
+  test("save, load, detect and clear code per challenge", () => {
+    Editor.setCode("print('three')");
+    Editor.saveCode();
+    App.currentChallenge = "debug";
+    Editor.setCode("print('debug')");
+    Editor.saveCode();
 
-    test("should include AIDriver keywords", () => {
-      // AIDriver keywords should be in completer
-      expect(EditorImpl.ace).toBeDefined();
-    });
-  });
+    expect(Editor.hasSavedCode(3)).toBe(true);
+    expect(Editor.loadSavedCode(3)).toBe("print('three')");
+    expect(Editor.loadSavedCode("debug")).toBe("print('debug')");
+    expect(Editor.hasSavedCode(5)).toBe(false);
+    expect(Editor.loadSavedCode(5)).toBeNull();
 
-  describe("Edge Cases", () => {
-    test("should handle init before DOM ready", () => {
-      expect(() => EditorImpl.init()).not.toThrow();
-    });
-
-    test("should handle very large code", () => {
-      const largeCode = "x = 1\n".repeat(10000);
-      expect(() => EditorImpl.setCode(largeCode)).not.toThrow();
-    });
-
-    test("should handle binary data in code", () => {
-      const binaryData = "\\x00\\x01\\x02";
-      expect(() => EditorImpl.setCode(binaryData)).not.toThrow();
-    });
+    Editor.clearSavedCode(3);
+    expect(Editor.hasSavedCode(3)).toBe(false);
+    expect(Editor.hasSavedCode("debug")).toBe(true);
   });
 });

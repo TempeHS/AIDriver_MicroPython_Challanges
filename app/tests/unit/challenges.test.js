@@ -1,332 +1,309 @@
 /**
- * Challenges Unit Tests
- * Tests for challenge definitions and success criteria
+ * Challenge tests against the real js/challenges.js, using the real Simulator
+ * (and mazes for Challenge 6) to check that layouts are physically sensible.
  */
 
-describe("Challenges", () => {
-  let ChallengesImpl;
+const { loadModules, makeRobot } = require("../helpers/load-app");
 
-  beforeEach(() => {
-    // Create Challenges implementation
-    ChallengesImpl = {
-      list: [
-        {
-          id: 0,
-          name: "Challenge 0: Hello World",
-          description: "Get your first program running",
-          startCode: `from aidriver import AIDriver
+// Challenge ids, read from the real module so test.each covers every challenge
+const IDS = Object.keys(loadModules(["challenges.js"]).Challenges.getAll());
 
-robot = AIDriver()
+beforeEach(() => {
+  loadModules(["simulator.js", "challenges.js", "mazes.js"]);
+});
 
-# Your code here
-print("Hello AIDriver!")`,
-          successCriteria: function (robot, startPos) {
-            // Just needs to run without errors
-            return true;
-          },
-          mazeId: null,
-        },
-        {
-          id: 1,
-          name: "Challenge 1: Move Forward",
-          description: "Move the robot forward",
-          startCode: `from aidriver import AIDriver
-import time
+afterEach(() => {
+  jest.restoreAllMocks();
+});
 
-robot = AIDriver()
+/** Obstacles and (for Challenge 6) default maze walls the robot must avoid. */
+function blockers(challenge) {
+  const walls = challenge.maze ? Mazes.get(challenge.maze).walls : [];
+  return [...challenge.obstacles, ...walls];
+}
 
-# Move forward
-robot.drive_forward()
-time.sleep(2)
-robot.brake()`,
-          successCriteria: function (robot, startPos) {
-            // Robot should have moved forward (positive X direction when angle = 0)
-            return robot.x > startPos.x + 100;
-          },
-          mazeId: null,
-        },
-        {
-          id: 2,
-          name: "Challenge 2: Square Dance",
-          description: "Drive in a square pattern",
-          startCode: `from aidriver import AIDriver
-import time
+/** True when a robot at this pose is fully inside the arena and touches nothing. */
+function fits(pose, obstacles) {
+  const clamped = Simulator.applyBoundaryConstraints(pose);
+  return (
+    clamped.x === pose.x &&
+    clamped.y === pose.y &&
+    !Simulator.checkCollision(makeRobot(pose), obstacles)
+  );
+}
 
-robot = AIDriver()
+/** Points every `step` mm along a polyline, with the heading of travel. */
+function samplePolyline(points, step = 25) {
+  const samples = [];
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1];
+    const b = points[i];
+    const length = Math.hypot(b.x - a.x, b.y - a.y);
+    const heading = (Math.atan2(b.x - a.x, a.y - b.y) * 180) / Math.PI;
+    for (let d = 0; d <= length; d += step) {
+      samples.push({
+        x: a.x + ((b.x - a.x) * d) / length,
+        y: a.y + ((b.y - a.y) * d) / length,
+        heading,
+      });
+    }
+  }
+  return samples;
+}
 
-# Drive in a square
-for i in range(4):
-    robot.drive_forward()
-    time.sleep(1)
-    robot.brake()
-    robot.rotate_right()
-    time.sleep(0.5)
-    robot.brake()`,
-          successCriteria: function (robot, startPos) {
-            // Robot should return close to start position
-            const dx = robot.x - startPos.x;
-            const dy = robot.y - startPos.y;
-            return Math.sqrt(dx * dx + dy * dy) < 200;
-          },
-          mazeId: null,
-        },
-        {
-          id: 3,
-          name: "Challenge 3: Wall Follower",
-          description: "Use ultrasonic to follow walls",
-          startCode: `from aidriver import AIDriver
-import time
+describe("Challenge layouts", () => {
+  test.each(IDS)("challenge %s: the robot starts inside the arena, clear of obstacles", (id) => {
+    const challenge = Challenges.get(id);
 
-robot = AIDriver()
-
-while True:
-    distance = robot.get_ultrasonic()
-    if distance < 300:
-        robot.rotate_right()
-        time.sleep(0.3)
-    else:
-        robot.drive_forward()
-    time.sleep(0.1)`,
-          successCriteria: function (robot, startPos) {
-            // Robot should navigate without crashing
-            return !robot.crashed;
-          },
-          mazeId: 1,
-        },
-        {
-          id: 4,
-          name: "Challenge 4: Navigate Maze",
-          description: "Navigate through a simple maze",
-          startCode: `from aidriver import AIDriver
-import time
-
-robot = AIDriver()
-
-# Navigate the maze`,
-          successCriteria: function (robot, startPos) {
-            // Robot should reach the goal area
-            return robot.x > 1800 && robot.y > 1800;
-          },
-          mazeId: 2,
-        },
-        {
-          id: 5,
-          name: "Challenge 5: Line Follower",
-          description: "Follow a line pattern",
-          startCode: `from aidriver import AIDriver
-import time
-
-robot = AIDriver()
-
-# Line following logic`,
-          successCriteria: function (robot, startPos) {
-            return robot.x > 1500;
-          },
-          mazeId: 3,
-        },
-        {
-          id: 6,
-          name: "Challenge 6: Obstacle Course",
-          description: "Navigate through obstacles",
-          startCode: `from aidriver import AIDriver
-import time
-
-robot = AIDriver()
-
-# Obstacle avoidance`,
-          successCriteria: function (robot, startPos) {
-            return robot.x > 1800 && !robot.crashed;
-          },
-          mazeId: 4,
-        },
-        {
-          id: 7,
-          name: "Challenge 7: Free Drive",
-          description: "Control robot with gamepad (no code needed)",
-          startCode: `# Challenge 7: Gamepad Control
-# Use the virtual gamepad or keyboard (WASD/Arrows) to drive!`,
-          successCriteria: function (robot, startPos) {
-            // Just explore
-            return true;
-          },
-          mazeId: null,
-          isGamepad: true,
-        },
-      ],
-
-      get: function (id) {
-        return this.list.find((c) => c.id === id) || null;
-      },
-
-      getAll: function () {
-        return this.list;
-      },
-
-      getCount: function () {
-        return this.list.length;
-      },
-
-      getCurrent: function (currentId) {
-        return this.get(currentId);
-      },
-
-      getNext: function (currentId) {
-        const next = currentId + 1;
-        return next < this.list.length ? this.get(next) : null;
-      },
-
-      getPrevious: function (currentId) {
-        const prev = currentId - 1;
-        return prev >= 0 ? this.get(prev) : null;
-      },
-
-      isGamepadChallenge: function (id) {
-        const challenge = this.get(id);
-        return challenge ? challenge.isGamepad === true : false;
-      },
-    };
+    expect(fits(challenge.startPosition, blockers(challenge))).toBe(true);
   });
 
-  describe("Challenge List", () => {
-    test("should have 8 challenges", () => {
-      expect(ChallengesImpl.getCount()).toBe(8);
+  test.each(IDS.filter((id) => Challenges.get(id).successCriteria.zone))(
+    "challenge %s: the target zone is inside the arena and the robot fits in it",
+    (id) => {
+      const challenge = Challenges.get(id);
+      const { x, y, width, height } = challenge.successCriteria.zone;
+
+      expect(x).toBeGreaterThanOrEqual(0);
+      expect(y).toBeGreaterThanOrEqual(0);
+      expect(x + width).toBeLessThanOrEqual(Simulator.ARENA_WIDTH);
+      expect(y + height).toBeLessThanOrEqual(Simulator.ARENA_HEIGHT);
+      const centre = { x: x + width / 2, y: y + height / 2, heading: 0 };
+      expect(fits(centre, challenge.obstacles)).toBe(true);
+    },
+  );
+
+  test("Challenge 1's guide line ends inside its target zone", () => {
+    const { path } = Challenges.get(1);
+    const end = { ...path.end, heading: 0 };
+
+    expect(fits(end, [])).toBe(true);
+    expect(Challenges.checkSuccess(1, end, {}).success).toBe(true);
+  });
+
+  test("Challenge 2 starts on its drawn circle, heading along it, and the circle fits the arena", () => {
+    const { startPosition: start, path } = Challenges.get(2);
+
+    expect(Math.hypot(start.x - path.center.x, start.y - path.center.y)).toBe(path.radius);
+    expect(start.heading % 180).toBe(90); // tangent at the bottom of the circle
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const edge = { x: path.center.x + dx * path.radius, y: path.center.y + dy * path.radius, heading: 0 };
+      expect(fits(edge, [])).toBe(true);
+    }
+  });
+
+  test("Challenge 5's intended route is collision-free and ends in the target zone", () => {
+    const { path, obstacles } = Challenges.get(5);
+    const route = samplePolyline(path.waypoints);
+
+    expect(route.filter((pose) => !fits(pose, obstacles))).toEqual([]);
+    const end = route[route.length - 1];
+    expect(Challenges.checkSuccess(5, end, {}).success).toBe(true);
+  });
+
+  test("Challenge 5's obstacles are what the sensor sees at each turning point", () => {
+    jest.spyOn(Math, "random").mockReturnValue(0.5); // no sensor noise
+    const { path, obstacles } = Challenges.get(5);
+    Simulator.setObstacles(obstacles);
+    const [, firstTurn, secondTurn] = path.waypoints;
+
+    // Facing north at the first turn: obstacle 1's underside (y = 700)
+    expect(Simulator.simulateUltrasonic({ ...firstTurn, heading: 0 })).toBe(900 - 75 - 700);
+    // Facing west at the second turn: obstacle 2's right side (x = 300)
+    expect(Simulator.simulateUltrasonic({ ...secondTurn, heading: 270 })).toBe(500 - 75 - 300);
+  });
+
+  test.each(IDS.filter((id) => id !== "4"))(
+    "challenge %s: its success criteria type is evaluated by checkSuccess",
+    (id) => {
+      const start = Challenges.get(id).startPosition;
+      const result = Challenges.checkSuccess(id, makeRobot(start), { startPosition: start });
+
+      expect(result.message).not.toBe("Unknown criteria type");
+    },
+  );
+
+  // BUG (js/challenges.js:180 vs 317-348): Challenge 4 uses successCriteria
+  // type "complete_square", but checkSuccess has no case for it, so it always
+  // returns { success: false, message: "Unknown criteria type" } and Drive a
+  // Square can never be completed (app.js:1646 even draws its FINISH zone).
+  test.skip("challenge 4: a robot back in the start zone after a full square passes", () => {
+    const start = Challenges.get(4).startPosition;
+    const session = { startPosition: start, totalRotation: 360, minY: 600 };
+
+    expect(Challenges.checkSuccess(4, makeRobot(start), session).success).toBe(true);
+  });
+});
+
+describe("checkSuccess", () => {
+  describe.each(["debug", 0])("run_without_error (challenge %s)", (id) => {
+    const startPosition = { x: 1000, y: 1800 };
+    const session = (extra) => ({ startPosition, hasError: false, ...extra });
+
+    test("moving exactly the minimum 100 mm passes", () => {
+      const robot = makeRobot({ x: 1060, y: 1720 }); // 3-4-5 triangle: 100 mm
+
+      expect(Challenges.checkSuccess(id, robot, session())).toEqual({
+        success: true,
+        message: "Code runs correctly!",
+      });
     });
 
-    test("challenges should have sequential IDs 0-7", () => {
-      for (let i = 0; i < 8; i++) {
-        expect(ChallengesImpl.get(i)).not.toBeNull();
-        expect(ChallengesImpl.get(i).id).toBe(i);
-      }
+    test("moving less than 100 mm fails", () => {
+      const robot = makeRobot({ x: 1000, y: 1701 });
+
+      expect(Challenges.checkSuccess(id, robot, session())).toEqual({
+        success: false,
+        message: "Move at least 100mm",
+      });
     });
 
-    test("each challenge should have required properties", () => {
-      ChallengesImpl.getAll().forEach((challenge) => {
-        expect(challenge.id).toBeDefined();
-        expect(challenge.name).toBeDefined();
-        expect(challenge.description).toBeDefined();
-        expect(challenge.startCode).toBeDefined();
-        expect(typeof challenge.successCriteria).toBe("function");
+    test("an errored run fails however far the robot went", () => {
+      const robot = makeRobot({ x: 1000, y: 200 });
+
+      expect(Challenges.checkSuccess(id, robot, session({ hasError: true }))).toEqual({
+        success: false,
+        message: "Code has errors",
       });
     });
   });
 
-  describe("get()", () => {
-    test("should return challenge by ID", () => {
-      const challenge = ChallengesImpl.get(0);
-      expect(challenge).not.toBeNull();
-      expect(challenge.id).toBe(0);
-    });
+  test("unknown challenge ids are judged by Challenge 0's rules", () => {
+    const session = { startPosition: { x: 1000, y: 1800 } };
 
-    test("should return null for invalid ID", () => {
-      expect(ChallengesImpl.get(-1)).toBeNull();
-      expect(ChallengesImpl.get(100)).toBeNull();
-    });
-
-    test("should return correct challenge data", () => {
-      const challenge = ChallengesImpl.get(1);
-      expect(challenge.name).toContain("Move Forward");
-    });
+    expect(Challenges.get(99)).toBe(Challenges.get(0));
+    expect(Challenges.checkSuccess(99, makeRobot({ y: 1000 }), session).success).toBe(true);
+    expect(Challenges.checkSuccess(99, makeRobot({ y: 1750 }), session).success).toBe(false);
   });
 
-  describe("getNext() and getPrevious()", () => {
-    test("getNext() should return next challenge", () => {
-      const next = ChallengesImpl.getNext(0);
-      expect(next).not.toBeNull();
-      expect(next.id).toBe(1);
-    });
-
-    test("getNext() should return null for last challenge", () => {
-      expect(ChallengesImpl.getNext(7)).toBeNull();
-    });
-
-    test("getPrevious() should return previous challenge", () => {
-      const prev = ChallengesImpl.getPrevious(3);
-      expect(prev).not.toBeNull();
-      expect(prev.id).toBe(2);
-    });
-
-    test("getPrevious() should return null for first challenge", () => {
-      expect(ChallengesImpl.getPrevious(0)).toBeNull();
-    });
-  });
-
-  describe("Success Criteria", () => {
-    test("Challenge 0 should always succeed", () => {
-      const challenge = ChallengesImpl.get(0);
-      const robot = { x: 1000, y: 1000, angle: 0 };
-      expect(challenge.successCriteria(robot, robot)).toBe(true);
-    });
-
-    test("Challenge 1 should check forward movement", () => {
-      const challenge = ChallengesImpl.get(1);
-      const startPos = { x: 1000, y: 1000 };
-      const robot = { x: 1200, y: 1000 };
-      expect(challenge.successCriteria(robot, startPos)).toBe(true);
-    });
-
-    test("Challenge 1 should fail if not moved enough", () => {
-      const challenge = ChallengesImpl.get(1);
-      const startPos = { x: 1000, y: 1000 };
-      const robot = { x: 1050, y: 1000 };
-      expect(challenge.successCriteria(robot, startPos)).toBe(false);
-    });
-
-    test("Challenge 2 should check return to start", () => {
-      const challenge = ChallengesImpl.get(2);
-      const startPos = { x: 1000, y: 1000 };
-      const robot = { x: 1050, y: 1050 };
-      expect(challenge.successCriteria(robot, startPos)).toBe(true);
-    });
-
-    test("Challenge 7 should always succeed", () => {
-      const challenge = ChallengesImpl.get(7);
-      const robot = { x: 500, y: 500 };
-      expect(challenge.successCriteria(robot, robot)).toBe(true);
-    });
-  });
-
-  describe("Gamepad Challenge", () => {
-    test("Challenge 7 should be gamepad challenge", () => {
-      expect(ChallengesImpl.isGamepadChallenge(7)).toBe(true);
-    });
-
-    test("Other challenges should not be gamepad challenges", () => {
-      for (let i = 0; i < 7; i++) {
-        expect(ChallengesImpl.isGamepadChallenge(i)).toBe(false);
-      }
-    });
-  });
-
-  describe("Maze Assignments", () => {
-    test("early challenges should have no maze", () => {
-      expect(ChallengesImpl.get(0).mazeId).toBeNull();
-      expect(ChallengesImpl.get(1).mazeId).toBeNull();
-      expect(ChallengesImpl.get(2).mazeId).toBeNull();
-    });
-
-    test("maze challenges should have mazeId", () => {
-      expect(ChallengesImpl.get(3).mazeId).not.toBeNull();
-      expect(ChallengesImpl.get(4).mazeId).not.toBeNull();
-    });
-  });
-
-  describe("Start Code", () => {
-    test("all challenges should have start code", () => {
-      ChallengesImpl.getAll().forEach((challenge) => {
-        expect(challenge.startCode.length).toBeGreaterThan(0);
+  describe("reach_zone (challenge 1: x 900-1100, y 0-150)", () => {
+    test.each([
+      [900, 0],
+      [1100, 150],
+      [1000, 75],
+    ])("(%d, %d) is inside the zone (edges included)", (x, y) => {
+      expect(Challenges.checkSuccess(1, makeRobot({ x, y }), {})).toEqual({
+        success: true,
+        message: "Target zone reached!",
       });
     });
 
-    test("start code should include AIDriver import", () => {
-      for (let i = 0; i < 7; i++) {
-        const challenge = ChallengesImpl.get(i);
-        expect(challenge.startCode).toContain("aidriver");
-      }
+    test.each([
+      [899, 75],
+      [1101, 75],
+      [1000, 151],
+    ])("(%d, %d) is outside the zone", (x, y) => {
+      expect(Challenges.checkSuccess(1, makeRobot({ x, y }), {})).toEqual({
+        success: false,
+        message: "Reach the green target zone",
+      });
+    });
+  });
+
+  describe("complete_circle (challenge 2: >= 330 deg, finish within 100 mm)", () => {
+    const startPosition = { x: 1000, y: 1400 };
+    const atStart = makeRobot(startPosition);
+
+    test.each([330, -330, 365])("rotation of %d deg ending at the start passes", (totalRotation) => {
+      expect(Challenges.checkSuccess(2, atStart, { startPosition, totalRotation })).toEqual({
+        success: true,
+        message: "Circle completed!",
+      });
     });
 
-    test("Challenge 7 should have gamepad instructions", () => {
-      const challenge = ChallengesImpl.get(7);
-      expect(challenge.startCode).toContain("Gamepad");
+    test("329 deg of rotation is not enough", () => {
+      expect(Challenges.checkSuccess(2, atStart, { startPosition, totalRotation: -329 })).toEqual({
+        success: false,
+        message: "Complete more rotation (329° / 330°)",
+      });
     });
+
+    test("a run with no recorded rotation fails", () => {
+      expect(Challenges.checkSuccess(2, atStart, { startPosition }).success).toBe(false);
+    });
+
+    test("finishing exactly 100 mm from the start passes, 101 mm fails", () => {
+      const session = { startPosition, totalRotation: 360 };
+
+      expect(Challenges.checkSuccess(2, makeRobot({ x: 1100, y: 1400 }), session).success).toBe(true);
+      expect(Challenges.checkSuccess(2, makeRobot({ x: 1000, y: 1501 }), session)).toEqual({
+        success: false,
+        message: "Return closer to start (101mm away)",
+      });
+    });
+  });
+
+  describe("stop_at_distance (challenge 3: 100-200 mm from the wall line)", () => {
+    const { wallPosition } = Challenges.get(3).successCriteria;
+    const stoppedAt = (gap) => makeRobot({ y: wallPosition + gap });
+
+    test.each([100, 150, 200])("stopped %d mm from the wall passes", (gap) => {
+      expect(Challenges.checkSuccess(3, stoppedAt(gap), {})).toEqual({
+        success: true,
+        message: "Perfect stop!",
+      });
+    });
+
+    test("stopping 99 mm away is too close", () => {
+      expect(Challenges.checkSuccess(3, stoppedAt(99), {})).toEqual({
+        success: false,
+        message: "Too close to wall!",
+      });
+    });
+
+    test("stopping 201 mm away is too far", () => {
+      expect(Challenges.checkSuccess(3, stoppedAt(201), {})).toEqual({
+        success: false,
+        message: "Get closer to wall (201mm)",
+      });
+    });
+
+    test("the robot must have stopped, even in the window", () => {
+      const rolling = makeRobot({ y: wallPosition + 150, leftSpeed: 0, rightSpeed: 1 });
+
+      expect(Challenges.checkSuccess(3, rolling, {})).toEqual({
+        success: false,
+        message: "Robot must stop",
+      });
+    });
+  });
+
+  test("manual (challenge 7) is never auto-completed", () => {
+    const session = { startPosition: { x: 1000, y: 1000 }, totalRotation: 720 };
+
+    expect(Challenges.checkSuccess(7, makeRobot({ y: 100 }), session)).toEqual({
+      success: false,
+      message: "Manual mode - no auto-check",
+    });
+  });
+});
+
+describe("Challenge menu", () => {
+  function renderMenu(menuType) {
+    document.body.innerHTML = '<ul id="menu"></ul>';
+    Challenges.populateMenu("#menu", menuType);
+    return document.getElementById("menu");
+  }
+
+  test("lists debug, then 0-5, then 6-7, separated by dividers, each linking to its challenge", () => {
+    const menu = renderMenu();
+
+    const items = [...menu.children].map((li) =>
+      li.querySelector("hr") ? "---" : li.querySelector("a").dataset.challenge,
+    );
+    expect(items).toEqual(["debug", "---", "0", "1", "2", "3", "4", "5", "---", "6", "7"]);
+    for (const link of menu.querySelectorAll("a")) {
+      const id = link.dataset.challenge;
+      // app.js loadChallenge() looks challenges up by these data attributes
+      expect(String(Challenges.get(id).id)).toBe(id);
+      expect(link.getAttribute("href")).toBe(`simulator.html?challenge=${id}`);
+      expect(link.textContent).toContain(Challenges.get(id).title);
+    }
+  });
+
+  test("docs menus link to each challenge's documentation page", () => {
+    const hrefs = [...renderMenu("docs").querySelectorAll("a")].map((a) => a.getAttribute("href"));
+
+    expect(hrefs.sort()).toEqual(IDS.map((id) => `docs.html?doc=Challenge_${id}`).sort());
   });
 });

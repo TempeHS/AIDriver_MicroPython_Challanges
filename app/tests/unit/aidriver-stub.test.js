@@ -1,346 +1,200 @@
 /**
- * AIDriver Stub Unit Tests
- * Tests for the Skulpt module that bridges Python to JavaScript
+ * AIDriverStub tests against the real js/aidriver-stub.js. The `aidriver`
+ * module is imported by learner code running in the real Skulpt 1.2.0
+ * interpreter, registered the same way PythonRunner does. Python is run
+ * directly (not via PythonRunner.run) so queued commands stay inspectable.
  */
 
-describe("AIDriverStub", () => {
-  let AIDriverStubImpl;
-  let mockRobot;
+const {
+  loadSkulpt,
+  loadModules,
+  captureDebugPanel,
+  makeRobot,
+} = require("../helpers/load-app");
 
+const ROBOT = "from aidriver import AIDriver, hold_state\nr = AIDriver()\n";
+
+let messages;
+let printed;
+
+beforeAll(() => {
+  loadSkulpt();
+  loadModules(["simulator.js", "aidriver-stub.js", "python-runner.js", "app.js"]);
+  messages = captureDebugPanel().messages;
+});
+
+beforeEach(() => {
+  messages.length = 0;
+  printed = [];
+  AIDriverStub.clearQueue();
+  AIDriverStub.DEBUG_AIDRIVER = false;
+  App.speedMultiplier = 1;
+  App.robot = makeRobot();
+});
+
+afterEach(() => {
+  jest.useRealTimers();
+  jest.restoreAllMocks();
+});
+
+function runPy(code) {
+  Sk.configure({
+    output: (text) => printed.push(text.trimEnd()),
+    read: PythonRunner.handleRead.bind(PythonRunner),
+    __future__: Sk.python3,
+  });
+  PythonRunner.registerMicroPythonModules();
+  return Sk.misceval.asyncToPromise(() =>
+    Sk.importMainWithBody("<stdin>", false, code, true),
+  );
+}
+
+const queued = () => AIDriverStub.commandQueue.filter((c) => c.type !== "init");
+const warnings = () => messages.filter((m) => m.startsWith("WARN"));
+
+describe("command queue", () => {
+  test("is first-in first-out and empties cleanly", () => {
+    AIDriverStub.queueCommand({ type: "drive_forward", params: { rightSpeed: 1 } });
+    AIDriverStub.queueCommand({ type: "brake", params: {} });
+
+    expect(AIDriverStub.hasCommands()).toBe(true);
+    expect(AIDriverStub.getNextCommand().type).toBe("drive_forward");
+    expect(AIDriverStub.getNextCommand().type).toBe("brake");
+    expect(AIDriverStub.getNextCommand()).toBeUndefined();
+    expect(AIDriverStub.hasCommands()).toBe(false);
+  });
+
+  test("clearQueue drops pending commands and re-arms once-per-run speed warnings", async () => {
+    await runPy(ROBOT + "r.drive_forward(50, 50)\nr.drive_forward(50, 50)\n");
+    expect(warnings()).toHaveLength(1);
+
+    AIDriverStub.clearQueue();
+    expect(AIDriverStub.hasCommands()).toBe(false);
+
+    await runPy(ROBOT + "r.drive_forward(50, 50)\n");
+    expect(warnings()).toHaveLength(2);
+  });
+});
+
+describe("speed arguments match the robot's L298N.set_speed", () => {
+  test.each([
+    [0, 0, null],
+    [80, 80, /Speed 80 is in the stopped range/],
+    [81, 81, null],
+    [255, 255, null],
+    [256, 256 / 257, /Speed 256 is above 255/],
+    [65535, 255, /Speed 65535 is above 255/],
+    [70000, 255, /Speed 70000 is above 255/],
+  ])("speed %p drives at %p", async (speed, effective, warning) => {
+    await runPy(ROBOT + `r.drive_forward(${speed}, ${speed})\nprint(r.get_motor_speeds())\n`);
+
+    const [cmd] = queued();
+    expect(cmd.params.rightSpeed).toBeCloseTo(effective);
+    expect(cmd.params.leftSpeed).toBeCloseTo(effective);
+    expect(printed).toEqual([`(${speed}, ${speed})`]);
+    if (warning) {
+      expect(warnings()).toEqual([expect.stringMatching(warning)]);
+    } else {
+      expect(warnings()).toEqual([]);
+    }
+  });
+
+  test.each([
+    ["-1", "ValueError", "Speed must be between 0 and 255, got -1"],
+    ["'fast'", "TypeError", "Speed must be a number"],
+  ])("speed %s raises %s and queues nothing", async (arg, type, message) => {
+    const err = await runPy(ROBOT + `r.rotate_left(${arg})\n`).catch((e) => e);
+
+    expect(err.tp$name).toBe(type);
+    expect(err.toString()).toContain(message);
+    expect(queued()).toEqual([]);
+  });
+});
+
+describe("AIDriver methods", () => {
+  test("queue the matching simulator commands with (right, left) argument order", async () => {
+    await runPy(
+      ROBOT +
+        "r.drive_forward(200, 150)\nr.drive_backward(120, 130)\n" +
+        "r.rotate_left(100)\nr.rotate_right(90)\nr.brake()\n" +
+        "r.set_motor_speeds(140, 160)\nhold_state(0)\n",
+    );
+
+    expect(AIDriverStub.commandQueue).toEqual([
+      { type: "init", params: {} },
+      { type: "drive_forward", params: { rightSpeed: 200, leftSpeed: 150 } },
+      { type: "drive_backward", params: { rightSpeed: 120, leftSpeed: 130 } },
+      { type: "rotate_left", params: { turnSpeed: 100 } },
+      { type: "rotate_right", params: { turnSpeed: 90 } },
+      { type: "brake", params: {} },
+      { type: "set_motor_speeds", params: { rightSpeed: 140, leftSpeed: 160 } },
+      { type: "hold_state", params: { seconds: 0 } },
+    ]);
+  });
+
+  test("is_moving follows drive, rotate and brake but not set_motor_speeds", async () => {
+    await runPy(
+      ROBOT +
+        "print(r.is_moving())\n" +
+        "r.set_motor_speeds(150, 150)\nprint(r.is_moving())\n" +
+        "r.drive_forward(150, 150)\nprint(r.is_moving())\n" +
+        "r.brake()\nprint(r.is_moving())\n" +
+        "r.rotate_right(150)\nr.set_motor_speeds(100, 100)\nprint(r.is_moving())\n",
+    );
+    expect(printed).toEqual(["False", "False", "True", "False", "True"]);
+  });
+});
+
+describe("read_distance()", () => {
   beforeEach(() => {
-    // Mock robot state
-    mockRobot = {
-      x: 1000,
-      y: 1000,
-      angle: 0,
-      leftSpeed: 0,
-      rightSpeed: 0,
-      isMoving: false,
-    };
-
-    // Create AIDriverStub implementation
-    AIDriverStubImpl = {
-      commandQueue: [],
-      robot: mockRobot,
-      DEBUG_AIDRIVER: false,
-      speed: 100,
-
-      // Queue management
-      clearQueue: function () {
-        this.commandQueue = [];
-      },
-
-      queueCommand: function (command) {
-        this.commandQueue.push(command);
-      },
-
-      getQueue: function () {
-        return this.commandQueue;
-      },
-
-      // Motor commands
-      drive_forward: function (speed = 100) {
-        this.queueCommand({ type: "drive_forward", speed: speed });
-      },
-
-      drive_backward: function (speed = 100) {
-        this.queueCommand({ type: "drive_backward", speed: speed });
-      },
-
-      rotate_left: function (speed = 100) {
-        this.queueCommand({ type: "rotate_left", speed: speed });
-      },
-
-      rotate_right: function (speed = 100) {
-        this.queueCommand({ type: "rotate_right", speed: speed });
-      },
-
-      brake: function () {
-        this.queueCommand({ type: "brake" });
-      },
-
-      // Motor control
-      set_motor_speed: function (left, right) {
-        this.queueCommand({
-          type: "set_motor_speed",
-          left: left,
-          right: right,
-        });
-      },
-
-      // Sensor reading
-      get_ultrasonic: function () {
-        // Return simulated distance
-        return 500;
-      },
-
-      // Sleep (simulated)
-      sleep_ms: function (ms) {
-        this.queueCommand({ type: "sleep_ms", duration: ms });
-      },
-
-      // Debug mode
-      setDebugMode: function (enabled) {
-        this.DEBUG_AIDRIVER = enabled;
-      },
-
-      isDebugMode: function () {
-        return this.DEBUG_AIDRIVER;
-      },
-
-      // Process queue
-      processNext: function () {
-        if (this.commandQueue.length === 0) return null;
-        return this.commandQueue.shift();
-      },
-
-      hasCommands: function () {
-        return this.commandQueue.length > 0;
-      },
-    };
+    jest.spyOn(Math, "random").mockReturnValue(0.5); // no sensor noise
   });
 
-  describe("Command Queue", () => {
-    test("should start with empty queue", () => {
-      expect(AIDriverStubImpl.getQueue()).toHaveLength(0);
-    });
+  test("returns the simulated ultrasonic reading for the current App.robot", async () => {
+    const half = Simulator.ROBOT_LENGTH / 2;
+    App.robot = makeRobot({ x: 1000, y: 1000, heading: 0 });
+    await runPy(ROBOT + "print(r.read_distance())\n");
+    App.robot = makeRobot({ x: 1500, y: 1000, heading: 90 });
+    await runPy(ROBOT + "d = r.read_distance()\nprint(d, type(d).__name__)\n");
 
-    test("clearQueue() should empty the queue", () => {
-      AIDriverStubImpl.queueCommand({ type: "test" });
-      AIDriverStubImpl.clearQueue();
-      expect(AIDriverStubImpl.getQueue()).toHaveLength(0);
-    });
-
-    test("queueCommand() should add to queue", () => {
-      AIDriverStubImpl.queueCommand({ type: "test" });
-      expect(AIDriverStubImpl.getQueue()).toHaveLength(1);
-    });
-
-    test("processNext() should return and remove first command", () => {
-      AIDriverStubImpl.queueCommand({ type: "first" });
-      AIDriverStubImpl.queueCommand({ type: "second" });
-
-      const cmd = AIDriverStubImpl.processNext();
-      expect(cmd.type).toBe("first");
-      expect(AIDriverStubImpl.getQueue()).toHaveLength(1);
-    });
-
-    test("processNext() should return null for empty queue", () => {
-      expect(AIDriverStubImpl.processNext()).toBeNull();
-    });
-
-    test("hasCommands() should return true when queue has items", () => {
-      AIDriverStubImpl.queueCommand({ type: "test" });
-      expect(AIDriverStubImpl.hasCommands()).toBe(true);
-    });
-
-    test("hasCommands() should return false when queue is empty", () => {
-      expect(AIDriverStubImpl.hasCommands()).toBe(false);
+    expect(printed).toEqual([`${1000 - half}`, `${500 - half} int`]);
+    expect(queued()).toContainEqual({
+      type: "read_distance",
+      params: { result: 500 - half },
     });
   });
 
-  describe("drive_forward()", () => {
-    test("should queue drive_forward command", () => {
-      AIDriverStubImpl.drive_forward();
-      const queue = AIDriverStubImpl.getQueue();
-      expect(queue).toHaveLength(1);
-      expect(queue[0].type).toBe("drive_forward");
-    });
-
-    test("should use default speed of 100", () => {
-      AIDriverStubImpl.drive_forward();
-      const queue = AIDriverStubImpl.getQueue();
-      expect(queue[0].speed).toBe(100);
-    });
-
-    test("should use custom speed", () => {
-      AIDriverStubImpl.drive_forward(50);
-      const queue = AIDriverStubImpl.getQueue();
-      expect(queue[0].speed).toBe(50);
-    });
+  test("returns -1 when the wall is closer than the sensor minimum", async () => {
+    App.robot = makeRobot({ y: Simulator.ROBOT_LENGTH / 2 + 10, heading: 0 });
+    await runPy(ROBOT + "print(r.read_distance())\n");
+    expect(printed).toEqual(["-1"]);
   });
+});
 
-  describe("drive_backward()", () => {
-    test("should queue drive_backward command", () => {
-      AIDriverStubImpl.drive_backward();
-      const queue = AIDriverStubImpl.getQueue();
-      expect(queue).toHaveLength(1);
-      expect(queue[0].type).toBe("drive_backward");
+describe("hold_state()", () => {
+  async function holdDuration(seconds, multiplier) {
+    jest.useFakeTimers();
+    App.speedMultiplier = multiplier;
+    let done = false;
+    const run = runPy(ROBOT + `hold_state(${seconds})\n`).then(() => {
+      done = true;
     });
+    let elapsed = 0;
+    while (!done && elapsed < 10000) {
+      await jest.advanceTimersByTimeAsync(10);
+      elapsed += 10;
+    }
+    await run;
+    return elapsed;
+  }
 
-    test("should use default speed of 100", () => {
-      AIDriverStubImpl.drive_backward();
-      expect(AIDriverStubImpl.getQueue()[0].speed).toBe(100);
-    });
-
-    test("should use custom speed", () => {
-      AIDriverStubImpl.drive_backward(75);
-      expect(AIDriverStubImpl.getQueue()[0].speed).toBe(75);
-    });
-  });
-
-  describe("rotate_left()", () => {
-    test("should queue rotate_left command", () => {
-      AIDriverStubImpl.rotate_left();
-      const queue = AIDriverStubImpl.getQueue();
-      expect(queue[0].type).toBe("rotate_left");
-    });
-
-    test("should use default speed", () => {
-      AIDriverStubImpl.rotate_left();
-      expect(AIDriverStubImpl.getQueue()[0].speed).toBe(100);
-    });
-  });
-
-  describe("rotate_right()", () => {
-    test("should queue rotate_right command", () => {
-      AIDriverStubImpl.rotate_right();
-      const queue = AIDriverStubImpl.getQueue();
-      expect(queue[0].type).toBe("rotate_right");
-    });
-
-    test("should use default speed", () => {
-      AIDriverStubImpl.rotate_right();
-      expect(AIDriverStubImpl.getQueue()[0].speed).toBe(100);
-    });
-  });
-
-  describe("brake()", () => {
-    test("should queue brake command", () => {
-      AIDriverStubImpl.brake();
-      const queue = AIDriverStubImpl.getQueue();
-      expect(queue[0].type).toBe("brake");
-    });
-
-    test("should have no speed parameter", () => {
-      AIDriverStubImpl.brake();
-      expect(AIDriverStubImpl.getQueue()[0].speed).toBeUndefined();
-    });
-  });
-
-  describe("set_motor_speed()", () => {
-    test("should queue set_motor_speed command", () => {
-      AIDriverStubImpl.set_motor_speed(50, 75);
-      const queue = AIDriverStubImpl.getQueue();
-      expect(queue[0].type).toBe("set_motor_speed");
-      expect(queue[0].left).toBe(50);
-      expect(queue[0].right).toBe(75);
-    });
-
-    test("should handle negative speeds", () => {
-      AIDriverStubImpl.set_motor_speed(-100, -100);
-      const queue = AIDriverStubImpl.getQueue();
-      expect(queue[0].left).toBe(-100);
-      expect(queue[0].right).toBe(-100);
-    });
-
-    test("should handle differential speeds", () => {
-      AIDriverStubImpl.set_motor_speed(-50, 50);
-      const queue = AIDriverStubImpl.getQueue();
-      expect(queue[0].left).toBe(-50);
-      expect(queue[0].right).toBe(50);
-    });
-  });
-
-  describe("get_ultrasonic()", () => {
-    test("should return a number", () => {
-      const distance = AIDriverStubImpl.get_ultrasonic();
-      expect(typeof distance).toBe("number");
-    });
-
-    test("should return positive value", () => {
-      const distance = AIDriverStubImpl.get_ultrasonic();
-      expect(distance).toBeGreaterThan(0);
-    });
-  });
-
-  describe("sleep_ms()", () => {
-    test("should queue sleep command", () => {
-      AIDriverStubImpl.sleep_ms(1000);
-      const queue = AIDriverStubImpl.getQueue();
-      expect(queue[0].type).toBe("sleep_ms");
-      expect(queue[0].duration).toBe(1000);
-    });
-
-    test("should handle short durations", () => {
-      AIDriverStubImpl.sleep_ms(10);
-      expect(AIDriverStubImpl.getQueue()[0].duration).toBe(10);
-    });
-
-    test("should handle long durations", () => {
-      AIDriverStubImpl.sleep_ms(60000);
-      expect(AIDriverStubImpl.getQueue()[0].duration).toBe(60000);
-    });
-  });
-
-  describe("Debug Mode", () => {
-    test("should default to false", () => {
-      expect(AIDriverStubImpl.isDebugMode()).toBe(false);
-    });
-
-    test("setDebugMode(true) should enable debug", () => {
-      AIDriverStubImpl.setDebugMode(true);
-      expect(AIDriverStubImpl.isDebugMode()).toBe(true);
-    });
-
-    test("setDebugMode(false) should disable debug", () => {
-      AIDriverStubImpl.setDebugMode(true);
-      AIDriverStubImpl.setDebugMode(false);
-      expect(AIDriverStubImpl.isDebugMode()).toBe(false);
-    });
-  });
-
-  describe("Command Sequencing", () => {
-    test("should maintain command order", () => {
-      AIDriverStubImpl.drive_forward();
-      AIDriverStubImpl.sleep_ms(500);
-      AIDriverStubImpl.rotate_left();
-      AIDriverStubImpl.sleep_ms(500);
-      AIDriverStubImpl.brake();
-
-      const queue = AIDriverStubImpl.getQueue();
-      expect(queue[0].type).toBe("drive_forward");
-      expect(queue[1].type).toBe("sleep_ms");
-      expect(queue[2].type).toBe("rotate_left");
-      expect(queue[3].type).toBe("sleep_ms");
-      expect(queue[4].type).toBe("brake");
-    });
-
-    test("should process commands in FIFO order", () => {
-      AIDriverStubImpl.drive_forward();
-      AIDriverStubImpl.drive_backward();
-      AIDriverStubImpl.brake();
-
-      expect(AIDriverStubImpl.processNext().type).toBe("drive_forward");
-      expect(AIDriverStubImpl.processNext().type).toBe("drive_backward");
-      expect(AIDriverStubImpl.processNext().type).toBe("brake");
-    });
-  });
-
-  describe("Edge Cases", () => {
-    test("should handle zero speed", () => {
-      AIDriverStubImpl.drive_forward(0);
-      expect(AIDriverStubImpl.getQueue()[0].speed).toBe(0);
-    });
-
-    test("should handle very high speed", () => {
-      AIDriverStubImpl.drive_forward(1000);
-      expect(AIDriverStubImpl.getQueue()[0].speed).toBe(1000);
-    });
-
-    test("should handle many commands", () => {
-      for (let i = 0; i < 100; i++) {
-        AIDriverStubImpl.drive_forward();
-      }
-      expect(AIDriverStubImpl.getQueue()).toHaveLength(100);
-    });
-
-    test("should handle clear and add", () => {
-      AIDriverStubImpl.drive_forward();
-      AIDriverStubImpl.clearQueue();
-      AIDriverStubImpl.drive_backward();
-      expect(AIDriverStubImpl.getQueue()).toHaveLength(1);
-      expect(AIDriverStubImpl.getQueue()[0].type).toBe("drive_backward");
-    });
+  test.each([
+    [0.5, 1, 500],
+    [2, 4, 500],
+    [1, 0.5, 2000],
+  ])("hold_state(%p) at %px speed takes %pms", async (seconds, multiplier, ms) => {
+    const elapsed = await holdDuration(seconds, multiplier);
+    expect(elapsed).toBeGreaterThanOrEqual(ms);
+    expect(elapsed).toBeLessThanOrEqual(ms + 20);
   });
 });

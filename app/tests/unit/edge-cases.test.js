@@ -1,386 +1,334 @@
 /**
- * Edge Cases Unit Tests
- * Tests for boundary conditions, stress testing, and error handling
+ * Edge cases for the real simulator modules: physics at the arena limits,
+ * ultrasonic sensor limits, validator input extremes, the AIDriverStub command
+ * queue, and unusual Python arguments run through the real Skulpt runtime.
  */
 
-describe("Edge Cases", () => {
-  describe("Robot Boundaries", () => {
-    let robot;
-    const ARENA_WIDTH = 2000;
-    const ARENA_HEIGHT = 2000;
+const {
+  loadModules,
+  loadSkulpt,
+  captureDebugPanel,
+  makeRobot,
+} = require("../helpers/load-app");
 
-    beforeEach(() => {
-      robot = {
-        x: 1000,
-        y: 1000,
-        angle: 0,
-        leftSpeed: 0,
-        rightSpeed: 0,
-        isMoving: false,
-      };
-    });
+const MIN = 75; // Simulator clamps the robot centre to its largest half-extent
+const MAX = 2000 - MIN;
 
-    test("robot at center should be valid", () => {
-      expect(robot.x).toBeGreaterThan(0);
-      expect(robot.x).toBeLessThan(ARENA_WIDTH);
-      expect(robot.y).toBeGreaterThan(0);
-      expect(robot.y).toBeLessThan(ARENA_HEIGHT);
-    });
+function moving(overrides) {
+  return makeRobot({ isMoving: true, ...overrides });
+}
 
-    test("robot at minimum bounds should be valid", () => {
-      robot.x = 100;
-      robot.y = 100;
-      expect(robot.x).toBeGreaterThan(0);
-      expect(robot.y).toBeGreaterThan(0);
-    });
+function expectFinite(robot) {
+  for (const key of ["x", "y", "heading"]) {
+    expect(Number.isFinite(robot[key])).toBe(true);
+  }
+}
 
-    test("robot at maximum bounds should be valid", () => {
-      robot.x = 1900;
-      robot.y = 1900;
-      expect(robot.x).toBeLessThan(ARENA_WIDTH);
-      expect(robot.y).toBeLessThan(ARENA_HEIGHT);
-    });
-
-    test("angle normalization should work", () => {
-      robot.angle = Math.PI * 3; // 540 degrees
-      robot.angle = robot.angle % (2 * Math.PI);
-      expect(robot.angle).toBeLessThan(2 * Math.PI);
-    });
-
-    test("negative angle should be handled", () => {
-      robot.angle = -Math.PI;
-      expect(robot.angle).toBe(-Math.PI);
-    });
+describe("Simulator physics edge cases", () => {
+  beforeEach(() => {
+    loadModules(["debug-panel.js", "simulator.js"]);
   });
 
-  describe("Speed Limits", () => {
-    let robot;
-    const MAX_SPEED = 200;
-
-    beforeEach(() => {
-      robot = { leftSpeed: 0, rightSpeed: 0 };
-    });
-
-    test("should handle zero speed", () => {
-      robot.leftSpeed = 0;
-      robot.rightSpeed = 0;
-      expect(robot.leftSpeed).toBe(0);
-      expect(robot.rightSpeed).toBe(0);
-    });
-
-    test("should handle maximum speed", () => {
-      robot.leftSpeed = MAX_SPEED;
-      robot.rightSpeed = MAX_SPEED;
-      expect(robot.leftSpeed).toBe(MAX_SPEED);
-    });
-
-    test("should handle negative speed", () => {
-      robot.leftSpeed = -100;
-      robot.rightSpeed = -100;
-      expect(robot.leftSpeed).toBe(-100);
-    });
-
-    test("should handle asymmetric speeds", () => {
-      robot.leftSpeed = 50;
-      robot.rightSpeed = 150;
-      expect(robot.leftSpeed).not.toBe(robot.rightSpeed);
-    });
+  test.each([
+    [0, "y", MIN],
+    [90, "x", MAX],
+    [180, "y", MAX],
+    [270, "x", MIN],
+  ])("driving at heading %i for a huge dt stops at the wall", (heading, axis, limit) => {
+    const robot = Simulator.step(
+      moving({ heading, leftSpeed: 255, rightSpeed: 255 }),
+      1000,
+    );
+    expectFinite(robot);
+    expect(robot[axis]).toBeCloseTo(limit);
   });
 
-  describe("Ultrasonic Sensor", () => {
-    const MIN_DISTANCE = 20;
-    const MAX_DISTANCE = 4000;
-
-    function clampDistance(distance) {
-      return Math.max(MIN_DISTANCE, Math.min(MAX_DISTANCE, distance));
-    }
-
-    test("should clamp minimum distance", () => {
-      expect(clampDistance(5)).toBe(MIN_DISTANCE);
-      expect(clampDistance(0)).toBe(MIN_DISTANCE);
-    });
-
-    test("should clamp maximum distance", () => {
-      expect(clampDistance(5000)).toBe(MAX_DISTANCE);
-      expect(clampDistance(10000)).toBe(MAX_DISTANCE);
-    });
-
-    test("should preserve valid distances", () => {
-      expect(clampDistance(500)).toBe(500);
-      expect(clampDistance(1000)).toBe(1000);
-    });
-
-    test("should handle edge values", () => {
-      expect(clampDistance(MIN_DISTANCE)).toBe(MIN_DISTANCE);
-      expect(clampDistance(MAX_DISTANCE)).toBe(MAX_DISTANCE);
-    });
+  test("robot driven into a corner stays wedged in the corner", () => {
+    let robot = moving({ x: MIN, y: MIN, heading: 315, leftSpeed: 200, rightSpeed: 200 });
+    for (let i = 0; i < 50; i++) robot = Simulator.step(robot, 0.1);
+    expect(robot.x).toBeCloseTo(MIN);
+    expect(robot.y).toBeCloseTo(MIN);
   });
 
-  describe("Command Queue Stress", () => {
-    let queue;
-
-    beforeEach(() => {
-      queue = [];
-    });
-
-    test("should handle large number of commands", () => {
-      for (let i = 0; i < 10000; i++) {
-        queue.push({ type: "drive_forward", speed: 100 });
-      }
-      expect(queue.length).toBe(10000);
-    });
-
-    test("should handle rapid add/remove", () => {
-      for (let i = 0; i < 1000; i++) {
-        queue.push({ type: "test" });
-        queue.shift();
-      }
-      expect(queue.length).toBe(0);
-    });
-
-    test("should handle mixed operations", () => {
-      for (let i = 0; i < 500; i++) {
-        queue.push({ type: "forward" });
-        queue.push({ type: "backward" });
-        queue.shift();
-      }
-      expect(queue.length).toBe(500);
-    });
+  test("a robot placed outside the arena is pulled back inside", () => {
+    const robot = Simulator.step(
+      moving({ x: -500, y: 5000, leftSpeed: 1, rightSpeed: 1 }),
+      0.01,
+    );
+    expect(robot.x).toBe(MIN);
+    expect(robot.y).toBe(MAX);
   });
 
-  describe("Code Validation Edge Cases", () => {
-    function validateCode(code) {
-      if (!code || code.trim() === "") return { valid: false };
-      if (code.length > 100000) return { valid: false, error: "Code too long" };
-      return { valid: true };
-    }
-
-    test("should reject null code", () => {
-      expect(validateCode(null).valid).toBe(false);
-    });
-
-    test("should reject undefined code", () => {
-      expect(validateCode(undefined).valid).toBe(false);
-    });
-
-    test("should reject empty string", () => {
-      expect(validateCode("").valid).toBe(false);
-    });
-
-    test("should reject whitespace only", () => {
-      expect(validateCode("   \n\t  ").valid).toBe(false);
-    });
-
-    test("should accept minimal code", () => {
-      expect(validateCode("x=1").valid).toBe(true);
-    });
-
-    test("should handle very long code", () => {
-      const longCode = "x = 1\\n".repeat(50000);
-      expect(validateCode(longCode).valid).toBe(false);
-    });
+  test.each([
+    ["right past 360", 350, -200, 200],
+    ["left past 0", 10, 200, -200],
+  ])("heading wraps when turning %s", (_, heading, leftSpeed, rightSpeed) => {
+    const robot = Simulator.step(moving({ heading, leftSpeed, rightSpeed }), 0.2);
+    expect(robot.heading).toBeGreaterThanOrEqual(0);
+    expect(robot.heading).toBeLessThan(360);
+    expect(Math.abs(robot.heading - heading)).toBeGreaterThan(180);
   });
 
-  describe("Physics Edge Cases", () => {
-    function updatePosition(robot, dt) {
-      const v = (robot.leftSpeed + robot.rightSpeed) / 2;
-      const omega = (robot.rightSpeed - robot.leftSpeed) / 150; // wheelbase
-
-      robot.x += v * Math.cos(robot.angle) * dt;
-      robot.y += v * Math.sin(robot.angle) * dt;
-      robot.angle += omega * dt;
-
-      return robot;
-    }
-
-    test("should handle zero delta time", () => {
-      const robot = {
-        x: 1000,
-        y: 1000,
-        angle: 0,
-        leftSpeed: 100,
-        rightSpeed: 100,
-      };
-      const result = updatePosition(robot, 0);
-      expect(result.x).toBe(1000);
-      expect(result.y).toBe(1000);
-    });
-
-    test("should handle very small delta time", () => {
-      const robot = {
-        x: 1000,
-        y: 1000,
-        angle: 0,
-        leftSpeed: 100,
-        rightSpeed: 100,
-      };
-      const result = updatePosition(robot, 0.001);
-      expect(result.x).toBeCloseTo(1000.1, 1);
-    });
-
-    test("should handle large delta time", () => {
-      const robot = {
-        x: 1000,
-        y: 1000,
-        angle: 0,
-        leftSpeed: 100,
-        rightSpeed: 100,
-      };
-      const result = updatePosition(robot, 10);
-      expect(result.x).toBeGreaterThan(1000);
-    });
-
-    test("should handle spinning in place", () => {
-      const robot = {
-        x: 1000,
-        y: 1000,
-        angle: 0,
-        leftSpeed: -100,
-        rightSpeed: 100,
-      };
-      const result = updatePosition(robot, 1);
-      expect(result.x).toBeCloseTo(1000, 0);
-      expect(result.y).toBeCloseTo(1000, 0);
-      expect(result.angle).not.toBe(0);
-    });
+  test("a negative heading is normalised into 0-360", () => {
+    const robot = Simulator.step(moving({ heading: -90, leftSpeed: 1, rightSpeed: 1 }), 0);
+    expect(robot.heading).toBeCloseTo(270);
   });
 
-  describe("Memory Safety", () => {
-    test("should handle string concatenation", () => {
-      let str = "";
-      for (let i = 0; i < 1000; i++) {
-        str += "test ";
-      }
-      expect(str.length).toBeGreaterThan(1000);
-    });
-
-    test("should handle object creation", () => {
-      const objects = [];
-      for (let i = 0; i < 1000; i++) {
-        objects.push({ id: i, data: new Array(100).fill(0) });
-      }
-      expect(objects.length).toBe(1000);
-    });
-
-    test("should handle array operations", () => {
-      const arr = [];
-      for (let i = 0; i < 1000; i++) {
-        arr.push(i);
-      }
-      const filtered = arr.filter((x) => x % 2 === 0);
-      expect(filtered.length).toBe(500);
-    });
+  test("spinning in place for a long time rotates without translating", () => {
+    const robot = Simulator.step(moving({ leftSpeed: -255, rightSpeed: 255 }), 123.4);
+    expect(robot.x).toBeCloseTo(1000);
+    expect(robot.y).toBeCloseTo(1000);
+    expect(robot.heading).toBeGreaterThanOrEqual(0);
+    expect(robot.heading).toBeLessThan(360);
   });
 
-  describe("Numerical Precision", () => {
-    test("should handle floating point comparison", () => {
-      const a = 0.1 + 0.2;
-      expect(Math.abs(a - 0.3)).toBeLessThan(0.0001);
-    });
-
-    test("should handle angle calculations", () => {
-      const angle = Math.PI / 4;
-      const sin = Math.sin(angle);
-      const cos = Math.cos(angle);
-      expect(sin * sin + cos * cos).toBeCloseTo(1, 10);
-    });
-
-    test("should handle distance calculations", () => {
-      const dx = 3;
-      const dy = 4;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-      expect(distance).toBe(5);
-    });
+  test("dt = 0 leaves the pose unchanged", () => {
+    const start = moving({ heading: 30, leftSpeed: 100, rightSpeed: 200 });
+    const robot = Simulator.step(start, 0);
+    expect(robot.x).toBeCloseTo(start.x);
+    expect(robot.y).toBeCloseTo(start.y);
+    expect(robot.heading).toBeCloseTo(30);
   });
 
-  describe("Error Recovery", () => {
-    test("should handle try-catch in async functions", async () => {
-      async function mayFail() {
-        throw new Error("Test error");
-      }
-
-      let caught = false;
-      try {
-        await mayFail();
-      } catch (e) {
-        caught = true;
-      }
-      expect(caught).toBe(true);
-    });
-
-    test("should handle promise rejection", async () => {
-      const promise = Promise.reject(new Error("Rejected"));
-      await expect(promise).rejects.toThrow("Rejected");
-    });
-
-    test("should handle timeout", async () => {
-      const timeout = new Promise((resolve) => setTimeout(resolve, 10));
-      await expect(timeout).resolves.toBeUndefined();
-    });
+  test("a stopped robot is returned untouched (no trail growth)", () => {
+    const start = makeRobot();
+    expect(Simulator.step(start, 1)).toBe(start);
   });
 
-  describe("Input Sanitization", () => {
-    function escapeHtml(str) {
-      const div = { textContent: str };
-      return str.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    }
-
-    test("should escape HTML tags", () => {
-      const result = escapeHtml("<script>alert('xss')</script>");
-      expect(result).not.toContain("<script>");
-    });
-
-    test("should handle normal text", () => {
-      const result = escapeHtml("Hello World");
-      expect(result).toBe("Hello World");
-    });
-
-    test("should handle empty string", () => {
-      const result = escapeHtml("");
-      expect(result).toBe("");
-    });
-
-    test("should handle unicode", () => {
-      const result = escapeHtml("Hello 你好 🚀");
-      expect(result).toContain("你好");
-      expect(result).toContain("🚀");
-    });
+  test("many small straight steps match one large step", () => {
+    let small = moving({ heading: 45, leftSpeed: 180, rightSpeed: 180 });
+    for (let i = 0; i < 1000; i++) small = Simulator.step(small, 0.001);
+    const big = Simulator.step(moving({ heading: 45, leftSpeed: 180, rightSpeed: 180 }), 1);
+    expect(small.x).toBeCloseTo(big.x, 6);
+    expect(small.y).toBeCloseTo(big.y, 6);
   });
 
-  describe("State Consistency", () => {
-    test("robot state should be consistent", () => {
-      const robot = {
-        x: 1000,
-        y: 1000,
-        angle: 0,
-        leftSpeed: 0,
-        rightSpeed: 0,
-        isMoving: false,
-      };
+  test("a full circle of arc steps returns to the start pose", () => {
+    // omega = (vR - vL) / wheel base, with speed 255 = 800 mm/s
+    const omega = ((100 / 255) * 800) / 120;
+    const dt = (2 * Math.PI) / omega / 1000;
+    let robot = moving({ leftSpeed: 100, rightSpeed: 200 });
+    for (let i = 0; i < 1000; i++) robot = Simulator.step(robot, dt);
+    expect(robot.x).toBeCloseTo(1000, 6);
+    expect(robot.y).toBeCloseTo(1000, 6);
+    expect(Math.min(robot.heading, 360 - robot.heading)).toBeCloseTo(0, 6);
+  });
 
-      // Moving state should match speed
-      if (robot.leftSpeed !== 0 || robot.rightSpeed !== 0) {
-        robot.isMoving = true;
-      }
+  test("the trail is capped at the latest 1000 points", () => {
+    let robot = moving({ leftSpeed: 50, rightSpeed: -50 });
+    for (let i = 0; i < 1500; i++) robot = Simulator.step(robot, 0.01);
+    expect(robot.trail).toHaveLength(1000);
+    expect(robot.trail[999]).toEqual({ x: robot.x, y: robot.y });
+  });
 
-      expect(robot.isMoving).toBe(false);
+  test("driving into a maze wall stops the robot and warns", () => {
+    const warn = jest.spyOn(DebugPanel, "warning").mockImplementation(() => {});
+    Simulator.setMazeWalls([{ x: 900, y: 880, width: 200, height: 10 }]);
+    const robot = Simulator.step(moving({ leftSpeed: 255, rightSpeed: 255 }), 0.1);
+    expect(robot).toMatchObject({ leftSpeed: 0, rightSpeed: 0, isMoving: false });
+    expect(warn).toHaveBeenCalledWith("Robot collision detected!");
+  });
+});
+
+describe("Ultrasonic sensor edge cases", () => {
+  beforeEach(() => {
+    loadModules(["simulator.js"]);
+    jest.spyOn(Math, "random").mockReturnValue(0.5); // zero noise
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  test("measures from the robot's nose to the wall it faces", () => {
+    expect(Simulator.simulateUltrasonic(makeRobot())).toBe(925);
+    expect(Simulator.simulateUltrasonic(makeRobot({ heading: 90 }))).toBe(925);
+    expect(Simulator.simulateUltrasonic(makeRobot({ heading: 360 }))).toBe(925);
+  });
+
+  test("returns -1 when the wall is closer than 20 mm", () => {
+    expect(Simulator.simulateUltrasonic(makeRobot({ y: MIN + 10 }))).toBe(-1);
+  });
+
+  test("returns -1 when looking diagonally across the arena beyond 2000 mm", () => {
+    expect(Simulator.simulateUltrasonic(makeRobot({ x: MIN, y: MAX, heading: 45 }))).toBe(-1);
+  });
+
+  test("an obstacle in front is seen before the wall; one behind is ignored", () => {
+    Simulator.setObstacles([{ x: 900, y: 400, width: 200, height: 50 }]);
+    expect(Simulator.simulateUltrasonic(makeRobot())).toBe(475);
+    expect(Simulator.simulateUltrasonic(makeRobot({ heading: 180 }))).toBe(925);
+  });
+
+  test("noise stays within +/-2 mm", () => {
+    Math.random.mockReturnValue(0);
+    expect(Simulator.simulateUltrasonic(makeRobot())).toBe(923);
+    Math.random.mockReturnValue(0.9999);
+    expect(Simulator.simulateUltrasonic(makeRobot())).toBe(927);
+  });
+});
+
+describe("Validator input edge cases", () => {
+  const PROGRAM =
+    "from aidriver import AIDriver, hold_state\nmy_robot = AIDriver()\n" +
+    "while True:\n    if my_robot.read_distance() > 300:\n" +
+    "        my_robot.drive_forward(200, 200)\n    else:\n        my_robot.brake()\n";
+
+  beforeEach(() => {
+    loadModules(["validator.js"]);
+  });
+
+  test.each([
+    ["empty code", ""],
+    ["whitespace only", "   \n\t\n"],
+    ["comments only", "# just a comment\n# another one\n"],
+  ])("%s is valid but warns that no robot is used", (_, code) => {
+    const result = Validator.validate(code);
+    expect(result.valid).toBe(true);
+    expect(result.errors).toEqual([]);
+    expect(result.warnings.map((w) => w.type)).toEqual(["import", "usage"]);
+  });
+
+  test("tab indentation and Windows line endings validate like spaces and LF", () => {
+    const tabbed = PROGRAM.replace(/ {4}/g, "\t").replace(/\n/g, "\r\n");
+    expect(Validator.validate(tabbed)).toEqual(Validator.validate(PROGRAM));
+    expect(Validator.validate(tabbed).valid).toBe(true);
+  });
+
+  test("unicode in strings and comments is accepted", () => {
+    const code = PROGRAM + 'print("Distance → 🤖 ok, café")  # ünïcödé\n';
+    expect(Validator.validate(code)).toEqual({ valid: true, errors: [], warnings: [] });
+  });
+
+  test("very long programs are validated with correct line numbers", () => {
+    const body = "my_robot.drive_forward(200, 200)\nhold_state(0.1)\n".repeat(5000);
+    const code = PROGRAM + body + "eval('1')\n";
+    const result = Validator.validate(code);
+    expect(result.errors).toEqual([
+      { line: 7 + 10000 + 1, message: "eval() is not allowed", type: "forbidden" },
+    ]);
+  });
+});
+
+describe("AIDriverStub command queue", () => {
+  let output;
+
+  beforeAll(() => {
+    loadSkulpt();
+  });
+
+  beforeEach(() => {
+    loadModules(["aidriver-stub.js"]);
+    output = captureDebugPanel().messages;
+  });
+
+  test("commands come out in the order they were queued", () => {
+    const types = ["init", "drive_forward", "hold_state", "rotate_left", "brake"];
+    types.forEach((type) => AIDriverStub.queueCommand({ type, params: {} }));
+    const drained = [];
+    while (AIDriverStub.hasCommands()) drained.push(AIDriverStub.getNextCommand().type);
+    expect(drained).toEqual(types);
+    expect(AIDriverStub.getNextCommand()).toBeUndefined();
+  });
+
+  test("clearQueue drops pending commands and re-arms speed warnings", () => {
+    AIDriverStub.queueCommand({ type: "brake", params: {} });
+    AIDriverStub.toMotorSpeed(Sk.ffi.remapToPy(50));
+    AIDriverStub.toMotorSpeed(Sk.ffi.remapToPy(50));
+    expect(output.filter((m) => m.includes("Speed 50"))).toHaveLength(1);
+
+    AIDriverStub.clearQueue();
+    expect(AIDriverStub.hasCommands()).toBe(false);
+    AIDriverStub.toMotorSpeed(Sk.ffi.remapToPy(50));
+    expect(output.filter((m) => m.includes("Speed 50"))).toHaveLength(2);
+  });
+
+  test("speed boundaries: 0 and 255 pass silently, 65535+ caps at full speed", () => {
+    expect(AIDriverStub.toMotorSpeed(Sk.ffi.remapToPy(0)).effective).toBe(0);
+    expect(AIDriverStub.toMotorSpeed(Sk.ffi.remapToPy(255)).effective).toBe(255);
+    expect(output).toEqual([]);
+    expect(AIDriverStub.toMotorSpeed(Sk.ffi.remapToPy(100000)).effective).toBe(255);
+  });
+});
+
+describe("Python edge cases through the real runtime", () => {
+  let output;
+
+  beforeAll(() => {
+    loadSkulpt();
+    loadModules([
+      "validator.js",
+      "simulator.js",
+      "aidriver-stub.js",
+      "python-runner.js",
+      "app.js",
+    ]);
+    window.render = () => {};
+    output = captureDebugPanel().messages;
+    window.Editor = { highlightLine() {}, clearHighlight() {}, markError() {} };
+    PythonRunner.init();
+  });
+
+  beforeEach(() => {
+    output.length = 0;
+    App.speedMultiplier = 1;
+    Simulator.setSpeed(1);
+    App.robot = makeRobot();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  const ROBOT = "from aidriver import AIDriver, hold_state\nr = AIDriver()\n";
+
+  test("float speeds reach the robot unchanged", async () => {
+    await PythonRunner.run(
+      ROBOT + "r.drive_forward(150.5, 100.25)\nprint(r.get_motor_speeds())\n",
+    );
+    PythonRunner.processCommandQueue();
+    expect(output).toContain("(150.5, 100.25)");
+    expect(App.robot).toMatchObject({ rightSpeed: 150.5, leftSpeed: 100.25 });
+  });
+
+  test("a non-numeric speed raises TypeError on the calling line", async () => {
+    await PythonRunner.run(ROBOT + "r.rotate_left('fast')\n");
+    expect(output).toContainEqual(
+      expect.stringMatching(/Line 3: TypeError: Speed must be a number/),
+    );
+  });
+
+  test("hold_state(0) returns immediately and the program continues", async () => {
+    await PythonRunner.run(ROBOT + "hold_state(0)\nhold_state(0.0)\nprint('after')\n");
+    expect(output).toContain("after");
+  });
+
+  test("commands are queued in program order", async () => {
+    const queued = [];
+    const original = AIDriverStub.queueCommand.bind(AIDriverStub);
+    jest.spyOn(AIDriverStub, "queueCommand").mockImplementation((cmd) => {
+      queued.push(cmd.type);
+      original(cmd);
     });
+    await PythonRunner.run(
+      ROBOT + "r.drive_forward(200, 200)\nhold_state(0)\nr.rotate_right(200)\nr.brake()\n",
+    );
+    expect(queued).toEqual(["init", "drive_forward", "hold_state", "rotate_right", "brake"]);
+  });
 
-    test("stopped robot should have zero speeds", () => {
-      const robot = {
-        leftSpeed: 100,
-        rightSpeed: 100,
-        isMoving: true,
-      };
+  test("rotate_left from heading 0 wraps the simulated heading below 360", async () => {
+    await PythonRunner.run(ROBOT + "r.rotate_left(200)\n");
+    PythonRunner.processCommandQueue();
+    App.robot = Simulator.step(App.robot, 0.1);
+    expect(App.robot.heading).toBeGreaterThan(270);
+    expect(App.robot.heading).toBeLessThan(360);
+  });
 
-      // Stop the robot
-      robot.leftSpeed = 0;
-      robot.rightSpeed = 0;
-      robot.isMoving = false;
-
-      expect(robot.leftSpeed).toBe(0);
-      expect(robot.rightSpeed).toBe(0);
-      expect(robot.isMoving).toBe(false);
-    });
+  test("a program with validation errors is never executed", async () => {
+    await expect(
+      PythonRunner.run(ROBOT + "print('ran')\nwhile True\n    pass\n"),
+    ).rejects.toThrow("Validation failed");
+    expect(output).not.toContain("ran");
+    expect(output).toContainEqual(expect.stringMatching(/Line 4: Missing colon/));
   });
 });

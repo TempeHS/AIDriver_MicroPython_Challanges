@@ -3,45 +3,21 @@
  * learner code with the real Skulpt interpreter (same version as the CDN).
  */
 
-const fs = require("fs");
-const path = require("path");
-
-const JS_DIR = path.join(__dirname, "..", "..", "js");
-const SKULPT_DIR = path.dirname(require.resolve("skulpt/dist/skulpt.min.js"));
-const APP_MODULES = ["simulator.js", "aidriver-stub.js", "python-runner.js", "app.js"];
+const {
+  loadSkulpt,
+  loadModules,
+  captureDebugPanel,
+  makeRobot,
+} = require("../helpers/load-app");
 
 let output;
 let highlighted;
 
 function loadRuntime() {
-  // jsdom has no setImmediate; Skulpt uses it to resume loop suspensions
-  window.setImmediate = (fn, ...args) => setTimeout(() => fn(...args), 0);
-  delete window.Sk;
-  const indirectEval = eval;
-  indirectEval(fs.readFileSync(path.join(SKULPT_DIR, "skulpt.min.js"), "utf8"));
-  indirectEval(fs.readFileSync(path.join(SKULPT_DIR, "skulpt-stdlib.js"), "utf8"));
-
-  // Browser scripts share one global lexical scope, so evaluate them together
-  const source = APP_MODULES.map((file) =>
-    fs.readFileSync(path.join(JS_DIR, file), "utf8"),
-  ).join("\n");
-  indirectEval(
-    `${source}
-window.Simulator = Simulator;
-window.AIDriverStub = AIDriverStub;
-window.PythonRunner = PythonRunner;
-window.App = App;
-window.syncSimulationSpeed = syncSimulationSpeed;`,
-  );
-
+  loadSkulpt();
+  loadModules(["simulator.js", "aidriver-stub.js", "python-runner.js", "app.js"]);
   window.render = () => {};
-  window.DebugPanel = {
-    log: (msg) => output.push(String(msg)),
-    info: (msg) => output.push(String(msg)),
-    success: (msg) => output.push(String(msg)),
-    warn: (msg) => output.push(`WARN ${msg}`),
-    error: (msg) => output.push(`ERROR ${msg}`),
-  };
+  output = captureDebugPanel().messages;
   window.Editor = {
     highlightLine: (line) => highlighted.push(line),
     clearHighlight: () => {},
@@ -53,21 +29,13 @@ window.syncSimulationSpeed = syncSimulationSpeed;`,
 function resetRobot() {
   App.speedMultiplier = 1;
   Simulator.setSpeed(1);
-  App.robot = {
-    x: 1000,
-    y: 1000,
-    heading: 0,
-    leftSpeed: 0,
-    rightSpeed: 0,
-    isMoving: false,
-    trail: [],
-  };
+  App.robot = makeRobot();
 }
 
 beforeAll(loadRuntime);
 
 beforeEach(() => {
-  output = [];
+  output.length = 0;
   highlighted = [];
   resetRobot();
   PythonRunner.stepDelay = 1;

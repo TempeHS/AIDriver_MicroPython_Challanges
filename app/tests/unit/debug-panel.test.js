@@ -1,278 +1,166 @@
 /**
  * Debug Panel Unit Tests
- * Tests for terminal output, logging, and message formatting
+ * Exercises the real js/debug-panel.js against the markup from simulator.html.
  */
 
-describe("DebugPanel", () => {
-  let consoleElement;
-  let DebugPanelImpl;
+const { loadModules } = require("../helpers/load-app");
 
-  beforeEach(() => {
-    // Set up DOM
-    document.body.innerHTML = `
-      <div id="debugConsole"></div>
-      <button id="btnClearDebug"></button>
-    `;
-    consoleElement = document.getElementById("debugConsole");
+const PANEL_MARKUP = `
+  <button class="btn btn-sm btn-outline-light" id="btnClearDebug">
+    <i class="bi bi-trash"></i> Clear
+  </button>
+  <pre id="debugConsole" class="debug-console mb-0">
+[AIDriver] Simulator ready
+[AIDriver] Select a challenge to begin</pre>
+`;
 
-    // Create a fresh implementation for each test
-    DebugPanelImpl = {
-      console: null,
-      init: function () {
-        this.console = document.getElementById("debugConsole");
+const TIMESTAMPED = /^\[[^\]]+\] /;
+
+let panel;
+let consoleEl;
+
+function lines() {
+  return Array.from(consoleEl.querySelectorAll("span"));
+}
+
+beforeEach(() => {
+  document.body.innerHTML = PANEL_MARKUP;
+  consoleEl = document.getElementById("debugConsole");
+  delete window.Logger;
+  panel = loadModules(["debug-panel.js"]).DebugPanel;
+  panel.init();
+});
+
+describe("DebugPanel log levels", () => {
+  test.each([
+    ["info", "info", "rgb(88, 166, 255)"],
+    ["error", "error", "rgb(248, 81, 73)"],
+    ["success", "success", "rgb(63, 185, 80)"],
+    ["warning", "warning", "rgb(210, 153, 34)"],
+  ])("%s() appends a timestamped %s line", (method, cls, color) => {
+    panel[method]("Robot moved");
+
+    const [line] = lines();
+    expect(line.className).toBe(cls);
+    expect(line.style.color).toBe(color);
+    expect(line.textContent).toMatch(TIMESTAMPED);
+    expect(line.textContent.endsWith("Robot moved\n")).toBe(true);
+  });
+
+  test("output() shows program print text verbatim without a timestamp", () => {
+    panel.output("Distance: 512");
+
+    const [line] = lines();
+    expect(line.className).toBe("output");
+    expect(line.textContent).toBe("Distance: 512\n");
+  });
+
+  test("lines are appended in order after the initial banner", () => {
+    panel.info("first");
+    panel.error("second");
+
+    expect(lines().map((l) => l.textContent.trim().split("] ").pop())).toEqual([
+      "first",
+      "second",
+    ]);
+    expect(consoleEl.textContent).toContain("[AIDriver] Simulator ready");
+  });
+
+  test("separator() writes a horizontal rule line", () => {
+    panel.separator();
+    expect(lines()[0].textContent).toContain("─".repeat(50));
+  });
+});
+
+describe("DebugPanel HTML safety", () => {
+  test("learner print output containing markup is shown as text, not parsed", () => {
+    const evil = '<script>alert("x")</script><img src=x onerror=alert(1)> & <b>bold</b>';
+    panel.output(evil);
+    panel.error(evil);
+
+    expect(consoleEl.querySelector("script, img, b")).toBeNull();
+    expect(lines()[0].textContent).toBe(`${evil}\n`);
+    expect(consoleEl.innerHTML).toContain("&lt;script&gt;");
+    expect(consoleEl.innerHTML).toContain("&amp; &lt;b&gt;");
+  });
+});
+
+describe("DebugPanel buffer management", () => {
+  test("clear() removes the banner and all logged lines", () => {
+    panel.info("one");
+    panel.output("two");
+    panel.clear();
+
+    expect(consoleEl.childNodes).toHaveLength(0);
+    expect(consoleEl.textContent).toBe("");
+
+    panel.info("after clear");
+    expect(lines()).toHaveLength(1);
+  });
+
+  test("oldest lines are dropped once maxLines is exceeded", () => {
+    panel.clear();
+    panel.maxLines = 3;
+    ["a", "b", "c", "d", "e"].forEach((m) => panel.output(m));
+
+    expect(lines().map((l) => l.textContent)).toEqual(["c\n", "d\n", "e\n"]);
+  });
+
+  test("auto-scrolls to the newest line", () => {
+    Object.defineProperty(consoleEl, "scrollHeight", {
+      configurable: true,
+      get: () => 640,
+    });
+    let scrollTop = 0;
+    Object.defineProperty(consoleEl, "scrollTop", {
+      configurable: true,
+      get: () => scrollTop,
+      set: (v) => {
+        scrollTop = v;
       },
-      log: function (msg, type = "info") {
-        if (!this.console) this.init();
-        const div = document.createElement("div");
-        div.className = `debug-message debug-${type}`;
-        const timestamp = new Date().toLocaleTimeString();
-        div.innerHTML = `<span class="timestamp">[${timestamp}]</span> ${this.escapeHtml(
-          String(msg)
-        )}`;
-        this.console.appendChild(div);
-        this.console.scrollTop = this.console.scrollHeight;
-      },
-      info: function (msg) {
-        this.log(msg, "info");
-      },
-      warn: function (msg) {
-        this.log(msg, "warning");
-      },
-      error: function (msg) {
-        this.log(msg, "error");
-      },
-      success: function (msg) {
-        this.log(msg, "success");
-      },
-      clear: function () {
-        if (this.console) this.console.innerHTML = "";
-      },
-      escapeHtml: function (str) {
-        const div = document.createElement("div");
-        div.textContent = str;
-        return div.innerHTML;
-      },
-    };
-    DebugPanelImpl.init();
+    });
+
+    panel.output("new line");
+    expect(scrollTop).toBe(640);
+  });
+});
+
+describe("DebugPanel element lookup", () => {
+  test("log() finds the console lazily when init() was never called", () => {
+    panel = loadModules(["debug-panel.js"]).DebugPanel;
+    expect(panel.element).toBeNull();
+
+    panel.info("early message");
+    expect(panel.element).toBe(consoleEl);
+    expect(lines()).toHaveLength(1);
   });
 
-  describe("Initialization", () => {
-    test("should initialize without errors", () => {
-      expect(() => DebugPanelImpl.init()).not.toThrow();
-    });
+  test("falls back to the browser console when the panel is missing", () => {
+    document.body.innerHTML = "";
+    panel = loadModules(["debug-panel.js"]).DebugPanel;
 
-    test("should have required methods", () => {
-      expect(typeof DebugPanelImpl.log).toBe("function");
-      expect(typeof DebugPanelImpl.info).toBe("function");
-      expect(typeof DebugPanelImpl.warn).toBe("function");
-      expect(typeof DebugPanelImpl.error).toBe("function");
-      expect(typeof DebugPanelImpl.success).toBe("function");
-      expect(typeof DebugPanelImpl.clear).toBe("function");
-    });
-
-    test("should find console element", () => {
-      expect(DebugPanelImpl.console).toBeDefined();
-      expect(DebugPanelImpl.console).not.toBeNull();
-    });
+    expect(() => panel.error("no panel")).not.toThrow();
+    expect(console.log).toHaveBeenCalledWith("[DebugPanel error]", "no panel");
   });
+});
 
-  describe("log() - Basic Logging", () => {
-    test("should add message to console", () => {
-      DebugPanelImpl.log("Test message");
-      expect(consoleElement.textContent).toContain("Test message");
-    });
+describe("DebugPanel Logger integration", () => {
+  test("messages are mirrored to Logger with matching severity", () => {
+    const { Logger } = loadModules(["logger.js"]);
+    Logger.entries = [];
 
-    test("should handle empty message", () => {
-      expect(() => DebugPanelImpl.log("")).not.toThrow();
-    });
+    panel.info("i");
+    panel.warning("w");
+    panel.error("e");
+    panel.output("o");
 
-    test("should handle null message", () => {
-      expect(() => DebugPanelImpl.log(null)).not.toThrow();
-    });
-
-    test("should handle undefined message", () => {
-      expect(() => DebugPanelImpl.log(undefined)).not.toThrow();
-    });
-
-    test("should handle numeric message", () => {
-      DebugPanelImpl.log(42);
-      expect(consoleElement.textContent).toContain("42");
-    });
-
-    test("should handle object message", () => {
-      DebugPanelImpl.log({ key: "value" });
-      expect(consoleElement.textContent).toContain("object");
-    });
-  });
-
-  describe("Message Types", () => {
-    test("info() should log with info style", () => {
-      DebugPanelImpl.info("Info message");
-      const messages = consoleElement.querySelectorAll(".debug-info");
-      expect(messages.length).toBeGreaterThan(0);
-    });
-
-    test("warn() should log with warning style", () => {
-      DebugPanelImpl.warn("Warning message");
-      const messages = consoleElement.querySelectorAll(".debug-warning");
-      expect(messages.length).toBeGreaterThan(0);
-    });
-
-    test("error() should log with error style", () => {
-      DebugPanelImpl.error("Error message");
-      const messages = consoleElement.querySelectorAll(".debug-error");
-      expect(messages.length).toBeGreaterThan(0);
-    });
-
-    test("success() should log with success style", () => {
-      DebugPanelImpl.success("Success message");
-      const messages = consoleElement.querySelectorAll(".debug-success");
-      expect(messages.length).toBeGreaterThan(0);
-    });
-  });
-
-  describe("Message Styling", () => {
-    test("should apply different classes for message types", () => {
-      DebugPanelImpl.info("info");
-      DebugPanelImpl.warn("warn");
-      DebugPanelImpl.error("error");
-      DebugPanelImpl.success("success");
-
-      expect(consoleElement.querySelectorAll(".debug-info").length).toBe(1);
-      expect(consoleElement.querySelectorAll(".debug-warning").length).toBe(1);
-      expect(consoleElement.querySelectorAll(".debug-error").length).toBe(1);
-      expect(consoleElement.querySelectorAll(".debug-success").length).toBe(1);
-    });
-
-    test("should include timestamp", () => {
-      DebugPanelImpl.log("Test");
-      const timestamps = consoleElement.querySelectorAll(".timestamp");
-      expect(timestamps.length).toBeGreaterThan(0);
-    });
-  });
-
-  describe("clear() - Console Clearing", () => {
-    test("should clear all messages", () => {
-      DebugPanelImpl.log("Message 1");
-      DebugPanelImpl.log("Message 2");
-      DebugPanelImpl.clear();
-      expect(consoleElement.innerHTML).toBe("");
-    });
-
-    test("should be able to log after clear", () => {
-      DebugPanelImpl.log("Before");
-      DebugPanelImpl.clear();
-      DebugPanelImpl.log("After");
-      expect(consoleElement.textContent).toContain("After");
-      expect(consoleElement.textContent).not.toContain("Before");
-    });
-  });
-
-  describe("Auto-scroll", () => {
-    test("should scroll to bottom when adding messages", () => {
-      for (let i = 0; i < 10; i++) {
-        DebugPanelImpl.log(`Message ${i}`);
-      }
-      expect(consoleElement.scrollTop).toBeDefined();
-    });
-  });
-
-  describe("Message Formatting", () => {
-    test("should preserve newlines in messages", () => {
-      DebugPanelImpl.log("Line1\\nLine2");
-      expect(consoleElement.textContent).toContain("Line1");
-    });
-
-    test("should escape HTML in messages", () => {
-      DebugPanelImpl.log("<script>alert('xss')</script>");
-      expect(consoleElement.innerHTML).not.toContain("<script>");
-    });
-
-    test("should handle very long messages", () => {
-      const longMsg = "A".repeat(10000);
-      expect(() => DebugPanelImpl.log(longMsg)).not.toThrow();
-    });
-
-    test("should handle special characters", () => {
-      DebugPanelImpl.log("Special: @#$%^&*()");
-      expect(consoleElement.textContent).toContain("@#$%^&*()");
-    });
-
-    test("should handle unicode characters", () => {
-      DebugPanelImpl.log("Unicode: 你好 🚀");
-      expect(consoleElement.textContent).toContain("你好");
-      expect(consoleElement.textContent).toContain("🚀");
-    });
-  });
-
-  describe("Message History", () => {
-    test("should maintain message order", () => {
-      DebugPanelImpl.log("First");
-      DebugPanelImpl.log("Second");
-      DebugPanelImpl.log("Third");
-
-      const messages = consoleElement.querySelectorAll(".debug-message");
-      expect(messages[0].textContent).toContain("First");
-      expect(messages[1].textContent).toContain("Second");
-      expect(messages[2].textContent).toContain("Third");
-    });
-
-    test("should limit message history", () => {
-      for (let i = 0; i < 1000; i++) {
-        DebugPanelImpl.log(`Message ${i}`);
-      }
-      expect(consoleElement.children.length).toBe(1000);
-    });
-  });
-
-  describe("Color Coding", () => {
-    test("should use appropriate colors for message types", () => {
-      DebugPanelImpl.info("info");
-      DebugPanelImpl.warn("warn");
-      DebugPanelImpl.error("error");
-      DebugPanelImpl.success("success");
-
-      expect(consoleElement.querySelector(".debug-info")).not.toBeNull();
-      expect(consoleElement.querySelector(".debug-warning")).not.toBeNull();
-      expect(consoleElement.querySelector(".debug-error")).not.toBeNull();
-      expect(consoleElement.querySelector(".debug-success")).not.toBeNull();
-    });
-  });
-
-  describe("Performance", () => {
-    test("should handle rapid logging", () => {
-      const start = Date.now();
-      for (let i = 0; i < 100; i++) {
-        DebugPanelImpl.log(`Rapid message ${i}`);
-      }
-      const duration = Date.now() - start;
-      expect(duration).toBeLessThan(1000);
-    });
-
-    test("should not cause memory issues with many messages", () => {
-      for (let i = 0; i < 500; i++) {
-        DebugPanelImpl.log(`Memory test ${i}`);
-      }
-      expect(consoleElement.children.length).toBe(500);
-    });
-  });
-
-  describe("Clear Button Integration", () => {
-    test("should wire up clear button if exists", () => {
-      const clearBtn = document.getElementById("btnClearDebug");
-      expect(clearBtn).not.toBeNull();
-    });
-  });
-
-  describe("Python Output Formatting", () => {
-    test("should handle print output format", () => {
-      DebugPanelImpl.log(">>> print('hello')");
-      expect(consoleElement.textContent).toContain("print");
-    });
-
-    test("should handle error output format", () => {
-      DebugPanelImpl.error("NameError: name 'x' is not defined");
-      expect(consoleElement.textContent).toContain("NameError");
-    });
+    expect(
+      Logger.getByCategory("DEBUG_PANEL").map((e) => [e.message, e.level]),
+    ).toEqual([
+      ["i", "info"],
+      ["w", "warn"],
+      ["e", "error"],
+      ["o", "info"],
+    ]);
   });
 });

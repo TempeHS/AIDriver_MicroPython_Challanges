@@ -1,411 +1,270 @@
 /**
- * Python Runner Unit Tests
- * Tests for Skulpt Python execution and command processing
+ * PythonRunner tests against the real js/python-runner.js, executing learner
+ * code with the real Skulpt 1.2.0 interpreter, real Validator, AIDriverStub
+ * and Simulator. Behaviour already covered by
+ * tests/integration/real-runtime.test.js is not repeated here.
  */
 
-describe("PythonRunner", () => {
-  let PythonRunnerImpl;
-  let mockRobot;
-  let commandQueue;
+const {
+  loadSkulpt,
+  loadModules,
+  captureDebugPanel,
+  makeRobot,
+} = require("../helpers/load-app");
 
-  beforeEach(() => {
-    // Mock robot
-    mockRobot = {
-      x: 1000,
-      y: 1000,
-      angle: 0,
-      leftSpeed: 0,
-      rightSpeed: 0,
-      isMoving: false,
+const ROBOT = "from aidriver import AIDriver, hold_state\nr = AIDriver()\n";
+
+let output;
+let highlighted;
+let onHighlight;
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+beforeAll(() => {
+  jest.spyOn(console, "trace").mockImplementation(() => {});
+  loadSkulpt();
+  loadModules([
+    "validator.js",
+    "simulator.js",
+    "aidriver-stub.js",
+    "python-runner.js",
+    "app.js",
+  ]);
+  window.render = () => {};
+  output = captureDebugPanel().messages;
+  window.Editor = {
+    highlightLine: (line) => {
+      highlighted.push(line);
+      if (onHighlight) onHighlight(line);
+    },
+    clearHighlight: () => {},
+    markError: jest.fn(),
+  };
+  PythonRunner.init();
+});
+
+beforeEach(() => {
+  output.length = 0;
+  highlighted = [];
+  onHighlight = null;
+  App.speedMultiplier = 1;
+  Simulator.setSpeed(1);
+  App.robot = makeRobot();
+  PythonRunner.stepDelay = 1;
+});
+
+describe("run()", () => {
+  test("code failing validation is reported and never executed", async () => {
+    await expect(
+      PythonRunner.run(ROBOT + "print('ran')\nx = eval('1')\n"),
+    ).rejects.toThrow("Validation failed");
+
+    expect(output).toContain(
+      "ERROR Code has errors that must be fixed before running:",
+    );
+    expect(output).toContainEqual(
+      expect.stringMatching(/Line 4: eval\(\) is not allowed/),
+    );
+    expect(output).not.toContain("ran");
+    expect(PythonRunner.isRunning).toBe(false);
+  });
+
+  test("print output reaches the debug panel and completion is logged", async () => {
+    await PythonRunner.run("print('hello')\nprint(1 + 2)\n");
+
+    expect(output).toEqual([
+      "[Python] Starting execution...",
+      "hello",
+      "3",
+      "[Python] Execution completed",
+    ]);
+    expect(PythonRunner.isRunning).toBe(false);
+  });
+
+  test("runtime errors report the faulting line and mark it in the editor", async () => {
+    await PythonRunner.run(
+      "def f():\n    return missing_name\n\nprint('before')\nf()\nprint('after')\n",
+    );
+
+    expect(output).toContain("before");
+    expect(output).not.toContain("after");
+    expect(output).toContainEqual(
+      expect.stringMatching(/^\[Error\] Line 2: NameError/),
+    );
+    expect(output).not.toContain("[Python] Execution completed");
+    expect(Editor.markError).toHaveBeenCalledWith(
+      2,
+      expect.stringContaining("NameError"),
+    );
+    expect(PythonRunner.isRunning).toBe(false);
+  });
+
+  test("input() is rejected with an error on the calling line", async () => {
+    await PythonRunner.run("name = input('Name? ')\nprint('got', name)\n");
+
+    expect(output).toContain(
+      "[Error] input() is not supported in the simulator",
+    );
+    expect(output).toContainEqual(expect.stringMatching(/Line 1: .*input\(\)/));
+    expect(output.some((m) => m.startsWith("got"))).toBe(false);
+  });
+
+  test("a second run() while one is active is ignored", async () => {
+    const first = PythonRunner.run(ROBOT + "hold_state(0.1)\nprint('first')\n");
+    await wait(10);
+
+    await expect(PythonRunner.run("print('second')\n")).resolves.toBeUndefined();
+    await first;
+
+    expect(output).toContain("first");
+    expect(output).not.toContain("second");
+  });
+
+  test("DEBUG_AIDRIVER = True in the code logs each robot command", async () => {
+    await PythonRunner.run(
+      ROBOT + "DEBUG_AIDRIVER = True\nr.drive_forward(200, 150)\n",
+    );
+    expect(output).toContain(
+      '[AIDriver] drive_forward: {"rightSpeed":200,"leftSpeed":150}',
+    );
+
+    output.length = 0;
+    await PythonRunner.run(ROBOT + "r.drive_forward(200, 150)\n");
+    expect(output.some((m) => m.includes("drive_forward:"))).toBe(false);
+  });
+});
+
+describe("stop()", () => {
+  test("ends a normal-mode infinite loop and stops the robot", async () => {
+    const running = PythonRunner.run(
+      ROBOT + "r.drive_forward(200, 200)\nwhile True:\n    pass\n",
+    );
+    await wait(100);
+    expect(App.robot.isMoving).toBe(true);
+
+    PythonRunner.stop();
+    expect(App.robot).toMatchObject({ leftSpeed: 0, rightSpeed: 0, isMoving: false });
+    await running;
+
+    expect(PythonRunner.isRunning).toBe(false);
+    expect(AIDriverStub.hasCommands()).toBe(false);
+    expect(output).toContain("[Python] Execution stopped");
+    expect(output).not.toContain("[Python] Execution completed");
+    expect(output.some((m) => m.startsWith("[Error]"))).toBe(false);
+  });
+
+  test("during hold_state stops the robot and the run", async () => {
+    const running = PythonRunner.run(
+      ROBOT + "r.drive_forward(200, 200)\nhold_state(0.2)\n",
+    );
+    await wait(50);
+    expect(App.robot.isMoving).toBe(true);
+
+    PythonRunner.stop();
+    expect(PythonRunner.isRunning).toBe(false);
+    expect(App.robot).toMatchObject({ leftSpeed: 0, rightSpeed: 0, isMoving: false });
+    await running;
+    expect(App.robot.isMoving).toBe(false);
+  });
+});
+
+describe("validateSyntax()", () => {
+  test("accepts valid code", () => {
+    expect(PythonRunner.validateSyntax(ROBOT + "r.brake()\n")).toEqual({
+      valid: true,
+      error: null,
+      line: null,
+    });
+  });
+
+  test("reports a SyntaxError with its line number", () => {
+    const result = PythonRunner.validateSyntax("x = 1\nif x\n    pass\n");
+    expect(result.valid).toBe(false);
+    expect(result.error).toMatch(/SyntaxError/);
+    expect(result.line).toBe(2);
+  });
+});
+
+describe("processCommandQueue() applies robot commands", () => {
+  async function runAndApply(code) {
+    await PythonRunner.run(ROBOT + code);
+    PythonRunner.processCommandQueue();
+    return App.robot;
+  }
+
+  test.each([
+    ["r.drive_forward(200, 150)", 150, 200, true],
+    ["r.drive_backward(200, 150)", -150, -200, true],
+    ["r.rotate_left(120)", 120, -120, true],
+    ["r.rotate_right(120)", -120, 120, true],
+    ["r.drive_forward(200, 200); r.brake()", 0, 0, false],
+  ])("%s", async (code, left, right, moving) => {
+    const robot = await runAndApply(code.replace("; ", "\n") + "\n");
+    expect(robot).toMatchObject({ leftSpeed: left, rightSpeed: right, isMoving: moving });
+    expect(AIDriverStub.hasCommands()).toBe(false);
+  });
+
+  test("rotate_left turns counter-clockwise and rotate_right clockwise", async () => {
+    const left = Simulator.step(await runAndApply("r.rotate_left(200)\n"), 0.1);
+    App.robot = makeRobot();
+    const right = Simulator.step(await runAndApply("r.rotate_right(200)\n"), 0.1);
+
+    expect(left.heading).toBeGreaterThan(180); // wrapped below 0
+    expect(right.heading).toBeGreaterThan(0);
+    expect(right.heading).toBeLessThan(180);
+  });
+
+  test("set_motor_speeds does not change the current motion", async () => {
+    let robot = await runAndApply(
+      "r.drive_forward(200, 200)\nr.set_motor_speeds(100, 90)\n",
+    );
+    expect(robot).toMatchObject({ leftSpeed: 200, rightSpeed: 200, isMoving: true });
+
+    App.robot = makeRobot();
+    robot = await runAndApply("r.set_motor_speeds(100, 90)\n");
+    expect(robot).toMatchObject({ leftSpeed: 0, rightSpeed: 0, isMoving: false });
+  });
+});
+
+describe("step mode pause/resume", () => {
+  test("pausing holds execution on the current line until resumed", async () => {
+    onHighlight = (line) => {
+      if (line === 2) PythonRunner.pauseStep();
     };
+    const running = PythonRunner.runStepMode(
+      "a = 1\nb = 2\nc = 3\nprint('done', a + b + c)\n",
+    );
 
-    commandQueue = [];
+    await wait(150);
+    expect(highlighted).toEqual([1, 2]);
+    expect(PythonRunner.currentStepLine).toBe(2);
+    expect(PythonRunner.freezePhysics).toBe(true);
+    expect(PythonRunner.isStepping).toBe(true);
+    expect(output).toContain("Paused at line 2");
+    expect(output).not.toContain("done 6");
 
-    // Create PythonRunner implementation
-    PythonRunnerImpl = {
-      isRunning: false,
-      shouldStop: false,
-      stepMode: false,
-      robot: mockRobot,
-      commandQueue: commandQueue,
-      DEBUG_AIDRIVER: false,
+    PythonRunner.resumeStep();
+    await running;
 
-      init: function () {
-        this.isRunning = false;
-        this.shouldStop = false;
-        this.stepMode = false;
-      },
+    expect(highlighted).toEqual([1, 2, 3, 4]);
+    expect(output).toContain("done 6");
+    expect(PythonRunner.isStepping).toBe(false);
+  });
 
-      run: async function (code) {
-        if (this.isRunning) {
-          return { success: false, error: "Already running" };
-        }
-
-        this.isRunning = true;
-        this.shouldStop = false;
-        this.commandQueue = [];
-
-        try {
-          // Simulate execution
-          const result = await this.execute(code);
-          this.isRunning = false;
-          return { success: true, result: result };
-        } catch (error) {
-          this.isRunning = false;
-          return { success: false, error: error.message };
-        }
-      },
-
-      execute: async function (code) {
-        // Simulate code execution
-        return new Promise((resolve) => {
-          setTimeout(() => {
-            resolve("Execution complete");
-          }, 10);
-        });
-      },
-
-      stop: function () {
-        this.shouldStop = true;
-        this.isRunning = false;
-        this.stepMode = false;
-        this.robot.leftSpeed = 0;
-        this.robot.rightSpeed = 0;
-        this.robot.isMoving = false;
-        this.commandQueue = [];
-      },
-
-      processCommand: function (cmd) {
-        switch (cmd.type) {
-          case "drive_forward":
-            this.robot.leftSpeed = cmd.speed || 100;
-            this.robot.rightSpeed = cmd.speed || 100;
-            this.robot.isMoving = true;
-            break;
-          case "drive_backward":
-            this.robot.leftSpeed = -(cmd.speed || 100);
-            this.robot.rightSpeed = -(cmd.speed || 100);
-            this.robot.isMoving = true;
-            break;
-          case "rotate_left":
-            this.robot.leftSpeed = -(cmd.speed || 100);
-            this.robot.rightSpeed = cmd.speed || 100;
-            this.robot.isMoving = true;
-            break;
-          case "rotate_right":
-            this.robot.leftSpeed = cmd.speed || 100;
-            this.robot.rightSpeed = -(cmd.speed || 100);
-            this.robot.isMoving = true;
-            break;
-          case "brake":
-            this.robot.leftSpeed = 0;
-            this.robot.rightSpeed = 0;
-            this.robot.isMoving = false;
-            break;
-          case "init":
-            // Robot initialization
-            break;
-          default:
-            console.warn("Unknown command:", cmd.type);
-        }
-      },
-
-      validateCode: function (code) {
-        // Basic validation
-        if (!code || code.trim() === "") {
-          return { valid: false, error: "Empty code" };
-        }
-        return { valid: true };
-      },
-
-      handleOutput: function (text) {
-        // Process Python print output
-        return text.replace(/\n$/, "");
-      },
-
-      handleError: function (error) {
-        const match = error.message.match(/line (\d+)/i);
-        return {
-          message: error.message,
-          line: match ? parseInt(match[1]) : null,
-        };
-      },
-
-      setStepMode: function (enabled) {
-        this.stepMode = enabled;
-      },
-
-      step: function () {
-        if (this.commandQueue.length > 0) {
-          const cmd = this.commandQueue.shift();
-          this.processCommand(cmd);
-        }
-      },
-
-      detectDebugFlag: function (code) {
-        return code.includes("DEBUG_AIDRIVER") && code.includes("True");
-      },
+  test("stop() while paused ends the run without executing further lines", async () => {
+    onHighlight = (line) => {
+      if (line === 2) PythonRunner.pauseStep();
     };
+    const running = PythonRunner.runStepMode("a = 1\nprint('not reached')\n");
 
-    PythonRunnerImpl.init();
-  });
+    await wait(50);
+    expect(highlighted).toEqual([1, 2]);
+    PythonRunner.stop();
+    await running;
 
-  describe("Initialization", () => {
-    test("should have required methods", () => {
-      expect(typeof PythonRunnerImpl.run).toBe("function");
-      expect(typeof PythonRunnerImpl.stop).toBe("function");
-      expect(typeof PythonRunnerImpl.processCommand).toBe("function");
-    });
-
-    test("should initialize without errors", () => {
-      expect(() => PythonRunnerImpl.init()).not.toThrow();
-    });
-
-    test("should not be running initially", () => {
-      expect(PythonRunnerImpl.isRunning).toBe(false);
-    });
-  });
-
-  describe("run()", () => {
-    test("should set isRunning to true during execution", async () => {
-      const promise = PythonRunnerImpl.run("x = 1");
-      // Check immediately while running
-      expect(PythonRunnerImpl.isRunning).toBe(true);
-      await promise;
-    });
-
-    test("should set isRunning to false after completion", async () => {
-      await PythonRunnerImpl.run("x = 1");
-      expect(PythonRunnerImpl.isRunning).toBe(false);
-    });
-
-    test("should return success for valid code", async () => {
-      const result = await PythonRunnerImpl.run("x = 1");
-      expect(result.success).toBe(true);
-    });
-
-    test("should not run if already running", async () => {
-      PythonRunnerImpl.isRunning = true;
-      const result = await PythonRunnerImpl.run("x = 1");
-      expect(result.success).toBe(false);
-      expect(result.error).toContain("Already running");
-    });
-
-    test("should clear command queue before running", async () => {
-      PythonRunnerImpl.commandQueue.push({ type: "test" });
-      await PythonRunnerImpl.run("x = 1");
-      expect(PythonRunnerImpl.commandQueue).toHaveLength(0);
-    });
-  });
-
-  describe("stop()", () => {
-    test("should set shouldStop flag", () => {
-      PythonRunnerImpl.stop();
-      expect(PythonRunnerImpl.shouldStop).toBe(true);
-    });
-
-    test("should set isRunning to false", () => {
-      PythonRunnerImpl.isRunning = true;
-      PythonRunnerImpl.stop();
-      expect(PythonRunnerImpl.isRunning).toBe(false);
-    });
-
-    test("should clear command queue", () => {
-      PythonRunnerImpl.commandQueue.push({ type: "test" });
-      PythonRunnerImpl.stop();
-      expect(PythonRunnerImpl.commandQueue).toHaveLength(0);
-    });
-
-    test("should stop robot movement", () => {
-      mockRobot.leftSpeed = 100;
-      mockRobot.rightSpeed = 100;
-      mockRobot.isMoving = true;
-
-      PythonRunnerImpl.stop();
-
-      expect(mockRobot.leftSpeed).toBe(0);
-      expect(mockRobot.rightSpeed).toBe(0);
-      expect(mockRobot.isMoving).toBe(false);
-    });
-
-    test("should reset step mode", () => {
-      PythonRunnerImpl.stepMode = true;
-      PythonRunnerImpl.stop();
-      expect(PythonRunnerImpl.stepMode).toBe(false);
-    });
-  });
-
-  describe("processCommand()", () => {
-    test("should process drive_forward command", () => {
-      PythonRunnerImpl.processCommand({ type: "drive_forward", speed: 100 });
-      expect(mockRobot.leftSpeed).toBe(100);
-      expect(mockRobot.rightSpeed).toBe(100);
-      expect(mockRobot.isMoving).toBe(true);
-    });
-
-    test("should process drive_backward command", () => {
-      PythonRunnerImpl.processCommand({ type: "drive_backward", speed: 100 });
-      expect(mockRobot.leftSpeed).toBe(-100);
-      expect(mockRobot.rightSpeed).toBe(-100);
-      expect(mockRobot.isMoving).toBe(true);
-    });
-
-    test("should process rotate_left command", () => {
-      PythonRunnerImpl.processCommand({ type: "rotate_left", speed: 100 });
-      expect(mockRobot.leftSpeed).toBe(-100);
-      expect(mockRobot.rightSpeed).toBe(100);
-      expect(mockRobot.isMoving).toBe(true);
-    });
-
-    test("should process rotate_right command", () => {
-      PythonRunnerImpl.processCommand({ type: "rotate_right", speed: 100 });
-      expect(mockRobot.leftSpeed).toBe(100);
-      expect(mockRobot.rightSpeed).toBe(-100);
-      expect(mockRobot.isMoving).toBe(true);
-    });
-
-    test("should process brake command", () => {
-      mockRobot.leftSpeed = 100;
-      mockRobot.rightSpeed = 100;
-      mockRobot.isMoving = true;
-
-      PythonRunnerImpl.processCommand({ type: "brake" });
-
-      expect(mockRobot.leftSpeed).toBe(0);
-      expect(mockRobot.rightSpeed).toBe(0);
-      expect(mockRobot.isMoving).toBe(false);
-    });
-
-    test("should process init command without error", () => {
-      expect(() => {
-        PythonRunnerImpl.processCommand({ type: "init" });
-      }).not.toThrow();
-    });
-
-    test("should handle unknown command type gracefully", () => {
-      expect(() => {
-        PythonRunnerImpl.processCommand({ type: "unknown_command" });
-      }).not.toThrow();
-    });
-
-    test("should use default speed if not specified", () => {
-      PythonRunnerImpl.processCommand({ type: "drive_forward" });
-      expect(mockRobot.leftSpeed).toBe(100);
-      expect(mockRobot.rightSpeed).toBe(100);
-    });
-  });
-
-  describe("validateCode()", () => {
-    test("should return valid for non-empty code", () => {
-      const result = PythonRunnerImpl.validateCode("x = 1");
-      expect(result.valid).toBe(true);
-    });
-
-    test("should return invalid for empty code", () => {
-      const result = PythonRunnerImpl.validateCode("");
-      expect(result.valid).toBe(false);
-    });
-
-    test("should return invalid for whitespace-only code", () => {
-      const result = PythonRunnerImpl.validateCode("   ");
-      expect(result.valid).toBe(false);
-    });
-  });
-
-  describe("handleOutput()", () => {
-    test("should trim trailing newline", () => {
-      const result = PythonRunnerImpl.handleOutput("Hello World\n");
-      expect(result).toBe("Hello World");
-    });
-
-    test("should preserve internal content", () => {
-      const result = PythonRunnerImpl.handleOutput("Line 1\nLine 2\n");
-      expect(result).toBe("Line 1\nLine 2");
-    });
-
-    test("should handle empty string", () => {
-      const result = PythonRunnerImpl.handleOutput("");
-      expect(result).toBe("");
-    });
-  });
-
-  describe("handleError()", () => {
-    test("should extract line number from error", () => {
-      const error = new Error("line 5: SyntaxError");
-      const result = PythonRunnerImpl.handleError(error);
-      expect(result.line).toBe(5);
-    });
-
-    test("should return null line for errors without line number", () => {
-      const error = new Error("Unknown error");
-      const result = PythonRunnerImpl.handleError(error);
-      expect(result.line).toBeNull();
-    });
-
-    test("should include original message", () => {
-      const error = new Error("Test error message");
-      const result = PythonRunnerImpl.handleError(error);
-      expect(result.message).toBe("Test error message");
-    });
-  });
-
-  describe("Step Mode", () => {
-    test("setStepMode() should enable step mode", () => {
-      PythonRunnerImpl.setStepMode(true);
-      expect(PythonRunnerImpl.stepMode).toBe(true);
-    });
-
-    test("setStepMode() should disable step mode", () => {
-      PythonRunnerImpl.stepMode = true;
-      PythonRunnerImpl.setStepMode(false);
-      expect(PythonRunnerImpl.stepMode).toBe(false);
-    });
-
-    test("step() should process one command", () => {
-      PythonRunnerImpl.commandQueue.push({ type: "drive_forward", speed: 100 });
-      PythonRunnerImpl.commandQueue.push({ type: "brake" });
-
-      PythonRunnerImpl.step();
-
-      expect(mockRobot.leftSpeed).toBe(100);
-      expect(PythonRunnerImpl.commandQueue).toHaveLength(1);
-    });
-
-    test("step() should handle empty queue", () => {
-      expect(() => PythonRunnerImpl.step()).not.toThrow();
-    });
-  });
-
-  describe("DEBUG_AIDRIVER Flag", () => {
-    test("should detect DEBUG_AIDRIVER = True in code", () => {
-      const code = "DEBUG_AIDRIVER = True\nfrom aidriver import AIDriver";
-      expect(PythonRunnerImpl.detectDebugFlag(code)).toBe(true);
-    });
-
-    test("should not detect if DEBUG_AIDRIVER is False", () => {
-      const code = "DEBUG_AIDRIVER = False\nfrom aidriver import AIDriver";
-      expect(PythonRunnerImpl.detectDebugFlag(code)).toBe(false);
-    });
-
-    test("should not detect if DEBUG_AIDRIVER is absent", () => {
-      const code = "from aidriver import AIDriver";
-      expect(PythonRunnerImpl.detectDebugFlag(code)).toBe(false);
-    });
-  });
-
-  describe("Edge Cases", () => {
-    test("should handle concurrent stop calls", () => {
-      expect(() => {
-        PythonRunnerImpl.stop();
-        PythonRunnerImpl.stop();
-        PythonRunnerImpl.stop();
-      }).not.toThrow();
-    });
-
-    test("should handle run after stop", async () => {
-      PythonRunnerImpl.stop();
-      const result = await PythonRunnerImpl.run("x = 1");
-      expect(result.success).toBe(true);
-    });
+    expect(output).not.toContain("not reached");
+    expect(PythonRunner.isStepping).toBe(false);
+    expect(PythonRunner.freezePhysics).toBe(false);
+    expect(output.some((m) => m.startsWith("[Error]"))).toBe(false);
   });
 });

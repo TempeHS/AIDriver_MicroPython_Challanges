@@ -1,372 +1,435 @@
 /**
  * Full Application Integration Tests
- * End-to-end tests for the complete AIDriver simulator workflow
+ * Boots the real simulator (simulator.html markup + every js/ module + real
+ * Skulpt) and drives it through the UI the way a learner would.
  */
 
-describe("Full Application Integration", () => {
-  let App;
-  let Editor;
-  let Simulator;
-  let PythonRunner;
+const fs = require("fs");
+const path = require("path");
+const { loadModules, loadSkulpt } = require("../helpers/load-app");
 
+const ALL_MODULES = [
+  "logger.js",
+  "debug-panel.js",
+  "validator.js",
+  "simulator.js",
+  "challenges.js",
+  "mazes.js",
+  "gamepad.js",
+  "aidriver-stub.js",
+  "python-runner.js",
+  "editor.js",
+  "app.js",
+];
+
+const SIMULATOR_BODY = fs
+  .readFileSync(path.join(__dirname, "..", "..", "simulator.html"), "utf8")
+  .match(/<body[^>]*>([\s\S]*)<\/body>/i)[1]
+  .replace(/<script\b[\s\S]*?<\/script>/gi, "");
+
+const DRIVE_PROGRAM = [
+  "from aidriver import AIDriver, hold_state",
+  "r = AIDriver()",
+  "r.drive_forward(200, 200)",
+  "hold_state(0.5)",
+  "r.brake()",
+  "print('arrived <home> & done')",
+].join("\n");
+
+const LOOP_PROGRAM = [
+  "from aidriver import AIDriver, hold_state",
+  "r = AIDriver()",
+  "count = 0",
+  "while True:",
+  "    count = count + 1",
+  "    r.drive_forward(200, 200)",
+].join("\n");
+
+// Minimal in-memory stand-in for the ACE editor (a CDN global in the browser)
+function createFakeAce() {
+  class Range {
+    constructor(startRow, startCol, endRow, endCol) {
+      this.start = { row: startRow, column: startCol };
+      this.end = { row: endRow, column: endCol };
+    }
+  }
+  return {
+    require: () => ({ Range }),
+    edit() {
+      const changeListeners = [];
+      let value = "";
+      let nextMarkerId = 1;
+      return {
+        session: {
+          annotations: [],
+          markers: new Map(),
+          setMode() {},
+          getAnnotations() {
+            return this.annotations;
+          },
+          setAnnotations(a) {
+            this.annotations = a;
+          },
+          addMarker(range, clazz) {
+            const id = nextMarkerId++;
+            this.markers.set(id, { row: range.start.row, clazz });
+            return id;
+          },
+          removeMarker(id) {
+            this.markers.delete(id);
+          },
+        },
+        commands: { addCommand() {} },
+        setTheme() {},
+        setOptions() {},
+        scrollToLine() {},
+        resize() {},
+        on(event, fn) {
+          if (event === "change") changeListeners.push(fn);
+        },
+        getValue: () => value,
+        setValue(text) {
+          value = text;
+          changeListeners.forEach((fn) => fn({}));
+        },
+      };
+    },
+  };
+}
+
+let app;
+let rafEnabled;
+const addedListeners = [];
+
+function $(id) {
+  return document.getElementById(id);
+}
+
+function click(el) {
+  el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+}
+
+function debugText() {
+  return $("debugConsole").textContent;
+}
+
+function markerRows(clazz) {
+  return [...Editor.instance.session.markers.values()]
+    .filter((m) => m.clazz === clazz)
+    .map((m) => m.row);
+}
+
+async function waitFor(predicate, timeout = 4000) {
+  const start = Date.now();
+  while (!predicate()) {
+    if (Date.now() - start > timeout) {
+      throw new Error(`Timed out waiting for ${predicate}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function boot(url = "/simulator.html") {
+  window.history.replaceState(null, "", url);
+  app = loadModules(ALL_MODULES);
+  app.init();
+}
+
+beforeAll(() => {
+  loadSkulpt();
+});
+
+beforeEach(() => {
+  // Track global listeners registered by init() so each test starts clean
+  for (const target of [window, document]) {
+    const original = target.addEventListener;
+    jest.spyOn(target, "addEventListener").mockImplementation(function (...args) {
+      addedListeners.push([target, ...args]);
+      return original.apply(this, args);
+    });
+  }
+
+  // Browsers pass a timestamp to rAF callbacks (setup.js's mock does not)
+  rafEnabled = true;
+  window.requestAnimationFrame = (cb) =>
+    rafEnabled ? setTimeout(() => cb(performance.now()), 16) : 0;
+
+  // setup.js's 2D context lacks some drawing calls render() uses; stub them all
+  jest.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(function () {
+    const gradient = { addColorStop() {} };
+    const base = {
+      canvas: this,
+      measureText: () => ({ width: 0 }),
+      createLinearGradient: () => gradient,
+      createRadialGradient: () => gradient,
+      getLineDash: () => [],
+    };
+    return new Proxy(base, {
+      get: (target, prop) => (prop in target ? target[prop] : () => {}),
+    });
+  });
+
+  // PythonRunner.stop() calls console.trace(), which setup.js does not silence
+  jest.spyOn(console, "trace").mockImplementation(() => {});
+
+  window.ace = createFakeAce();
+  bootstrap.Modal.getInstance = () => ({ hide() {} });
+  localStorage.clear();
+  document.body.innerHTML = SIMULATOR_BODY;
+});
+
+afterEach(async () => {
+  rafEnabled = false;
+  if (window.PythonRunner && PythonRunner.isRunning) {
+    PythonRunner.stop();
+  }
+  clearTimeout(Editor.saveTimeout);
+  clearTimeout(Editor.validateTimeout);
+  jest.useRealTimers();
+  for (const [target, ...args] of addedListeners.splice(0)) {
+    target.removeEventListener(...args);
+  }
+  jest.restoreAllMocks();
+  await sleep(20);
+});
+
+describe("Startup", () => {
+  test("loads challenge 0 into the editor, arena and debug panel", () => {
+    boot();
+
+    expect(App.currentChallenge).toBe(0);
+    expect($("challengeSimulatorMenu").querySelectorAll("[data-challenge]")).toHaveLength(9);
+    expect($("challengeDropdown").textContent).toContain("Challenge 0: Fix the Code");
+    expect(Editor.getCode()).toContain("# Challenge 0: Fix the Code");
+    expect(App.robot).toMatchObject({ x: 1000, y: 1800, heading: 0, leftSpeed: 0 });
+    expect(debugText()).toContain("=== Challenge 0: Fix the Code ===");
+    expect($("statusMessage").textContent).toBe("Challenge 0: Fix the Code loaded");
+    expect($("ultrasonicDisplay").textContent).toMatch(/^Distance: \d+ mm$/);
+    expect($("loadingOverlay").classList.contains("hidden")).toBe(true);
+    expect($("btnRun").disabled).toBe(false);
+  });
+
+  test("honours the ?challenge= URL parameter", () => {
+    boot("/simulator.html?challenge=2");
+
+    expect(App.currentChallenge).toBe(2);
+    expect($("challengeDropdown").textContent).toContain("Challenge 2: Drive a Circle");
+    expect(Editor.getCode()).toContain("# Challenge 2: Drive a Circle");
+    expect(App.robot).toMatchObject({ x: 1000, y: 1400, heading: 90 });
+  });
+
+  test("loading challenge 0 flags its deliberate errors and disables Run", () => {
+    jest.useFakeTimers();
+    boot();
+    jest.advanceTimersByTime(500);
+
+    // Line 12 is the `while ... == -1` missing its colon
+    expect(markerRows("ace_error-line")).toContain(11);
+    expect($("challengeStatus").textContent).toMatch(/^\d+ error\(s\)$/);
+    expect($("btnRun").disabled).toBe(true);
+  });
+});
+
+describe("Switching challenges", () => {
+  beforeEach(() => boot());
+
+  test("menu selection loads starter code, start pose and URL", () => {
+    App.robot.x = 123;
+    App.robot.leftSpeed = 200;
+    click(document.querySelector('[data-challenge="4"]'));
+
+    expect(App.currentChallenge).toBe(4);
+    expect(window.location.search).toBe("?challenge=4");
+    expect($("challengeDropdown").textContent).toContain("Challenge 4: Drive a Square");
+    expect(Editor.getCode()).toContain("# Challenge 4: Drive a Square");
+    expect(App.robot).toMatchObject({ x: 600, y: 1400, heading: 0, leftSpeed: 0 });
+    expect(document.querySelectorAll("[data-challenge].active")).toHaveLength(1);
+    expect($("mazeSelector").classList.contains("d-none")).toBe(true);
+
+    click(document.querySelector('[data-challenge="6"]'));
+    expect($("mazeSelector").classList.contains("d-none")).toBe(false);
+    expect(App.robot).toMatchObject({ x: 300, y: 1700 });
+  });
+
+  test("challenge obstacles feed the ultrasonic reading", () => {
+    const distanceOf = (id) => {
+      click(document.querySelector(`[data-challenge="${id}"]`));
+      return Number($("ultrasonicDisplay").textContent.match(/\d+/)[0]);
+    };
+    // Same start pose; challenge 5 has a block ahead at y=500..700
+    expect(distanceOf(5)).toBeLessThan(distanceOf(1) - 400);
+  });
+
+  test("browser back/forward (popstate) loads the challenge from the URL", () => {
+    window.history.replaceState(null, "", "/simulator.html?challenge=3");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+
+    expect(App.currentChallenge).toBe(3);
+    expect(Editor.getCode()).toContain("# Challenge 3: Distance Sensor");
+  });
+
+  test("edited code is saved and restored, and Reset Code restores the starter", () => {
+    jest.useFakeTimers();
+    click(document.querySelector('[data-challenge="1"]'));
+    Editor.setCode("# my work\n" + DRIVE_PROGRAM);
+    jest.advanceTimersByTime(1000);
+
+    click(document.querySelector('[data-challenge="2"]'));
+    click(document.querySelector('[data-challenge="1"]'));
+    expect(Editor.getCode()).toBe("# my work\n" + DRIVE_PROGRAM);
+    expect(debugText()).toContain("Loaded saved code for Challenge 1");
+
+    click($("btnResetCode"));
+    click($("btnConfirmReset"));
+    expect(Editor.getCode()).toContain("# Challenge 1: Drive in a Straight Line");
+    expect(Editor.hasSavedCode(1)).toBe(false);
+  });
+});
+
+describe("Running code", () => {
   beforeEach(() => {
-    // Create mock application state
-    App = {
-      currentChallenge: 0,
-      isRunning: false,
-      robot: {
-        x: 1000,
-        y: 1000,
-        angle: 0,
-        leftSpeed: 0,
-        rightSpeed: 0,
-        isMoving: false,
-      },
-      commandQueue: [],
-      startPosition: { x: 1000, y: 1000 },
-    };
-
-    // Mock Editor
-    Editor = {
-      code: "",
-      getCode: function () {
-        return this.code;
-      },
-      setCode: function (code) {
-        this.code = code;
-      },
-      errors: [],
-      markError: function (line, msg) {
-        this.errors.push({ line, msg });
-      },
-      clearErrors: function () {
-        this.errors = [];
-      },
-    };
-
-    // Mock Simulator
-    Simulator = {
-      isRunning: false,
-      start: function () {
-        this.isRunning = true;
-      },
-      stop: function () {
-        this.isRunning = false;
-      },
-      reset: function () {
-        App.robot = {
-          x: 1000,
-          y: 1000,
-          angle: 0,
-          leftSpeed: 0,
-          rightSpeed: 0,
-          isMoving: false,
-        };
-      },
-      update: function (dt) {
-        if (!App.robot.isMoving) return;
-        const v = (App.robot.leftSpeed + App.robot.rightSpeed) / 2;
-        App.robot.x += v * Math.cos(App.robot.angle) * dt;
-        App.robot.y += v * Math.sin(App.robot.angle) * dt;
-      },
-    };
-
-    // Mock PythonRunner
-    PythonRunner = {
-      isRunning: false,
-      run: async function (code) {
-        this.isRunning = true;
-        // Simulate execution
-        await new Promise((r) => setTimeout(r, 10));
-        this.isRunning = false;
-        return { success: true };
-      },
-      stop: function () {
-        this.isRunning = false;
-        App.robot.leftSpeed = 0;
-        App.robot.rightSpeed = 0;
-        App.robot.isMoving = false;
-      },
-    };
+    boot("/simulator.html?challenge=1");
+    app.startAnimationLoop();
   });
 
-  describe("Application Startup", () => {
-    test("should initialize with default state", () => {
-      expect(App.currentChallenge).toBe(0);
-      expect(App.isRunning).toBe(false);
-      expect(App.robot.x).toBe(1000);
-      expect(App.robot.y).toBe(1000);
-    });
+  test("Run executes the program, the robot drives, and Run waits for Reset", async () => {
+    Editor.setCode(DRIVE_PROGRAM);
+    click($("btnRun"));
 
-    test("should have editor with empty code", () => {
-      expect(Editor.getCode()).toBe("");
-    });
+    expect(App.isRunning).toBe(true);
+    expect($("btnRun").disabled).toBe(true);
+    expect($("btnStop").disabled).toBe(false);
+    expect($("challengeStatus").textContent).toBe("Running");
 
-    test("should have simulator not running", () => {
-      expect(Simulator.isRunning).toBe(false);
-    });
+    await waitFor(() => !App.isRunning);
+
+    expect(App.robot.y).toBeLessThan(1700);
+    expect(App.robot.x).toBeCloseTo(1000, 0);
+    expect(App.robot.trail.length).toBeGreaterThan(0);
+    expect(App.robot).toMatchObject({ leftSpeed: 0, rightSpeed: 0 });
+    expect(debugText()).toContain("Execution completed");
+    expect($("challengeStatus").textContent).toBe("Completed");
+
+    // Learner print output reaches the panel as text, not markup
+    const printed = [...$("debugConsole").querySelectorAll("span.output")];
+    expect(printed.map((s) => s.textContent)).toContain("arrived <home> & done\n");
+
+    expect($("btnRun").disabled).toBe(true);
+    expect($("btnStep").disabled).toBe(true);
   });
 
-  describe("Challenge Selection", () => {
-    test("should update current challenge", () => {
-      App.currentChallenge = 3;
-      expect(App.currentChallenge).toBe(3);
-    });
+  test("Stop halts an endless program and zeroes the motors", async () => {
+    Editor.setCode(LOOP_PROGRAM);
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Enter", ctrlKey: true, bubbles: true }),
+    );
+    await waitFor(() => App.robot.y < 1750);
 
-    test("should reset robot on challenge change", () => {
-      App.robot.x = 500;
-      Simulator.reset();
-      expect(App.robot.x).toBe(1000);
-    });
+    click($("btnStop"));
+    expect(App.isRunning).toBe(false);
+    expect(PythonRunner.isRunning).toBe(false);
+    expect(App.robot).toMatchObject({ leftSpeed: 0, rightSpeed: 0, isMoving: false });
+    expect($("challengeStatus").textContent).toBe("Stopped");
+    expect($("btnStop").disabled).toBe(true);
+    expect($("btnRun").disabled).toBe(true);
+
+    const stoppedAt = App.robot.y;
+    await sleep(150);
+    expect(App.robot.y).toBe(stoppedAt);
+    expect(App.robot.leftSpeed).toBe(0);
   });
 
-  describe("Code Execution Flow", () => {
-    test("should run code through PythonRunner", async () => {
-      Editor.setCode("from aidriver import AIDriver\\nrobot = AIDriver()");
+  test("Reset restores the start pose (with rotation) and re-enables Run", async () => {
+    Editor.setCode(DRIVE_PROGRAM);
+    click($("btnRun"));
+    await waitFor(() => !App.isRunning);
+    expect(App.robot.y).toBeLessThan(1700);
 
-      const result = await PythonRunner.run(Editor.getCode());
+    click($("btnReset"));
+    expect(App.robot).toMatchObject({ x: 1000, y: 1800, heading: 0, trail: [] });
+    expect(App.hasRun).toBe(false);
+    expect($("btnRun").disabled).toBe(false);
+    expect($("btnStep").disabled).toBe(false);
 
-      expect(result.success).toBe(true);
-    });
+    click($("btnRotateCar"));
+    expect($("rotationDisplay").textContent).toBe("90°");
+    expect(App.robot.heading).toBe(90);
 
-    test("should set running state during execution", async () => {
-      const promise = PythonRunner.run("x = 1");
-      expect(PythonRunner.isRunning).toBe(true);
-
-      await promise;
-      expect(PythonRunner.isRunning).toBe(false);
-    });
-
-    test("should stop execution on stop button", async () => {
-      const promise = PythonRunner.run("while True: pass");
-      PythonRunner.stop();
-
-      expect(PythonRunner.isRunning).toBe(false);
-      await promise;
-    });
+    click($("btnRun"));
+    await waitFor(() => !App.isRunning);
+    expect(App.robot.x).toBeGreaterThan(1100);
+    expect(App.robot.y).toBeCloseTo(1800, 0);
   });
 
-  describe("Robot Control Integration", () => {
-    test("should start simulator when code runs", async () => {
-      Simulator.start();
-      await PythonRunner.run("x = 1");
+  test("validation errors are reported in the debug panel and block the run", async () => {
+    Editor.setCode(DRIVE_PROGRAM.replace("r = AIDriver()", "while True\nr = AIDriver()"));
+    click($("btnRun"));
+    await waitFor(() => !App.isRunning);
 
-      expect(Simulator.isRunning).toBe(true);
-    });
-
-    test("should stop robot when execution stops", () => {
-      App.robot.leftSpeed = 100;
-      App.robot.rightSpeed = 100;
-      App.robot.isMoving = true;
-
-      PythonRunner.stop();
-
-      expect(App.robot.leftSpeed).toBe(0);
-      expect(App.robot.rightSpeed).toBe(0);
-      expect(App.robot.isMoving).toBe(false);
-    });
-
-    test("should update robot position during simulation", () => {
-      App.robot.leftSpeed = 100;
-      App.robot.rightSpeed = 100;
-      App.robot.isMoving = true;
-      const startX = App.robot.x;
-
-      Simulator.update(1);
-
-      expect(App.robot.x).toBeGreaterThan(startX);
-    });
+    expect(debugText()).toContain("Code has errors that must be fixed before running:");
+    expect(debugText()).toContain("Line 2: Missing colon ':' at end of statement");
+    expect(debugText()).not.toContain("[Python] Starting execution...");
+    expect($("challengeStatus").textContent).toBe("Error");
+    expect(App.robot).toMatchObject({ x: 1000, y: 1800 });
   });
 
-  describe("Error Handling Flow", () => {
-    test("should display errors in editor", () => {
-      Editor.markError(5, "Syntax error");
+  test("low-speed warnings appear in the panel without stopping the program", async () => {
+    Editor.setCode(DRIVE_PROGRAM.replace("drive_forward(200, 200)", "drive_forward(50, 50)"));
+    click($("btnRun"));
+    await waitFor(() => !App.isRunning);
 
-      expect(Editor.errors).toHaveLength(1);
-      expect(Editor.errors[0].line).toBe(5);
-    });
-
-    test("should clear errors on new run", () => {
-      Editor.markError(1, "Error");
-      Editor.clearErrors();
-
-      expect(Editor.errors).toHaveLength(0);
-    });
+    const warnings = [...$("debugConsole").querySelectorAll("span.warning")];
+    expect(warnings.some((s) => s.textContent.includes("Speed 50 is in the stopped range"))).toBe(true);
+    expect(debugText()).not.toContain("[Error]");
+    expect(debugText()).toContain("arrived <home> & done");
   });
 
-  describe("Reset Functionality", () => {
-    test("should reset robot to start position", () => {
-      App.robot.x = 500;
-      App.robot.y = 500;
-      App.robot.angle = Math.PI;
+  test("speed slider sets App.speedMultiplier and robot velocity together", () => {
+    const slider = $("speedSlider");
+    slider.value = "4";
+    slider.dispatchEvent(new Event("input"));
 
-      Simulator.reset();
-
-      expect(App.robot.x).toBe(1000);
-      expect(App.robot.y).toBe(1000);
-      expect(App.robot.angle).toBe(0);
-    });
-
-    test("should stop robot on reset", () => {
-      App.robot.leftSpeed = 100;
-      App.robot.isMoving = true;
-
-      Simulator.reset();
-
-      expect(App.robot.leftSpeed).toBe(0);
-      expect(App.robot.isMoving).toBe(false);
-    });
+    expect(App.speedMultiplier).toBe(4);
+    expect($("speedValue").textContent).toBe("4x");
+    const moved = App.robot.y - Simulator.step({ ...App.robot, leftSpeed: 255, rightSpeed: 255 }, 0.25).y;
+    // 255 = 800 mm/s at 1x
+    expect(moved).toBeCloseTo(800);
   });
+});
 
-  describe("Challenge Completion", () => {
-    test("should check success criteria after execution", async () => {
-      const checkSuccess = () => App.robot.x > 1100;
+describe("Step mode", () => {
+  test("Step runs line by line and toggles Pause/Resume", async () => {
+    boot("/simulator.html?challenge=1");
+    app.startAnimationLoop();
+    PythonRunner.stepDelay = 5;
+    Editor.setCode(LOOP_PROGRAM);
 
-      App.robot.x = 1200;
+    click($("btnStep"));
+    expect($("btnStep").textContent).toBe("Pause");
+    expect($("btnRun").disabled).toBe(true);
+    await waitFor(() => PythonRunner.currentStepLine >= 5);
 
-      expect(checkSuccess()).toBe(true);
-    });
+    click($("btnStep"));
+    expect($("btnStep").textContent).toBe("Resume");
+    await sleep(30);
+    const pausedLine = PythonRunner.currentStepLine;
+    const pausedY = App.robot.y;
+    expect(markerRows("ace_executing-line")).toEqual([pausedLine - 1]);
+    await sleep(100);
+    expect(PythonRunner.currentStepLine).toBe(pausedLine);
+    expect(App.robot.y).toBe(pausedY);
 
-    test("should not trigger success during execution", () => {
-      PythonRunner.isRunning = true;
+    click($("btnStep"));
+    expect($("btnStep").textContent).toBe("Pause");
+    await waitFor(() => App.robot.y < pausedY);
 
-      // Success should only be checked after execution
-      expect(PythonRunner.isRunning).toBe(true);
-    });
-  });
-
-  describe("Gamepad Mode (Challenge 7)", () => {
-    test("should disable editor for gamepad challenge", () => {
-      App.currentChallenge = 7;
-
-      const isGamepadChallenge = App.currentChallenge === 7;
-      expect(isGamepadChallenge).toBe(true);
-    });
-
-    test("should allow direct robot control in gamepad mode", () => {
-      App.currentChallenge = 7;
-
-      // Simulate gamepad input
-      App.robot.leftSpeed = 100;
-      App.robot.rightSpeed = 100;
-      App.robot.isMoving = true;
-
-      expect(App.robot.isMoving).toBe(true);
-    });
-  });
-
-  describe("State Persistence", () => {
-    test("should save code to localStorage", () => {
-      const mockStorage = {};
-      const save = (key, value) => {
-        mockStorage[key] = value;
-      };
-      const load = (key) => mockStorage[key];
-
-      Editor.setCode("print('hello')");
-      save("challenge_0_code", Editor.getCode());
-
-      expect(load("challenge_0_code")).toBe("print('hello')");
-    });
-
-    test("should load saved code on challenge switch", () => {
-      const mockStorage = { challenge_1_code: "saved code" };
-      const load = (key) => mockStorage[key];
-
-      const savedCode = load("challenge_1_code");
-      if (savedCode) {
-        Editor.setCode(savedCode);
-      }
-
-      expect(Editor.getCode()).toBe("saved code");
-    });
-  });
-
-  describe("UI State Synchronization", () => {
-    test("should update run button state based on execution", () => {
-      function getRunButtonState() {
-        return PythonRunner.isRunning ? "stop" : "run";
-      }
-
-      expect(getRunButtonState()).toBe("run");
-
-      PythonRunner.isRunning = true;
-      expect(getRunButtonState()).toBe("stop");
-    });
-
-    test("should enable/disable controls based on running state", () => {
-      function shouldDisableControls() {
-        return PythonRunner.isRunning && App.currentChallenge !== 7;
-      }
-
-      App.currentChallenge = 0;
-      PythonRunner.isRunning = true;
-      expect(shouldDisableControls()).toBe(true);
-
-      App.currentChallenge = 7;
-      expect(shouldDisableControls()).toBe(false);
-    });
-  });
-
-  describe("Multi-Challenge Workflow", () => {
-    test("should progress through challenges", () => {
-      const completedChallenges = new Set();
-
-      function completeChallenge(id) {
-        completedChallenges.add(id);
-      }
-
-      function getProgress() {
-        return completedChallenges.size;
-      }
-
-      completeChallenge(0);
-      completeChallenge(1);
-      completeChallenge(2);
-
-      expect(getProgress()).toBe(3);
-    });
-
-    test("should track completion status", () => {
-      const status = {
-        0: "completed",
-        1: "completed",
-        2: "in-progress",
-        3: "locked",
-      };
-
-      expect(status[0]).toBe("completed");
-      expect(status[2]).toBe("in-progress");
-      expect(status[3]).toBe("locked");
-    });
-  });
-
-  describe("Performance", () => {
-    test("should handle rapid state updates", () => {
-      const start = Date.now();
-
-      for (let i = 0; i < 1000; i++) {
-        Simulator.update(0.016); // ~60fps
-      }
-
-      const duration = Date.now() - start;
-      expect(duration).toBeLessThan(1000);
-    });
-
-    test("should handle rapid command processing", () => {
-      const commands = [];
-      for (let i = 0; i < 100; i++) {
-        commands.push({ type: "drive_forward", speed: 100 });
-      }
-
-      const start = Date.now();
-      commands.forEach(() => {
-        App.robot.leftSpeed = 100;
-        App.robot.rightSpeed = 100;
-      });
-      const duration = Date.now() - start;
-
-      expect(duration).toBeLessThan(100);
-    });
+    click($("btnStop"));
+    await waitFor(() => $("btnStep").textContent === "Step");
+    expect(PythonRunner.isStepping).toBe(false);
+    expect(markerRows("ace_executing-line")).toEqual([]);
+    expect($("btnStep").disabled).toBe(true);
+    expect($("btnRun").disabled).toBe(true);
   });
 });
