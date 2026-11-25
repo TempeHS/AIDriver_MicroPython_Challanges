@@ -286,6 +286,18 @@ describe("Switching challenges", () => {
     expect(Editor.getCode()).toContain("# Challenge 1: Drive in a Straight Line");
     expect(Editor.hasSavedCode(1)).toBe(false);
   });
+
+  test("edits made just before switching challenge are not lost", () => {
+    jest.useFakeTimers();
+    click(document.querySelector('[data-challenge="1"]'));
+    Editor.setCode("# quick edit\n" + DRIVE_PROGRAM);
+    jest.advanceTimersByTime(200); // before the 1 s auto-save
+
+    click(document.querySelector('[data-challenge="2"]'));
+    jest.advanceTimersByTime(2000);
+    click(document.querySelector('[data-challenge="1"]'));
+    expect(Editor.getCode()).toBe("# quick edit\n" + DRIVE_PROGRAM);
+  });
 });
 
 describe("Running code", () => {
@@ -318,6 +330,30 @@ describe("Running code", () => {
 
     expect($("btnRun").disabled).toBe(true);
     expect($("btnStep").disabled).toBe(true);
+  });
+
+  test("Ctrl+Enter does nothing while Run is disabled after a run", async () => {
+    Editor.setCode(DRIVE_PROGRAM);
+    click($("btnRun"));
+    await waitFor(() => !App.isRunning);
+    const finishedAt = App.robot.y;
+
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Enter", ctrlKey: true, bubbles: true }),
+    );
+    expect(App.isRunning).toBe(false);
+    await sleep(100);
+    expect(App.robot.y).toBe(finishedAt);
+  });
+
+  test("a runtime error shows Error, not Completed", async () => {
+    Editor.setCode("from aidriver import AIDriver\nr = AIDriver()\nx = 1 / 0\n");
+    click($("btnRun"));
+    await waitFor(() => !App.isRunning);
+
+    expect($("challengeStatus").textContent).toBe("Error");
+    expect(App.session.hasError).toBe(true);
+    expect(debugText()).not.toContain("Execution completed");
   });
 
   test("Stop halts an endless program and zeroes the motors", async () => {

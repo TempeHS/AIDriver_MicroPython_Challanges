@@ -231,6 +231,19 @@ const Editor = {
   },
 
   /**
+   * Save immediately if a deferred save is pending. Call before switching
+   * challenge so recent edits are stored under the challenge they belong to.
+   * @returns {void}
+   */
+  flushPendingSave() {
+    if (this.saveTimeout) {
+      clearTimeout(this.saveTimeout);
+      this.saveTimeout = null;
+      this.saveCode();
+    }
+  },
+
+  /**
    * Schedule a deferred validation pass of the editor content.
    * @returns {void}
    */

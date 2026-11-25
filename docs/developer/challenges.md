@@ -21,7 +21,7 @@ Challenge metadata lives in `app/js/challenges.js`. Each entry describes how the
 | `successCriteria` | `object`                                                         | Type-specific configuration consumed by `checkSuccess`.            |
 | `path`            | `null \| object`                                                 | Optional visual guide for the simulator overlay.                   |
 | `obstacles`       | `Array<{ x: number, y: number, width: number, height: number }>` | Static rectangular obstacles injected into the simulator.          |
-| `maze`            | `string`                                                         | Maze id passed to the maze renderer (Challenge 6 only).            |
+| `maze`            | `string`                                                         | Default maze loaded with the challenge (Challenge 6 only); other challenges clear maze walls. |
 | `gamepadEnabled`  | `boolean`                                                        | Enables gamepad telemetry panel (Challenge 7).                     |
 
 ### Success Criteria Variants
@@ -31,9 +31,14 @@ Challenge metadata lives in `app/js/challenges.js`. Each entry describes how the
 - `run_without_error`: Requires the code to finish without raising errors and travel at least `minDistance` millimetres.
 - `reach_zone`: Passes when the robot is inside `zone` (axis-aligned rectangle). Optional `maxDeviation` restricts lateral drift.
 - `complete_circle`: Validates circular driving via `centerTolerance` and `minRotation` plus path alignment.
-- `stop_at_distance`: Ensures the robot stops within `[min, max]` millimetres of a target wall.
-- `complete_square`, `figure_eight`, `return_to_start`: Use geometric heuristics baked into their respective helpers.
+- `stop_at_distance`: Ensures the robot stops within `[min, max]` millimetres of the wall at `wallPosition`, measured from the front of the robot (where the ultrasonic sensor is), so it matches `read_distance()`.
+- `complete_square`: Requires roughly `corners` × 90° of turning, a covered area of at least `minSideLength` in both directions, and finishing in `startZone`.
+- `figure_eight`, `return_to_start`: Use geometric heuristics baked into their respective helpers.
 - `manual`: Marks gamepad activities as unscored (`noAutoCheck`).
+
+### When success is checked
+
+`app.js` checks success every animation frame while a program runs, so programs that never end (`while True:`) can still pass; the program keeps running after "SUCCESS!" is shown. When a program finishes, `finishRun()` checks the final robot state once more. `run_without_error` is only judged at the end, and a run that raised an error never passes.
 
 ### Path Helpers
 

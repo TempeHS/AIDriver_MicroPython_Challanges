@@ -182,7 +182,13 @@ describe("Switching away from Challenge 6", () => {
     captureDebugPanel();
     window.render = () => {};
     window.Gamepad = undefined;
-    window.Editor = { clearAllMarkers() {}, loadSavedCode: () => null, setCode() {}, resize() {} };
+    window.Editor = {
+      clearAllMarkers() {},
+      loadSavedCode: () => null,
+      setCode() {},
+      resize() {},
+      flushPendingSave() {},
+    };
     for (const id of ["editor", "editorCard", "ultrasonicDisplay", "statusMessage", "statusBar",
       "challengeStatus", "gamepadPanel", "mazeSelector", "canvasContainer"]) {
       const el = document.createElement("div");
@@ -192,12 +198,7 @@ describe("Switching away from Challenge 6", () => {
     window.cacheElements();
   });
 
-  // BUG (js/app.js:483-489): loadChallenge() calls Simulator.setObstacles(),
-  // which leaves maze walls in place (every challenge has `obstacles: []`, so
-  // clearObstacles() is never reached), and App.currentMaze is never reset.
-  // After visiting a maze, Challenge 1's sensor reads 695 mm (the old maze
-  // wall) instead of 1725 mm, and the robot collides with invisible walls.
-  test.skip("maze walls are removed when another challenge is loaded", () => {
+  test("maze walls are removed when another challenge is loaded", () => {
     window.loadChallenge(6);
     window.loadMaze("simple");
     window.loadChallenge(1);
@@ -205,5 +206,16 @@ describe("Switching away from Challenge 6", () => {
     // Challenge 1 has an empty arena: the sensor sees the top wall
     expect(Simulator.simulateUltrasonic(App.robot)).toBe(1800 - 75);
     expect(App.currentMaze).toBeFalsy();
+  });
+
+  test("challenge 6 loads its default maze, and remembers the chosen one", () => {
+    window.loadChallenge(6);
+    expect(App.currentMaze.id).toBe(Challenges.get(6).maze);
+    expect(Simulator.simulateUltrasonic(App.robot)).toBeLessThan(1700 - 75);
+
+    window.loadMaze("zigzag");
+    window.loadChallenge(1);
+    window.loadChallenge(6);
+    expect(App.currentMaze.id).toBe("zigzag");
   });
 });

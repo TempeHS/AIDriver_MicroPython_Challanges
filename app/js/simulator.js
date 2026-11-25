@@ -56,12 +56,13 @@ const Simulator = (function () {
       1000 *
       simulationSpeed;
 
-    // Differential drive kinematics
+    // Differential drive kinematics. Heading is measured clockwise (0 = up,
+    // 90 = right), so a faster left wheel increases heading (turns right).
     // v = (vR + vL) / 2  - linear velocity
-    // ω = (vR - vL) / L  - angular velocity
+    // ω = (vL - vR) / L  - angular velocity, positive = clockwise
 
     const linearVelocity = (leftVelocity + rightVelocity) / 2;
-    const angularVelocity = (rightVelocity - leftVelocity) / WHEEL_BASE;
+    const angularVelocity = (leftVelocity - rightVelocity) / WHEEL_BASE;
 
     // Update heading (in radians for calculation)
     const headingRad = (robot.heading * Math.PI) / 180;

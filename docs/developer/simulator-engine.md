@@ -12,7 +12,7 @@
 
 `updateKinematics(robot, dt)` performs the canonical differential drive calculation:
 
-- Derives linear (`v`) and angular (`ω`) velocities from the left/right wheel speeds
+- Derives linear (`v`) and angular (`ω`) velocities from the left/right wheel speeds. Heading is in degrees clockwise from up (0 = up, 90 = right), and `ω = (vL − vR) / wheelBase`, so a faster left wheel turns the robot right and a faster right wheel turns it left, as on the real robot
 - Integrates heading in radians, normalises back to degrees, and produces a fresh state object without mutating the input
 - Supports both straight-line and arc trajectories depending on the angular velocity
 

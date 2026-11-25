@@ -147,7 +147,44 @@ describe("Validator.validate - syntax heuristics", () => {
   });
 });
 
+describe("Validator.validate - valid Python is not flagged", () => {
+  test.each([
+    ["a comment after the colon", "while True:  # forever\n    pass\n"],
+    ["a one-line if", "x = 1\nif x: print(x)\n"],
+    ["a variable starting with a keyword", "exceptions = []\nelsewhere = 1\n"],
+    ["a condition split over lines", "x = 1\nif (x > 0 and\n        x < 5):\n    pass\n"],
+    ["a dict in the condition", "x = 1\nif x in {1: 2}:\n    pass\n"],
+    ["a banned word in a comment", "# never use eval() here\nx = 1\n"],
+    ["a banned word in a string", "print('open(file) is not allowed')\n"],
+    ["a word containing 'ture'", "temperature = 5\n"],
+  ])("%s", (_, body) => {
+    const result = Validator.validate(HEADER + body);
+    expect(result.errors).toEqual([]);
+    expect(result.warnings).toEqual([]);
+  });
+
+  test("a missing colon after bare else, try and finally is caught", () => {
+    const code =
+      HEADER + "x = 1\nif x:\n    pass\nelse\n    pass\ntry\n    pass\nfinally\n    pass\n";
+    const lines = Validator.validate(code)
+      .errors.filter((e) => e.type === "syntax")
+      .map((e) => e.line);
+    expect(lines).toEqual([6, 8, 10]);
+  });
+
+  test("every module in a comma-separated or commented import is checked", () => {
+    const errors = Validator.validate(HEADER + "import math, random\nimport os  # files\n").errors;
+    expect(errors.map((e) => e.line)).toEqual(expect.arrayContaining([3, 4]));
+    expect(errors.filter((e) => e.type === "import")).toHaveLength(3);
+  });
+});
+
 describe("Validator.validateMethodUsage", () => {
+  test("set_motor_speeds and service are valid AIDriver methods", () => {
+    const code = HEADER + "my_robot.set_motor_speeds(100, 100)\nmy_robot.service()\n";
+    expect(Validator.validateMethodUsage(code)).toEqual([]);
+  });
+
   test("supported methods on every AIDriver instance pass", () => {
     const code =
       HEADER +
@@ -176,6 +213,16 @@ describe("Validator.validateMethodUsage", () => {
 });
 
 describe("Validator.validateFunctionCalls", () => {
+  test("keywords before brackets, calls inside strings and classes are not flagged", () => {
+    const code =
+      HEADER +
+      "x = 1\nif not (x > 2):\n    pass\n" +
+      "def f(a):\n    return (a + 1)\n" +
+      "print('call foo(1)')\n" +
+      "class Point:\n    pass\np = Point()\n";
+    expect(Validator.validateFunctionCalls(code)).toEqual([]);
+  });
+
   test("builtins, hold_state, AIDriver and learner-defined functions are allowed", () => {
     const code =
       HEADER +

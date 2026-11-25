@@ -37,10 +37,15 @@ const AIDriverStub = {
    * @throws {Sk.builtin.TypeError|Sk.builtin.ValueError} For non-numeric or negative speeds.
    */
   toMotorSpeed(value) {
-    const speed = Number(Sk.ffi.remapToJs(value));
-    if (isNaN(speed)) {
-      throw new Sk.builtin.TypeError("Speed must be a number");
+    // Like the robot, only numbers are accepted (not "200", None or lists)
+    if (!Sk.builtin.checkNumber(value)) {
+      const typeName =
+        value && value.tp$name ? value.tp$name : typeof value;
+      throw new Sk.builtin.TypeError(
+        `Speed must be a number, got ${typeName}`
+      );
     }
+    const speed = Number(Sk.ffi.remapToJs(value));
     if (speed < 0) {
       throw new Sk.builtin.ValueError(
         `Speed must be between 0 and 255, got ${speed}`

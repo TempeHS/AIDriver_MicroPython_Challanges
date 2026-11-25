@@ -374,6 +374,11 @@ function handleKeyboardShortcuts(e) {
  * @returns {void}
  */
 function loadChallenge(challengeId) {
+  // Store edits from the last second under the challenge being left (the
+  // editor only holds placeholder text before the first challenge loads)
+  if (App.challengeLoaded && typeof Editor !== "undefined") {
+    Editor.flushPendingSave();
+  }
   App.currentChallenge = challengeId;
 
   // Log challenge load event
@@ -450,22 +455,10 @@ function loadChallenge(challengeId) {
 
   // Store current challenge config
   App.currentChallengeConfig = challenge;
+  App.challengeLoaded = true;
 
   // Initialize session tracking
-  App.session = {
-    startPosition: challenge
-      ? { ...challenge.startPosition }
-      : { x: 1000, y: 1800 },
-    hasError: false,
-    totalRotation: 0,
-    lastHeading:
-      challenge && challenge.startPosition
-        ? challenge.startPosition.heading || 0
-        : 0,
-    minY: 2000,
-    crossoverCount: 0,
-    startTime: null,
-  };
+  App.session = createSession(challenge ? challenge.startPosition : null);
 
   // Set robot start position from challenge
   if (challenge && challenge.startPosition) {
@@ -480,13 +473,16 @@ function loadChallenge(challengeId) {
     resetRobot();
   }
 
-  // Set obstacles from challenge
+  // Set obstacles from challenge; maze walls only belong to maze challenges
+  App.currentMaze = null;
   if (typeof Simulator !== "undefined") {
+    Simulator.clearObstacles();
     if (challenge && challenge.obstacles) {
       Simulator.setObstacles(challenge.obstacles);
-    } else {
-      Simulator.clearObstacles();
     }
+  }
+  if (challenge && challenge.maze) {
+    loadMaze(App.selectedMazeId || challenge.maze);
   }
 
   // Clear success/failure overlay from previous challenge
@@ -583,6 +579,7 @@ function loadMaze(mazeId) {
 
   const maze = Mazes.get(mazeId);
   App.currentMaze = maze;
+  App.selectedMazeId = maze.id;
 
   // Set maze walls in simulator
   if (typeof Simulator !== "undefined") {
@@ -598,6 +595,7 @@ function loadMaze(mazeId) {
     App.robot.leftSpeed = 0;
     App.robot.rightSpeed = 0;
     App.robot.isMoving = false;
+    App.session = createSession(maze.startPosition);
   }
 
   // Update success criteria zone for the maze
@@ -660,7 +658,9 @@ function collapseDebugPanel() {
  * @returns {void}
  */
 function runCode() {
-  if (App.isRunning) return;
+  // Also covers keyboard shortcuts while Run is disabled (after a run, or
+  // while the editor reports errors)
+  if (App.isRunning || App.elements.btnRun.disabled) return;
 
   App.isRunning = true;
   App.isPaused = false;
@@ -675,12 +675,9 @@ function runCode() {
   // Expand debug panel with animation
   expandDebugPanel();
 
-  // Reset session tracking for fresh run
-  if (App.session) {
-    App.session.totalRotation = 0;
-    App.session.startTime = Date.now();
-    App.session.lastHeading = App.robot.heading;
-  }
+  // Reset session tracking for a fresh run from the robot's current pose
+  App.session = createSession(App.robot);
+  App.session.startTime = Date.now();
 
   // Update UI
   App.elements.btnRun.disabled = true;
@@ -696,17 +693,15 @@ function runCode() {
   const code = Editor.getCode();
 
   // Run with PythonRunner
+  const runSession = App.session;
   PythonRunner.run(code)
-    .then(() => {
-      DebugPanel.success("Execution completed");
-      if (typeof Logger !== "undefined") {
-        Logger.info("APP", "Execution completed successfully");
+    .then((result) => {
+      // Ignore runs that were stopped, or replaced by a newer run
+      if (!result || result.status === "stopped" || App.session !== runSession) {
+        return;
       }
       if (App.isRunning) {
-        stopExecution();
-        updateStatus("Completed", "success");
-        App.elements.challengeStatus.textContent = "Completed";
-        App.elements.challengeStatus.className = "badge bg-success";
+        finishRun(result);
       }
     })
     .catch((err) => {
@@ -720,6 +715,79 @@ function runCode() {
       App.elements.challengeStatus.textContent = "Error";
       App.elements.challengeStatus.className = "badge bg-danger";
     });
+}
+
+/**
+ * Create fresh session metrics for a run starting at the given pose.
+ * @param {{x:number,y:number,heading?:number}} pose Robot pose at the start of the run.
+ * @returns {object} Session tracking state used by challenge success checks.
+ */
+function createSession(pose) {
+  const start = pose || { x: 1000, y: 1800, heading: 0 };
+  return {
+    startPosition: { x: start.x, y: start.y, heading: start.heading || 0 },
+    hasError: false,
+    totalRotation: 0,
+    lastHeading: start.heading || 0,
+    minX: start.x,
+    maxX: start.x,
+    minY: start.y,
+    maxY: start.y,
+    crossoverCount: 0,
+    nearCenter: false,
+    startTime: null,
+  };
+}
+
+/**
+ * Start pose for the current challenge (the selected maze's start in Challenge 6).
+ * @returns {{x:number,y:number,heading:number}|null} Start pose, or null if none is defined.
+ */
+function getStartPose() {
+  if (App.currentMaze && App.currentMaze.startPosition) {
+    return App.currentMaze.startPosition;
+  }
+  const challenge = App.currentChallengeConfig;
+  return challenge && challenge.startPosition ? challenge.startPosition : null;
+}
+
+/**
+ * Report how a finished program did against the challenge and update the UI.
+ * @param {{status:string,error:string|null}} result Outcome from PythonRunner.
+ * @returns {void}
+ */
+function finishRun(result) {
+  if (result && result.status === "error") {
+    if (App.session) App.session.hasError = true;
+    stopExecution();
+    updateStatus("Error", "danger");
+    App.elements.challengeStatus.textContent = "Error";
+    App.elements.challengeStatus.className = "badge bg-danger";
+    return;
+  }
+
+  DebugPanel.success("Execution completed");
+  if (typeof Logger !== "undefined") {
+    Logger.info("APP", "Execution completed successfully");
+  }
+  // Evaluate before stopExecution() so the robot's final state is checked.
+  // A success already reached while the program was running still counts.
+  const outcome = evaluateChallenge();
+  const succeeded =
+    outcome && outcome.success
+      ? outcome.message
+      : App.session && App.session.successMessage;
+  stopExecution();
+  if (succeeded) {
+    showChallengeSuccess(succeeded);
+    return;
+  }
+  updateStatus("Completed", "success");
+  App.elements.challengeStatus.textContent = "Completed";
+  App.elements.challengeStatus.className = "badge bg-success";
+  if (outcome && outcome.message && !App.currentChallengeConfig.gamepadEnabled) {
+    DebugPanel.info(`Challenge not complete yet: ${outcome.message}`);
+  }
 }
 
 /**
@@ -828,25 +896,27 @@ async function stepCode() {
   App.elements.challengeStatus.textContent = "Stepping";
   App.elements.challengeStatus.className = "badge bg-info";
 
+  App.session = createSession(App.robot);
+  App.session.startTime = Date.now();
+
+  let result = null;
   try {
-    await PythonRunner.runStepMode(code);
-    DebugPanel.success("Step mode completed - click Reset to run again");
+    result = await PythonRunner.runStepMode(code);
   } catch (error) {
     if (error.message !== "Execution stopped") {
       DebugPanel.error("Execution error: " + error.message);
     }
   }
 
-  // Reset UI
-  PythonRunner.stepMode = false;
-  App.isRunning = false;
-  App.elements.btnRun.disabled = true; // Require reset
-  App.elements.btnStep.disabled = true; // Require reset
   App.elements.btnStep.textContent = "Step";
-  App.elements.btnStop.disabled = true;
-  updateStatus("Completed", "success");
-  App.elements.challengeStatus.textContent = "Completed";
-  App.elements.challengeStatus.className = "badge bg-success";
+  if (!result || result.status === "stopped" || !App.isRunning) {
+    // Stopped by the user; stopExecution() has already updated the UI
+    return;
+  }
+  finishRun(result);
+  if (result.status !== "error") {
+    DebugPanel.info("Step mode completed - click Reset to run again");
+  }
 }
 
 /**
@@ -880,29 +950,13 @@ function resetRobot() {
   App.elements.btnStep.disabled = false;
   App.elements.btnStep.textContent = "Step";
 
-  // Reset session tracking
-  const challenge = App.currentChallengeConfig;
-  App.session = {
-    startPosition: challenge
-      ? { ...challenge.startPosition }
-      : { x: 1000, y: 1800 },
-    hasError: false,
-    totalRotation: 0,
-    lastHeading:
-      challenge && challenge.startPosition
-        ? challenge.startPosition.heading || 0
-        : 0,
-    minY: 2000,
-    crossoverCount: 0,
-    startTime: null,
-  };
-
-  // Reset robot state to current challenge's start position
-  if (challenge && challenge.startPosition) {
-    const baseHeading = challenge.startPosition.heading || 0;
+  // Reset robot state to the challenge (or selected maze) start position
+  const start = getStartPose();
+  if (start) {
+    const baseHeading = start.heading || 0;
     App.robot = {
-      x: challenge.startPosition.x,
-      y: challenge.startPosition.y,
+      x: start.x,
+      y: start.y,
       heading: (baseHeading + App.startHeadingOffset) % 360,
       leftSpeed: 0,
       rightSpeed: 0,
@@ -925,6 +979,8 @@ function resetRobot() {
       trail: [],
     };
   }
+
+  App.session = createSession(App.robot);
 
   // Clear success/failure overlay
   App.elements.canvasContainer.classList.remove("success", "failure");
@@ -2165,11 +2221,12 @@ function startAnimationLoop() {
 
       render();
       updateUltrasonicDisplay(calculateDistance());
+    }
 
-      // Check success criteria if running
-      if (App.isRunning) {
-        checkChallengeSuccess();
-      }
+    // Check success while running, including while the robot is stopped
+    // (e.g. after braking at the right distance inside a while True loop)
+    if (App.isRunning && !physicsFrozen) {
+      checkChallengeSuccess();
     }
 
     requestAnimationFrame(animate);
@@ -2185,10 +2242,11 @@ function startAnimationLoop() {
 function updateSessionTracking() {
   if (!App.session) return;
 
-  // Track minimum Y position (for U-turn challenge)
-  if (App.robot.y < App.session.minY) {
-    App.session.minY = App.robot.y;
-  }
+  // Track the area covered (U-turn and square challenges)
+  App.session.minX = Math.min(App.session.minX, App.robot.x);
+  App.session.maxX = Math.max(App.session.maxX, App.robot.x);
+  App.session.minY = Math.min(App.session.minY, App.robot.y);
+  App.session.maxY = Math.max(App.session.maxY, App.robot.y);
 
   // Track total rotation
   const headingDelta = App.robot.heading - App.session.lastHeading;
@@ -2219,7 +2277,37 @@ function updateSessionTracking() {
 }
 
 /**
- * Evaluate the current challenge success criteria and surface completion UI.
+ * Evaluate the current challenge's success criteria against the robot state.
+ * @returns {{success:boolean,message:string}|null} Result, or null if not applicable.
+ */
+function evaluateChallenge() {
+  if (!App.currentChallengeConfig || typeof Challenges === "undefined") {
+    return null;
+  }
+  if (App.session && App.session.hasError) {
+    return { success: false, message: "Code has errors" };
+  }
+  return Challenges.checkSuccess(App.currentChallenge, App.robot, App.session);
+}
+
+/**
+ * Show the challenge success state in the UI.
+ * @param {string} message Message from the success check.
+ * @returns {void}
+ */
+function showChallengeSuccess(message) {
+  App.elements.canvasContainer.classList.add("success");
+  App.elements.challengeStatus.textContent = "SUCCESS!";
+  App.elements.challengeStatus.className = "badge bg-success";
+  DebugPanel.success(`🎉 ${message}`);
+  updateStatus("Challenge Complete!", "success");
+}
+
+/**
+ * Check for success while a program is still running, so programs that loop
+ * forever (e.g. `while True:`) can still complete a challenge. The program is
+ * left running so its remaining output still appears. Programs that finish are
+ * evaluated again at the end by finishRun().
  * @returns {void}
  */
 function checkChallengeSuccess() {
@@ -2228,30 +2316,21 @@ function checkChallengeSuccess() {
   // Don't check success during step mode
   if (PythonRunner.isStepping) return;
 
+  // "Run without error" can only be judged once the program has finished
+  const type = App.currentChallengeConfig.successCriteria.type;
+  if (type === "run_without_error" || type === "manual") return;
+  if (!App.session || App.session.successMessage) return;
+
   // Require at least 2 seconds of running before checking success
   if (App.session && App.session.startTime) {
     const elapsed = Date.now() - App.session.startTime;
-    if (elapsed < 2000) return; // Don't check success in first 2 seconds
+    if (elapsed < 2000) return;
   }
 
-  // Don't check success while Python code is still actively running
-  // Success should only be checked after code completes naturally
-  if (PythonRunner.isRunning) return;
-
-  const result = Challenges.checkSuccess(
-    App.currentChallenge,
-    App.robot,
-    App.session,
-  );
-
-  if (result.success) {
-    // Success!
-    stopExecution();
-    App.elements.canvasContainer.classList.add("success");
-    App.elements.challengeStatus.textContent = "SUCCESS!";
-    App.elements.challengeStatus.className = "badge bg-success";
-    DebugPanel.success(`🎉 ${result.message}`);
-    updateStatus("Challenge Complete!", "success");
+  const result = evaluateChallenge();
+  if (result && result.success) {
+    App.session.successMessage = result.message;
+    showChallengeSuccess(result.message);
   }
 }
 

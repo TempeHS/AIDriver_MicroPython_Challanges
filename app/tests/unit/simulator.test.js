@@ -112,6 +112,12 @@ describe("Simulator.step kinematics", () => {
     // Mirrored wheel speeds give a mirrored path
     expect(b.x - 1000).toBeCloseTo(-(a.x - 1000));
     expect(b.y).toBeCloseTo(a.y);
+    // A faster right wheel turns the robot left (anticlockwise), as on the
+    // real robot, and a faster left wheel turns it right
+    expect(a.heading).toBeGreaterThan(180);
+    expect(a.x).toBeLessThan(1000);
+    expect(b.heading).toBeLessThan(180);
+    expect(b.x).toBeGreaterThan(1000);
   });
 
   test("simulation speed scales distance travelled", () => {

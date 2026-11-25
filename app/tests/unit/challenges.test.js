@@ -123,19 +123,56 @@ describe("Challenge layouts", () => {
     },
   );
 
-  // BUG (js/challenges.js:180 vs 317-348): Challenge 4 uses successCriteria
-  // type "complete_square", but checkSuccess has no case for it, so it always
-  // returns { success: false, message: "Unknown criteria type" } and Drive a
-  // Square can never be completed (app.js:1646 even draws its FINISH zone).
-  test.skip("challenge 4: a robot back in the start zone after a full square passes", () => {
-    const start = Challenges.get(4).startPosition;
-    const session = { startPosition: start, totalRotation: 360, minY: 600 };
-
-    expect(Challenges.checkSuccess(4, makeRobot(start), session).success).toBe(true);
-  });
 });
 
 describe("checkSuccess", () => {
+  describe("complete_square (challenge 4)", () => {
+    const start = Challenges.get(4).startPosition;
+    // Session after driving 800 mm sides from the start corner
+    const square = (extra) => ({
+      startPosition: start,
+      totalRotation: 360,
+      minX: start.x,
+      maxX: start.x + 800,
+      minY: start.y - 800,
+      maxY: start.y,
+      ...extra,
+    });
+
+    test("four turns, long sides and back at the start corner passes", () => {
+      expect(Challenges.checkSuccess(4, makeRobot(start), square())).toEqual({
+        success: true,
+        message: "Square complete!",
+      });
+    });
+
+    test("turning left round the square also passes", () => {
+      expect(
+        Challenges.checkSuccess(4, makeRobot(start), square({ totalRotation: -350 })).success,
+      ).toBe(true);
+    });
+
+    test("only three turns fails", () => {
+      expect(
+        Challenges.checkSuccess(4, makeRobot(start), square({ totalRotation: 270 })).message,
+      ).toBe("Make all 4 turns (270° / 360°)");
+    });
+
+    test("sides shorter than the minimum fail", () => {
+      const small = square({ maxX: start.x + 500, minY: start.y - 500 });
+      expect(Challenges.checkSuccess(4, makeRobot(start), small).message).toBe(
+        "Make the sides longer (at least 600mm)",
+      );
+    });
+
+    test("finishing away from the start corner fails", () => {
+      const away = makeRobot({ x: start.x + 300, y: start.y });
+      expect(Challenges.checkSuccess(4, away, square()).message).toBe(
+        "Finish back at the starting corner",
+      );
+    });
+  });
+
   describe.each(["debug", 0])("run_without_error (challenge %s)", (id) => {
     const startPosition = { x: 1000, y: 1800 };
     const session = (extra) => ({ startPosition, hasError: false, ...extra });
@@ -233,9 +270,11 @@ describe("checkSuccess", () => {
     });
   });
 
-  describe("stop_at_distance (challenge 3: 100-200 mm from the wall line)", () => {
+  describe("stop_at_distance (challenge 3: 100-200 mm from the front of the robot to the wall)", () => {
     const { wallPosition } = Challenges.get(3).successCriteria;
-    const stoppedAt = (gap) => makeRobot({ y: wallPosition + gap });
+    // Measured from the robot's front edge, where the ultrasonic sensor is
+    const stoppedAt = (gap) =>
+      makeRobot({ y: wallPosition + Simulator.ROBOT_LENGTH / 2 + gap });
 
     test.each([100, 150, 200])("stopped %d mm from the wall passes", (gap) => {
       expect(Challenges.checkSuccess(3, stoppedAt(gap), {})).toEqual({

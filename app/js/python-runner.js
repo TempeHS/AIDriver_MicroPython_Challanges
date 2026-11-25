@@ -318,7 +318,7 @@ def ticks_diff(t1, t2):
    * command queue flushing, and DebugPanel output for the duration of the run.
    *
    * @param {string} code Python source code to execute.
-   * @returns {Promise<void>} Resolves when execution finishes; rejects only for pre-run validation errors.
+   * @returns {Promise<{status: "completed"|"error"|"stopped", error: string|null}>} How the run ended; rejects only for pre-run validation errors.
    */
   async run(code) {
     if (this.isRunning) {
@@ -348,7 +348,16 @@ def ticks_diff(t1, t2):
 
     this.isRunning = true;
     this.shouldStop = false;
-    this.executionId++; // Increment to invalidate stale callbacks
+    // Each run gets an id so a stopped run that wakes up later (e.g. when its
+    // hold_state timer fires) cannot continue alongside a newer run
+    const runId = ++this.executionId;
+    const isStale = () => this.shouldStop || this.executionId !== runId;
+    const stopError = () => {
+      const err = new Error("Execution stopped");
+      err.isStopExecution = true;
+      return err;
+    };
+    let result = { status: "completed", error: null };
 
     // Clear command queue
     AIDriverStub.clearQueue();
@@ -408,7 +417,7 @@ def ticks_diff(t1, t2):
         () => Sk.importMainWithBody("<stdin>", false, code, true),
         {
           "Sk.debug": function (susp) {
-            return self.handleStepSuspension(susp);
+            return self.handleStepSuspension(susp, isStale);
           },
           // Handle time.sleep promises with pause support
           "Sk.promise": function (susp) {
@@ -418,10 +427,8 @@ def ticks_diff(t1, t2):
             );
             console.log("[PythonRunner] susp.data.promise:", susp.data.promise);
 
-            if (self.shouldStop) {
-              const err = new Error("Execution stopped");
-              err.isStopExecution = true;
-              throw err;
+            if (isStale()) {
+              throw stopError();
             }
 
             // Process any queued commands BEFORE the sleep starts
@@ -433,8 +440,11 @@ def ticks_diff(t1, t2):
                 self.stepResumeResolve = () => {
                   // After resume, continue with original promise then call resume()
                   susp.data.promise
-                    .then((result) => {
-                      susp.data.result = result;
+                    .then((value) => {
+                      if (isStale()) {
+                        throw stopError();
+                      }
+                      susp.data.result = value;
                       try {
                         resolve(susp.resume());
                       } catch (e) {
@@ -453,13 +463,16 @@ def ticks_diff(t1, t2):
             console.log(
               "[PythonRunner] Returning promise from Sk.promise handler",
             );
-            return susp.data.promise.then((result) => {
+            return susp.data.promise.then((value) => {
               console.log(
                 "[PythonRunner] Sleep promise resolved with:",
-                result,
+                value,
               );
+              if (isStale()) {
+                throw stopError();
+              }
               // CRITICAL: Set the result and call resume() to continue Python
-              susp.data.result = result;
+              susp.data.result = value;
               console.log(
                 "[PythonRunner] Calling susp.resume() to continue Python execution",
               );
@@ -467,11 +480,8 @@ def ticks_diff(t1, t2):
             });
           },
           "*": function () {
-            // Check if we should stop
-            if (self.shouldStop) {
-              const err = new Error("Execution stopped");
-              err.isStopExecution = true;
-              throw err;
+            if (isStale()) {
+              throw stopError();
             }
             // Process commands on each yield
             self.processCommandQueue();
@@ -493,18 +503,27 @@ def ticks_diff(t1, t2):
         "[PythonRunner] Execution promise resolved successfully - this is unexpected for infinite loops!",
       );
 
-      if (typeof DebugPanel !== "undefined") {
+      if (isStale()) {
+        result = { status: "stopped", error: null };
+      } else if (typeof DebugPanel !== "undefined") {
         DebugPanel.log("[Python] Execution completed", "success");
       }
     } catch (error) {
       console.log("[PythonRunner] Execution threw error:", error);
-      this.handleError(error);
+      const message = isStale() ? null : this.handleError(error);
+      result = message
+        ? { status: "error", error: message }
+        : { status: "stopped", error: null };
     } finally {
       console.log("[PythonRunner] Stopped (finally block)");
-      this.isRunning = false;
-      this.stepMode = false;
-      this.executionPromise = null;
+      // A stale run must not reset state that now belongs to a newer run
+      if (this.executionId === runId) {
+        this.isRunning = false;
+        this.stepMode = false;
+        this.executionPromise = null;
+      }
     }
+    return result;
   },
 
   /**
@@ -515,7 +534,7 @@ def ticks_diff(t1, t2):
    * advances the robot by stepLineTime to approximate real execution time.
    *
    * @param {string} code Learner Python source.
-   * @returns {Promise<void>} Resolves when the program finishes or is stopped.
+   * @returns {Promise<{status: string, error: string|null}>} Result of run().
    */
   async runStepMode(code) {
     this.stepMode = true;
@@ -523,7 +542,7 @@ def ticks_diff(t1, t2):
     this.isStepping = true;
     this.currentStepLine = 0;
     try {
-      await this.run(code);
+      return await this.run(code);
     } finally {
       this.isStepping = false;
       this.stepMode = false;
@@ -541,9 +560,10 @@ def ticks_diff(t1, t2):
    * resume Python.
    *
    * @param {Sk.misceval.Suspension} susp Debug suspension from Skulpt.
+   * @param {() => boolean} [isStale] True once this run has been stopped or replaced.
    * @returns {Promise<*>} Promise resolving to susp.resume().
    */
-  async handleStepSuspension(susp) {
+  async handleStepSuspension(susp, isStale = () => this.shouldStop) {
     // The innermost learner frame carries the line about to run
     let lineNum = 0;
     for (let s = susp; s; s = s.child) {
@@ -566,7 +586,7 @@ def ticks_diff(t1, t2):
     this.freezePhysics = true;
     try {
       await new Promise((resolve) => setTimeout(resolve, this.stepDelay));
-      while (this.stepPaused && !this.shouldStop) {
+      while (this.stepPaused && !isStale()) {
         await new Promise((resolve) => {
           this.stepResumeResolve = resolve;
         });
@@ -575,7 +595,7 @@ def ticks_diff(t1, t2):
       this.freezePhysics = false;
     }
 
-    if (this.shouldStop) {
+    if (isStale()) {
       const err = new Error("Execution stopped");
       err.isStopExecution = true;
       throw err;
@@ -725,16 +745,16 @@ def ticks_diff(t1, t2):
             break;
 
           case "rotate_left":
-            // Left wheel forward, right wheel backward → counter-clockwise
-            App.robot.leftSpeed = cmd.params.turnSpeed;
-            App.robot.rightSpeed = -cmd.params.turnSpeed;
+            // Left wheel backward, right wheel forward → counter-clockwise
+            App.robot.leftSpeed = -cmd.params.turnSpeed;
+            App.robot.rightSpeed = cmd.params.turnSpeed;
             App.robot.isMoving = true;
             break;
 
           case "rotate_right":
-            // Left wheel backward, right wheel forward → clockwise
-            App.robot.leftSpeed = -cmd.params.turnSpeed;
-            App.robot.rightSpeed = cmd.params.turnSpeed;
+            // Left wheel forward, right wheel backward → clockwise
+            App.robot.leftSpeed = cmd.params.turnSpeed;
+            App.robot.rightSpeed = -cmd.params.turnSpeed;
             App.robot.isMoving = true;
             break;
 
@@ -776,6 +796,7 @@ def ticks_diff(t1, t2):
    * editor when a line number is available.
    *
    * @param {Error|Sk.builtin.BaseException|string} error Raw error object from Skulpt execution.
+   * @returns {string|null} The reported error message, or null for stop requests.
    */
   handleError(error) {
     try {
@@ -839,10 +860,12 @@ def ticks_diff(t1, t2):
       }
 
       console.error("[PythonRunner] Error:", error);
+      return message;
     } catch (e) {
       // Ignore any errors in error handling itself
       console.error("[PythonRunner] Error in handleError:", e);
     }
+    return null;
   },
 
   /**

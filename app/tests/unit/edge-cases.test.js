@@ -60,8 +60,8 @@ describe("Simulator physics edge cases", () => {
   });
 
   test.each([
-    ["right past 360", 350, -200, 200],
-    ["left past 0", 10, 200, -200],
+    ["right past 360", 350, 200, -200],
+    ["left past 0", 10, -200, 200],
   ])("heading wraps when turning %s", (_, heading, leftSpeed, rightSpeed) => {
     const robot = Simulator.step(moving({ heading, leftSpeed, rightSpeed }), 0.2);
     expect(robot.heading).toBeGreaterThanOrEqual(0);

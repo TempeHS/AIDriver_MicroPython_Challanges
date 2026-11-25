@@ -179,13 +179,14 @@ describe("Challenge 1: Drive in a Straight Line", () => {
 
 describe("Challenge 2: Drive a Circle", () => {
   // Starter: drive_backward(wheel_speed - speed_adjust, wheel_speed + speed_adjust)
-  // with wheel_speed 180. speed_adjust 27 gives a 400 mm radius (the drawn
-  // circle) and one lap takes 2*pi / 1.4118 rad/s = 4.45 s.
+  // with wheel_speed 180. speed_adjust -27 (left wheel slower, reversing)
+  // gives a 400 mm radius curving up onto the drawn circle, and one lap takes
+  // 2*pi / 1.4118 rad/s = 4.45 s.
   const starter = () => window.getStarterCodes()[2];
 
   test("the starter with a tuned speed_adjust and move_time completes the circle", async () => {
     const code = starter()
-      .replace("speed_adjust = 0", "speed_adjust = 27")
+      .replace("speed_adjust = 0", "speed_adjust = -27")
       .replace("move_time = 0 ", "move_time = 4.45 ");
 
     const result = await runChallenge(2, code);
@@ -197,7 +198,7 @@ describe("Challenge 2: Drive a Circle", () => {
 
   test("stopping half way round fails on rotation", async () => {
     const code = starter()
-      .replace("speed_adjust = 0", "speed_adjust = 27")
+      .replace("speed_adjust = 0", "speed_adjust = -27")
       .replace("move_time = 0 ", "move_time = 2.2 ");
 
     const result = await runChallenge(2, code);
@@ -217,6 +218,7 @@ describe("Challenge 3: Detect and Stop", () => {
 
     expect(output).toContainEqual(expect.stringMatching(/^Stopped at distance: 1[1-4]\d$/));
     expect(result).toEqual({ success: true, message: "Perfect stop!" });
+    expect(App.elements.challengeStatus.textContent).toBe("SUCCESS!");
   });
 
   test("the starter's target_distance of 0 drives into the wall", async () => {
@@ -289,15 +291,7 @@ drive_until(125)
 });
 
 describe("App success reporting", () => {
-  // BUG (js/app.js:2153-2171, 2239, 700-706): checkChallengeSuccess() only
-  // runs in the animation loop while the robot is moving and App.isRunning,
-  // and bails out while PythonRunner.isRunning. When a program ends, runCode's
-  // .then() calls stopExecution() in the same microtask chain, which brakes
-  // the robot and clears App.isRunning, so no frame ever sees all three
-  // conditions. A correct solution therefore ends as "Completed", never
-  // "SUCCESS!" (and stop_at_distance, which requires a stopped robot, could
-  // never pass a check that only runs while it moves).
-  test.skip("the app announces SUCCESS! for a correct program", async () => {
+  test("the app announces SUCCESS! for a correct program", async () => {
     const fixed = window
       .getStarterCodes()[0]
       .replace("read_distance() == -1\n", "read_distance() == -1:\n")

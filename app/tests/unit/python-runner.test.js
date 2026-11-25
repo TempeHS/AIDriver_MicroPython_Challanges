@@ -163,8 +163,39 @@ describe("stop()", () => {
     PythonRunner.stop();
     expect(PythonRunner.isRunning).toBe(false);
     expect(App.robot).toMatchObject({ leftSpeed: 0, rightSpeed: 0, isMoving: false });
-    await running;
+    await expect(running).resolves.toEqual({ status: "stopped", error: null });
     expect(App.robot.isMoving).toBe(false);
+  });
+
+  test("a run stopped during hold_state does not continue after a new run starts", async () => {
+    const stopped = PythonRunner.run(
+      ROBOT + "hold_state(0.1)\nprint('old run continued')\nr.drive_forward(200, 200)\n",
+    );
+    await wait(30);
+    PythonRunner.stop();
+
+    const next = PythonRunner.run("from aidriver import hold_state\nhold_state(0.3)\nprint('new done')\n");
+    await wait(150); // the old hold_state timer fires during the new run
+
+    expect(output).not.toContain("old run continued");
+    expect(App.robot.isMoving).toBe(false);
+    expect(PythonRunner.isRunning).toBe(true);
+    await expect(stopped).resolves.toMatchObject({ status: "stopped" });
+    await expect(next).resolves.toEqual({ status: "completed", error: null });
+    expect(output).toContain("new done");
+  });
+});
+
+describe("run() result", () => {
+  test("reports completed, or error with the message", async () => {
+    await expect(PythonRunner.run("x = 1\n")).resolves.toEqual({
+      status: "completed",
+      error: null,
+    });
+    await expect(PythonRunner.run("x = 1\ny = x / 0\n")).resolves.toEqual({
+      status: "error",
+      error: expect.stringMatching(/^Line 2: ZeroDivisionError/),
+    });
   });
 });
 
@@ -195,8 +226,8 @@ describe("processCommandQueue() applies robot commands", () => {
   test.each([
     ["r.drive_forward(200, 150)", 150, 200, true],
     ["r.drive_backward(200, 150)", -150, -200, true],
-    ["r.rotate_left(120)", 120, -120, true],
-    ["r.rotate_right(120)", -120, 120, true],
+    ["r.rotate_left(120)", -120, 120, true],
+    ["r.rotate_right(120)", 120, -120, true],
     ["r.drive_forward(200, 200); r.brake()", 0, 0, false],
   ])("%s", async (code, left, right, moving) => {
     const robot = await runAndApply(code.replace("; ", "\n") + "\n");

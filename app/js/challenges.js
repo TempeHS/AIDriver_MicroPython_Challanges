@@ -79,8 +79,8 @@ const Challenges = (function () {
       description: "Balance the motor speeds so the robot drives straight.",
       goal: "Drive from start to the green target zone without veering off.",
       hints: [
-        "If robot veers right, increase left motor speed",
-        "If robot veers left, increase right motor speed",
+        "If robot veers right, increase right motor speed",
+        "If robot veers left, increase left motor speed",
         "Small adjustments (5-10) make a big difference",
       ],
       startPosition: { x: 1000, y: 1800, heading: 0 },
@@ -148,7 +148,7 @@ const Challenges = (function () {
       successCriteria: {
         type: "stop_at_distance",
         targetDistance: { min: 100, max: 200 },
-        wallPosition: 50, // Y position of wall
+        wallPosition: 0, // Y position of the wall (top of the arena)
       },
       path: {
         type: "line",
@@ -331,6 +331,9 @@ const Challenges = (function () {
       case "stop_at_distance":
         return checkStopAtDistance(robotState, criteria);
 
+      case "complete_square":
+        return checkCompleteSquare(robotState, sessionData, criteria);
+
       case "return_to_start":
         return checkReturnToStart(robotState, sessionData, criteria);
 
@@ -431,13 +434,21 @@ const Challenges = (function () {
   }
 
   /**
-   * Verify the robot has stopped and is within the prescribed distance window from the wall.
-   * @param {{x:number,y:number,leftSpeed:number,rightSpeed:number}} robot Robot state including wheel speeds.
+   * Verify the robot has stopped and is within the prescribed distance window
+   * from the wall. Distance is measured from the front of the robot (where the
+   * ultrasonic sensor is), so it matches what read_distance() reports.
+   * @param {{x:number,y:number,heading?:number,leftSpeed:number,rightSpeed:number}} robot Robot state including wheel speeds.
    * @param {{wallPosition:number,targetDistance:{min:number,max:number}}} criteria Distance tolerances.
    * @returns {{success:boolean,message:string}} Evaluation outcome.
    */
   function checkStopAtDistance(robot, criteria) {
-    const distanceToWall = robot.y - criteria.wallPosition;
+    const robotLength =
+      typeof Simulator !== "undefined" && Simulator.ROBOT_LENGTH
+        ? Simulator.ROBOT_LENGTH
+        : 150;
+    const headingRad = ((robot.heading || 0) * Math.PI) / 180;
+    const frontY = robot.y - Math.cos(headingRad) * (robotLength / 2);
+    const distanceToWall = frontY - criteria.wallPosition;
     const isStopped = robot.leftSpeed === 0 && robot.rightSpeed === 0;
 
     if (!isStopped) {
@@ -456,6 +467,49 @@ const Challenges = (function () {
     }
 
     return { success: true, message: "Perfect stop!" };
+  }
+
+  /**
+   * Confirm the robot drove a square: it turned through roughly four right
+   * angles, covered at least minSideLength in both directions, and finished
+   * back in the start zone.
+   * @param {{x:number,y:number}} robot Current robot coordinates.
+   * @param {{totalRotation?:number,minX?:number,maxX?:number,minY?:number,maxY?:number}} session Session metrics.
+   * @param {{startZone:{x:number,y:number,width:number,height:number},minSideLength:number,corners:number}} criteria Square requirements.
+   * @returns {{success:boolean,message:string}} Evaluation outcome.
+   */
+  function checkCompleteSquare(robot, session, criteria) {
+    const turned = Math.abs(session.totalRotation || 0);
+    const requiredTurn = criteria.corners * 90 - 30;
+    if (turned < requiredTurn) {
+      return {
+        success: false,
+        message: `Make all ${criteria.corners} turns (${turned.toFixed(0)}° / ${
+          criteria.corners * 90
+        }°)`,
+      };
+    }
+
+    const width = (session.maxX || 0) - (session.minX || 0);
+    const height = (session.maxY || 0) - (session.minY || 0);
+    if (Math.min(width, height) < criteria.minSideLength) {
+      return {
+        success: false,
+        message: `Make the sides longer (at least ${criteria.minSideLength}mm)`,
+      };
+    }
+
+    const zone = criteria.startZone;
+    const inStartZone =
+      robot.x >= zone.x &&
+      robot.x <= zone.x + zone.width &&
+      robot.y >= zone.y &&
+      robot.y <= zone.y + zone.height;
+    if (!inStartZone) {
+      return { success: false, message: "Finish back at the starting corner" };
+    }
+
+    return { success: true, message: "Square complete!" };
   }
 
   /**

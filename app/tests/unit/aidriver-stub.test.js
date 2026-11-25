@@ -102,6 +102,9 @@ describe("speed arguments match the robot's L298N.set_speed", () => {
   test.each([
     ["-1", "ValueError", "Speed must be between 0 and 255, got -1"],
     ["'fast'", "TypeError", "Speed must be a number"],
+    ["'200'", "TypeError", "Speed must be a number, got str"],
+    ["None", "TypeError", "Speed must be a number"],
+    ["[120]", "TypeError", "Speed must be a number, got list"],
   ])("speed %s raises %s and queues nothing", async (arg, type, message) => {
     const err = await runPy(ROBOT + `r.rotate_left(${arg})\n`).catch((e) => e);
 
