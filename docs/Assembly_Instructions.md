@@ -61,6 +61,32 @@
 
 ## Step 8 - Test the Hardware
 
+Upload the hardware test program to your robot as `main.py`, then run it. You can do this from the **AIDriver Simulator** (Option A, recommended) or from **Arduino MicroPython Lab** (Option B).
+
+> [!Caution]
+> Keep the battery power switch **off** while the robot is plugged into a computer. To avoid damaging your computer or robot, unplug the USB cable and place the robot on the floor, in an area with enough space for it to move safely, before switching the battery on.
+
+### Option A - Upload from the AIDriver Simulator
+
+You need **Chrome** or **Edge** on a computer or Chromebook (Firefox and Safari can't connect to the robot).
+
+1. Make sure your battery power switch is off.
+2. Open the [AIDriver Simulator](https://tempehs.github.io/AIDriver_MicroPython_Challanges/simulator.html).
+3. Plug your robot into your computer with a USB cable.
+4. Press **Connect robot** above the code editor.
+5. Select your robot in the list (usually **Board CDC** followed by a port such as `COM5`) and press **Connect**.
+6. Check the status says **Pico connected** and the debug panel says `Connected to robot: Raspberry Pi Pico · MicroPython … · AIDriver …`.
+7. From the challenge menu choose **Debug Script**. The hardware test program loads into the editor.
+8. Press **Upload** and wait for `✅ Uploaded to robot as main.py`.
+9. Unplug the USB cable, put the robot on the floor and switch the battery on.
+
+![Animated simulator connection and upload instructions](images/simulator_connect_upload.gif "Animated simulator connection and upload instructions")
+
+> [!Note]
+> If the status says **Firmware update needed**, or the robot won't connect, give your robot to your teacher to install the AIDriver firmware. For other messages see [Common Errors - Problems uploading from the simulator](Common_Errors.md#9-problems-uploading-from-the-simulator).
+
+### Option B - Upload from Arduino MicroPython Lab
+
 1. Make sure your battery power switch is off.
 2. Navigate to [https://lab-micropython.arduino.cc/](https://lab-micropython.arduino.cc/).
 3. Sign in with Google (use your @education.nsw.gov.au account).
@@ -68,12 +94,9 @@
 
 ![Animated connection instructions](images/instructions.gif "Animated connection instructions")
 
-5. Copy and paste this code into `main.py`
-6. Click <kbd>SAVE</KDB>
-7. Disconnect your robot from your computer
-
-> [!Caution]
-> To avoid damaging your computer or robot place it on the floor in an area with enough space for it to move safely before powering it on.
+5. Copy and paste the code below into `main.py`.
+6. Click <kbd>SAVE</kbd>.
+7. Disconnect your robot from your computer, put it on the floor and switch the battery on.
 
 ```python
 from aidriver import AIDriver, hold_state
@@ -85,59 +108,65 @@ Runs a short sequence of movements and distance readings.
 Most details are reported via the AIDriver debug logger.
 """
 
+aidriver.DEBUG_AIDRIVER = True
 
-def main():
-    aidriver.DEBUG_AIDRIVER = True
+print("Initialising AIDriver hardware test...")
 
-    print("Initialising AIDriver hardware test...")
+try:
+    robot = AIDriver()
+except Exception as exc:
+    print("Failed to initialise AIDriver:", exc)
+    print("Check that 'aidriver.py' is in the 'lib' folder on the device.")
+    raise SystemExit
 
-    try:
-        robot = AIDriver()
-    except Exception as exc:
-        print("Failed to initialise AIDriver:", exc)
-        print("Check that 'aidriver.py' is in the 'lib' folder on the device.")
-        return
+print("Starting tests in 3 seconds. Ensure clear space around the robot.")
+hold_state(3)
 
-    print("Starting tests in 3 seconds. Ensure clear space around the robot.")
-    hold_state(3)
+# Test 1: Drive Forward
+print("Test 1: drive_forward")
+robot.drive_forward(200, 200)
+hold_state(2)
+robot.brake()
+hold_state(1)
 
-    # Test 1: Drive Forward
-    print("Test 1: drive_forward")
-    robot.drive_forward(200, 200)
-    hold_state(2)
-    robot.brake()
-    hold_state(1)
+# Test 2: Drive Backward
+print("Test 2: drive_backward")
+robot.drive_backward(200, 200)
+hold_state(2)
+robot.brake()
+hold_state(1)
 
-    # Test 2: Drive Backward
-    print("Test 2: drive_backward")
-    robot.drive_backward(200, 200)
-    hold_state(2)
-    robot.brake()
-    hold_state(1)
+# Test 3: Rotate Right
+print("Test 3: rotate_right")
+robot.rotate_right(200)
+hold_state(2)
+robot.brake()
+hold_state(1)
 
-    # Test 3: Rotate Right
-    print("Test 3: rotate_right")
-    robot.rotate_right(200)
-    hold_state(2)
-    robot.brake()
-    hold_state(1)
+# Test 4: Rotate Left
+print("Test 4: rotate_left")
+robot.rotate_left(200)
+hold_state(2)
+robot.brake()
+hold_state(1)
 
-    # Test 4: Rotate Left
-    print("Test 4: rotate_left")
-    robot.rotate_left(200)
-    hold_state(2)
-    robot.brake()
-    hold_state(1)
+# Test 5: Ultrasonic Sensor
+print("Test 5: ultrasonic distance readings")
+for i in range(5):
+    distance = robot.read_distance()
+    hold_state(0.5)
 
-    # Test 5: Ultrasonic Sensor
-    print("Test 5: ultrasonic distance readings")
-    for i in range(5):
-        distance = robot.read_distance()
-        hold_state(0.5)
-
-    print("All hardware tests completed.")
-
-
-if __name__ == "__main__":
-    main()
+print("All hardware tests completed.")
 ```
+
+### What the robot should do
+
+After you switch the battery on, the robot waits 3 seconds, then:
+
+1. Drives forward for 2 seconds.
+2. Drives backward for 2 seconds.
+3. Rotates right for 2 seconds.
+4. Rotates left for 2 seconds.
+5. Takes five distance readings with the ultrasonic sensor.
+
+Each test is recorded in the robot's `event_log.txt`. To read it, reconnect the robot (battery off) and press **Logs** in the simulator, or open the file in Arduino MicroPython Lab.

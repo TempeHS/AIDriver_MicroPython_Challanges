@@ -438,7 +438,18 @@
           const slug = alertTypes[type];
           if (!slug) return;
 
-          firstParagraph.textContent = text.replace(match[0], "");
+          // Remove only the [!TYPE] marker so links and formatting are kept
+          const marker = firstParagraph.firstChild;
+          if (marker && marker.nodeType === Node.TEXT_NODE) {
+            marker.textContent = marker.textContent.replace(match[0], "");
+            const next = marker.nextSibling;
+            if (!marker.textContent.trim()) {
+              marker.remove();
+              if (next && next.nodeName === "BR") next.remove();
+            }
+          } else {
+            firstParagraph.textContent = text.replace(match[0], "");
+          }
 
           const alert = doc.createElement("div");
           alert.className = `markdown-alert markdown-alert-${slug}`;
@@ -486,6 +497,12 @@
           // Fix image URLs
           html = fixImageUrls(html);
 
+          // Links to other docs (Name.md#section) open in this viewer
+          html = html.replace(
+            /href="(?:\.\/)?([\w-]+)\.md(#[\w-]*)?"/g,
+            (_, name, hash) => `href="docs.html?doc=${name}${hash || ""}"`,
+          );
+
           // Convert GitHub-style alerts
           html = transformMarkdownAlerts(html);
 
@@ -511,6 +528,26 @@
               pre.replaceWith(div);
             });
           await mermaid.run({ nodes: content.querySelectorAll(".mermaid") });
+
+          // GitHub-style heading ids, so links like Name.md#section work
+          const usedIds = new Set();
+          content.querySelectorAll("h1, h2, h3, h4, h5, h6").forEach((heading) => {
+            const base = heading.textContent
+              .trim()
+              .toLowerCase()
+              .replace(/[^\p{L}\p{N}\s_-]/gu, "")
+              .replace(/\s/g, "-");
+            let id = base;
+            for (let n = 1; usedIds.has(id); n++) id = `${base}-${n}`;
+            usedIds.add(id);
+            heading.id = id;
+          });
+          if (window.location.hash) {
+            const target = document.getElementById(
+              decodeURIComponent(window.location.hash.slice(1)),
+            );
+            if (target) target.scrollIntoView();
+          }
 
           // Update page title
           const docTitle = docName.replace(/_/g, " ");
