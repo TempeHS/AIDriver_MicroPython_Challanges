@@ -67,6 +67,8 @@ Once students have assembled their robot they are to complete the programming ch
 
 **🎮 Web Simulator:** Test your code before uploading to the robot using the [AIDriver Simulator](https://tempehs.github.io/AIDriver_MicroPython_Challanges/) - no hardware required!
 
+![The AIDriver Simulator with its parts labelled](images/simulator_ui_labelled.png "The AIDriver Simulator with its parts labelled")
+
 1. [Challenge 1](Challenge_1.md) - Drive in a straight line
 2. [Challenge 2](Challenge_2.md) - Drive in a large circle
 3. [Challenge 3](Challenge_3.md) - Autonomous collision prevention

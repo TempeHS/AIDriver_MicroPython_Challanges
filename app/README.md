@@ -13,6 +13,8 @@ A browser-based robot simulator for the AIDriver MicroPython Challenges. This we
 - **5 Pre-built Mazes** - For Challenge 6 maze navigation practice
 - **Upload to Robot** - Connect a robot over USB (Chrome/Edge), upload the editor code to `main.py`, run it, view its event logs and stop it
 
+![The AIDriver Simulator with its parts labelled](../docs/images/simulator_ui_labelled.png)
+
 ## Challenges
 
 | Challenge | Title                    | Description                                |
