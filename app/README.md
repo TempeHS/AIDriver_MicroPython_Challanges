@@ -81,7 +81,10 @@ Or use GitHub Actions for automatic deployment.
 
 ```
 app/
-├── index.html          # Main HTML page
+├── index.html          # Landing page
+├── simulator.html      # Editor, simulator and Robot toolbar
+├── docs.html           # Challenge documentation viewer
+├── log-viewer.html     # Robot event log tab (opened by the Logs button)
 ├── README.md           # This file
 ├── css/
 │   └── style.css       # Custom styles
@@ -95,7 +98,12 @@ app/
 │   ├── validator.js    # Code validation
 │   ├── challenges.js   # Challenge definitions
 │   ├── mazes.js        # Maze definitions
-│   └── gamepad.js      # Gamepad controller
+│   ├── gamepad.js      # Gamepad controller
+│   ├── logger.js       # Session logging
+│   ├── serial-link.js  # Web Serial transport (Robot toolbar)
+│   ├── micropython-board.js # Raw REPL protocol, upload and file reads
+│   ├── robot-connection.js  # Robot toolbar controller
+│   └── log-viewer.js   # Robot log rendering
 └── assets/
     └── robot.svg       # Robot sprite
 ```

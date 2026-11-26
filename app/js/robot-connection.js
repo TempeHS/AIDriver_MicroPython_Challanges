@@ -3,7 +3,7 @@
  * Robot toolbar controller: connect to the robot over Web Serial, upload the
  * editor code to /main.py, view the robot's event logs, stop the robot, and
  * show the robot's output in the debug panel.
- * See Web_Serial_Upload_Design.md §6-§10.
+ * See docs/developer/web-serial.md.
  */
 
 const RobotConnection = {

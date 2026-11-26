@@ -4,7 +4,7 @@
  * log-viewer.html (opened in a new tab by the Robot toolbar's Logs button)
  * and by the simulator's fallback modal when pop-ups are blocked.
  * Log text is only ever inserted with textContent.
- * See Web_Serial_Upload_Design.md §8.
+ * See docs/developer/web-serial.md.
  */
 
 const LogViewer = (function () {

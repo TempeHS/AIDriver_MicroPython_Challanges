@@ -2,7 +2,7 @@
  * AIDriver Simulator - MicroPython Board Module
  * MicroPython raw REPL protocol over a SerialLink, plus the operations the
  * Robot toolbar needs: identify, stop, atomic upload of main.py and
- * reading files. See Web_Serial_Upload_Design.md §7.4-§7.7.
+ * reading files. See docs/developer/web-serial.md.
  */
 
 const MicroPythonBoard = (function () {

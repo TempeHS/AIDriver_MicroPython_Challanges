@@ -19,7 +19,7 @@
 
 ## Simulator upload (Web Serial) checklist
 
-Run on a real AIDriver robot with the latest firmware, in Chrome on a computer and on a school Chromebook. See `Web_Serial_Upload_Design.md` §12.
+Run on a real AIDriver robot with the latest firmware, in Chrome on a computer and on a school Chromebook. See `docs/developer/web-serial.md`.
 
 | # | Steps | Expected | Chrome | Chromebook |
 | - | ----- | -------- | ------ | ---------- |

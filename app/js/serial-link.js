@@ -2,7 +2,7 @@
  * AIDriver Simulator - Serial Link Module
  * Web Serial transport to the robot's Raspberry Pi Pico. Knows nothing about
  * MicroPython: it opens a port, streams received bytes to a callback and
- * writes bytes. See Web_Serial_Upload_Design.md §7.
+ * writes bytes. See docs/developer/web-serial.md.
  */
 
 const SerialLink = (function () {

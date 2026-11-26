@@ -43,6 +43,8 @@ flowchart TD
 > - **Logs** opens your robot's `event_log.txt` (this run) and `event_log_prev.txt` (the previous run) in a new tab.
 > - **Stop robot** stops the program running on the robot.
 >
+> The other buttons stay greyed out until your robot is connected. Hover over any button to see what it does.
+>
 > Only one program can use the robot at a time: close MicroPython Lab before you press Connect robot.
 
 ## Step 2
