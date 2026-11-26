@@ -143,6 +143,43 @@ describe("Robot toolbar availability", () => {
       expect($(id).disabled).toBe(true);
     }
   });
+
+  test("every robot control has a hover tooltip that follows the connection state", async () => {
+    const ids = ["robotStatus", "btnRobotConnect", "btnRobotUpload", "btnRobotUploadRun", "btnRobotLogs", "btnRobotStop"];
+    const tip = (id) => bootstrap.Tooltip.getInstance($(id)).config.title();
+
+    installFakeSerial([new FakeBoard()]);
+    boot();
+
+    for (const id of ids) {
+      expect($(id).hasAttribute("title")).toBe(false); // no doubled-up native tooltip
+      expect(tip(id)).not.toBe("");
+    }
+    expect(tip("btnRobotConnect")).toBe("Connect to your robot with a USB cable");
+    expect(tip("btnRobotUpload")).toBe(
+      "Save the code in the editor to the robot as main.py. Connect a robot first.",
+    );
+    expect(tip("btnRobotStop")).toMatch(/Connect a robot first\.$/);
+    expect(tip("robotStatus")).toMatch(/^No robot connected/);
+
+    removeFakeSerial();
+    for (const [target, ...args] of addedListeners.splice(0)) {
+      target.removeEventListener(...args);
+    }
+    document.body.innerHTML = SIMULATOR_BODY;
+    await connect();
+
+    expect(tip("btnRobotConnect")).toBe("Disconnect from the robot");
+    expect(tip("btnRobotUpload")).toBe("Save the code in the editor to the robot as main.py.");
+    expect(tip("btnRobotStop")).toBe("Stop the program running on the robot.");
+    expect(tip("robotStatus")).toMatch(/^Raspberry Pi Pico · MicroPython/);
+    expect(bootstrap.Tooltip.getInstance($("btnRobotUpload")).setContent).toHaveBeenCalledWith({
+      ".tooltip-inner": "Save the code in the editor to the robot as main.py.",
+    });
+
+    RobotConnection.setState("busy");
+    expect(tip("btnRobotUpload")).toMatch(/Please wait until the robot has finished/);
+  });
 });
 
 describe("Connect", () => {

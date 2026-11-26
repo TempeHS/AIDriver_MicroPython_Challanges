@@ -553,7 +553,11 @@ body {
   text-overflow: ellipsis;
 }
 
-@media (max-width: 1399.98px) {
+#robotToolbar .btn {
+  white-space: nowrap;
+}
+
+@media (max-width: 1599.98px) {
   #robotToolbar .robot-label {
     display: none;
   }
@@ -571,4 +575,8 @@ body {
   border-color: rgba(255, 255, 255, 0.2);
   background-color: transparent;
   opacity: 0.45;
+  /* Bootstrap turns off pointer events on disabled buttons; keep hover so the
+     tooltip can explain why (disabled buttons still ignore clicks) */
+  pointer-events: auto;
+  cursor: not-allowed;
 }

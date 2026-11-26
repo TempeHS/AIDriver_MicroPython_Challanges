@@ -145,8 +145,22 @@ global.performance = {
 };
 
 // Mock Bootstrap
+const tooltipInstances = new WeakMap();
+const Tooltip = jest.fn().mockImplementation(() => ({}));
+Tooltip.getInstance = (el) => tooltipInstances.get(el) || null;
+Tooltip.getOrCreateInstance = (el, config) => {
+  if (!tooltipInstances.has(el)) {
+    tooltipInstances.set(el, {
+      config,
+      hide: jest.fn(),
+      setContent: jest.fn(),
+    });
+  }
+  return tooltipInstances.get(el);
+};
+
 global.bootstrap = {
-  Tooltip: jest.fn().mockImplementation(() => ({})),
+  Tooltip,
   Modal: jest.fn().mockImplementation(() => ({
     show: jest.fn(),
     hide: jest.fn(),

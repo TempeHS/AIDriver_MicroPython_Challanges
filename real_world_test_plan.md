@@ -34,4 +34,5 @@ Run on a real AIDriver robot with the latest firmware, in Chrome on a computer a
 | W9 | Upload a program with `try: … except: pass` around `while True`, run it, press **Stop robot** | Stops after retries, or shows the GP4 recovery message | | |
 | W10 | Open the Pico in MicroPython Lab, then press **Connect robot** | "The robot is being used by another program or tab" | | |
 | W11 | Open the simulator in Firefox | Robot toolbar in the editor header replaced by "Upload needs Chrome or Edge" | | |
-| W12 | Narrow the window to tablet width | Editor header wraps; all Robot buttons stay visible and usable | | |
+| W12 | Narrow the window to tablet width | Robot buttons show icons only (tooltips name them); all stay visible and usable | | |
+| W13 | Hover over each Robot button before connecting, then after connecting | Every button shows a tooltip; greyed-out ones say "Connect a robot first."; after connecting the tooltips describe each action | | |

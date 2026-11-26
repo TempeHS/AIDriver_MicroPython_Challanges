@@ -85,7 +85,43 @@ const RobotConnection = {
       if (this.link) this.link.close();
     });
 
+    this.initTooltips();
     this.setState("idle");
+  },
+
+  /**
+   * Bootstrap hover tooltips for the status pill and buttons. The text comes
+   * from data-bs-title so it can follow the connection state, including on
+   * greyed-out buttons (which explain why they are unavailable).
+   * @returns {void}
+   */
+  initTooltips() {
+    const { status, connect, upload, uploadRun, logs, stop } = this.elements;
+    const Tooltip = typeof bootstrap !== "undefined" && bootstrap.Tooltip;
+    for (const el of [status, connect, upload, uploadRun, logs, stop]) {
+      if (!el) continue;
+      if (el.title && !el.dataset.bsTitle) el.dataset.bsTitle = el.title;
+      el.removeAttribute("title");
+      if (!Tooltip) continue;
+      Tooltip.getOrCreateInstance(el, {
+        title: () => el.dataset.bsTitle || "",
+      });
+      // Don't leave a tooltip showing after a click (e.g. behind the port picker)
+      el.addEventListener("click", () => Tooltip.getInstance(el)?.hide());
+    }
+  },
+
+  /**
+   * Set a tooltip's text, refreshing it if it's currently showing.
+   * @param {HTMLElement} el
+   * @param {string} text
+   */
+  setTip(el, text) {
+    if (!el || el.dataset.bsTitle === text) return;
+    el.dataset.bsTitle = text;
+    const Tooltip = typeof bootstrap !== "undefined" && bootstrap.Tooltip;
+    const tip = Tooltip && Tooltip.getInstance(el);
+    if (tip) tip.setContent({ ".tooltip-inner": text });
   },
 
   // ---------------------------------------------------------------- state
@@ -130,10 +166,22 @@ const RobotConnection = {
       reconnecting: "bg-warning",
     };
     status.className = `badge robot-status ${classes[this.state] || "bg-secondary"}`;
+    this.setTip(status, this.statusTip());
+  },
+
+  statusTip() {
     if (this.info && (this.state === "ready" || this.state === "running")) {
-      status.title = this.connectionSummary();
-    } else {
-      status.removeAttribute("title");
+      return this.connectionSummary();
+    }
+    switch (this.state) {
+      case "connecting":
+        return "Connecting to the robot…";
+      case "reconnecting":
+        return "The robot is restarting. Waiting for it to come back…";
+      case "busy":
+        return "Talking to the robot. Please wait.";
+      default:
+        return "No robot connected. Plug the robot in with a USB cable and press Connect robot.";
     }
   },
 
@@ -147,9 +195,14 @@ const RobotConnection = {
     connect.innerHTML = connected
       ? '<i class="bi bi-plug"></i> <span class="robot-label">Disconnect</span>'
       : '<i class="bi bi-usb-symbol"></i> <span class="robot-label">Connect robot</span>';
-    connect.title = connected
-      ? "Disconnect from the robot"
-      : "Connect to your robot with a USB cable";
+    this.setTip(
+      connect,
+      connected
+        ? "Disconnect from the robot"
+        : connect.disabled
+          ? "Please wait…"
+          : "Connect to your robot with a USB cable",
+    );
     connect.setAttribute(
       "aria-label",
       connected ? "Disconnect robot" : "Connect robot",
@@ -158,6 +211,20 @@ const RobotConnection = {
     uploadRun.disabled = !usable;
     logs.disabled = !usable;
     stop.disabled = !connected;
+
+    const unavailable = connected
+      ? "Please wait until the robot has finished the current task."
+      : "Connect a robot first.";
+    const tip = (el, text, enabled) =>
+      this.setTip(el, enabled ? text : `${text} ${unavailable}`);
+    tip(upload, "Save the code in the editor to the robot as main.py.", usable);
+    tip(
+      uploadRun,
+      "Save the code to the robot as main.py and run it now.",
+      usable,
+    );
+    tip(logs, "Open the robot's event logs in a new tab.", usable);
+    tip(stop, "Stop the program running on the robot.", connected);
   },
 
   /**

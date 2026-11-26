@@ -86,7 +86,7 @@ Verified against this repository's firmware and MicroPython v1.30-preview:
 
 ### 6.1 Toolbar
 
-A new **Robot** button group sits in the **header of the code editor card** (the ACE editor's banner), next to the Copy and Reset Code buttons. It is kept separate from the simulator's Run / Stop / Step / Reset controls, because uploading works on the editor's code, not the simulated robot. It appears on `simulator.html` only. Labels are short, and every button has a tooltip and an `aria-label`. On narrow screens the header wraps onto a second line.
+A new **Robot** button group sits in the **header of the code editor card** (the ACE editor's banner), next to the Copy and Reset Code buttons. It is kept separate from the simulator's Run / Stop / Step / Reset controls, because uploading works on the editor's code, not the simulated robot. It appears on `simulator.html` only. Labels are short, and every button and the status pill has a Bootstrap hover tooltip and an `aria-label`. Below 1600px wide the buttons show icons only (the tooltips name them), and on phone-width screens the header wraps onto a second line.
 
 ```
  </> Python Code    ● Pico connected  [🔌 Connect robot] [⬆ Upload | ⬆▶ Upload & Run | 📄 Logs | ■ Stop robot]   [📋][↺]
@@ -101,7 +101,7 @@ A new **Robot** button group sits in the **header of the code editor card** (the
 | **Stop robot** | Connected | Stops the running program (§7.4) |
 | Status pill | Always, when supported | `Not connected` / `Connecting…` / `Pico connected` / `Uploading 45%…` / `Program running` / `Disconnected` |
 
-Until a robot is connected, every Robot button except **Connect robot** is disabled and clearly greyed out. The simulator's Run/Stop/Step buttons and the Robot buttons are independent: a student can run the simulator while connected.
+Until a robot is connected, every Robot button except **Connect robot** is disabled and clearly greyed out. Greyed-out buttons still show their tooltip on hover, which says why they're unavailable ("Connect a robot first.", or "Please wait until the robot has finished the current task." while it's busy). The status pill's tooltip gives the board, MicroPython and AIDriver versions once connected. The simulator's Run/Stop/Step buttons and the Robot buttons are independent: a student can run the simulator while connected.
 
 ### 6.2 Upload flow (student's view)
 
