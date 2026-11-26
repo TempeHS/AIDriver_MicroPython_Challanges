@@ -39,9 +39,9 @@ flowchart TD
 > **Upload straight from the simulator.** In Chrome or Edge on a computer, open the [simulator](https://tempehs.github.io/AIDriver_MicroPython_Challanges/simulator.html), plug in your robot with a USB cable and press **Connect robot** (above the code editor). Then:
 >
 > - **Upload** saves the code in the simulator's editor to your robot as `main.py`. Unplug the cable and switch the robot on to run it.
-> - **Upload & Run** saves it and runs it straight away (put the robot on the floor first). Anything your program prints appears in the debug panel as `[Robot]` lines.
+> - **Upload & Run** saves it and runs it straight away while still plugged in (the motors stay off until you switch the battery on). Anything your program prints appears in the debug panel as `[Robot]` lines.
 > - **Logs** opens your robot's `event_log.txt` (this run) and `event_log_prev.txt` (the previous run) in a new tab.
-> - **Stop robot** stops the program and brakes the motors.
+> - **Stop robot** stops the program running on the robot.
 >
 > Only one program can use the robot at a time: close MicroPython Lab before you press Connect robot.
 

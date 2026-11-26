@@ -20,7 +20,7 @@ This removes the need to copy code between the simulator and Arduino MicroPython
 - One-click upload of the editor contents to `/main.py`, with a clear success or failure message.
 - The upload never leaves the robot without a working `main.py`. Writes are atomic, and the previous version is kept as a backup.
 - One-click viewing of both event log files in a new tab, readable and downloadable.
-- Safe stopping: interrupting a running program also brakes the motors.
+- Stopping: **Stop robot** interrupts the running program (Ctrl-C).
 - Student-friendly errors for the common problems: wrong browser, port busy, board not running MicroPython, program won't stop, cable unplugged.
 - No new runtime dependencies and no build step, following the app's plain-script module pattern (`docs/developer/architecture.md`).
 - Testable in Jest with no hardware, using the real app modules through `tests/helpers/load-app.js`.
@@ -53,7 +53,6 @@ What we keep from LST: the session queue, the marker-framed JSON replies, base64
 
 What we add for AIDriver:
 - an atomic write with a backup;
-- braking the motors on interrupt;
 - AIDriver firmware detection;
 - detecting root-level library copies that override the built-in versions;
 - a log viewer tab.
@@ -79,7 +78,7 @@ Verified against this repository's firmware and MicroPython v1.30-preview:
 | A soft reset doesn't drop the USB connection (only a runtime `machine.USBDevice` would) | `ports/rp2/main.c:298-300` | **Upload & Run** keeps the port open |
 | The boot order is `_boot.py` (frozen), then `boot.py`, then `main.py`, on every power-on **and soft reset** | `ports/rp2/main.c:231-251` | A soft reset runs the new `main.py` |
 | Each new session rotates the logs: `event_log.txt` becomes `event_log_prev.txt`, through `eventlog.log_separator()` in `_boot.py` | `project/lib/eventlog.py`, `.devcontainer/create_boot.py` | After **Upload & Run**, `event_log.txt` belongs to the new run (§8.3) |
-| Interrupting a program with Ctrl-C leaves the motor PWM running | `project/lib/aidriver.py` (`L298N`) | Every interrupt must be followed by a brake (§7.4) |
+| The motors run from a separate battery pack whose switch is off while the robot is connected over USB | Hardware (`docs/Assembly_Instructions.md`) | The motors can't move while connected, so stopping only needs an interrupt (no brake) and Upload & Run needs no safety prompt |
 | The GP4 recovery mode restores the default `main.py` and renames `boot.py` and root-level copies of the built-in libraries | `.devcontainer/create_boot.py` | This is the fallback if a student uploads a program that can't be interrupted (§10) |
 | The AIDriver libraries are built into the firmware; root-level copies override them | `micropython/py/runtime.c:147-150` | Upload warns if `/aidriver.py` and similar files exist (§7.3) |
 
@@ -99,10 +98,10 @@ A new **Robot** button group sits in the **header of the code editor card** (the
 | **Upload** | Connected and idle | Writes the editor code to `/main.py` without running it (§7.5) |
 | **Upload & Run** | Connected and idle | Uploads as above, then soft-resets the robot so the new `main.py` runs straight away (§7.5 step 3) |
 | **Logs** | Connected and idle | Opens the log viewer tab with both log files (§8) |
-| **Stop robot** | Connected | Stops the running program and brakes the motors (§7.4) |
+| **Stop robot** | Connected | Stops the running program (§7.4) |
 | Status pill | Always, when supported | `Not connected` / `Connecting…` / `Pico connected` / `Uploading 45%…` / `Program running` / `Disconnected` |
 
-The simulator's Run/Stop/Step buttons and the Robot buttons are independent: a student can run the simulator while connected.
+Until a robot is connected, every Robot button except **Connect robot** is disabled and clearly greyed out. The simulator's Run/Stop/Step buttons and the Robot buttons are independent: a student can run the simulator while connected.
 
 ### 6.2 Upload flow (student's view)
 
@@ -113,7 +112,7 @@ The simulator's Run/Stop/Step buttons and the Robot buttons are independent: a s
 3. If a program is running on the robot, a confirmation explains that it will be stopped.
 4. Progress appears in the status pill. On success the debug panel shows:
    > ✅ Uploaded to robot as main.py (1.2 KB, checked). Unplug the USB cable and switch the robot on to run it, or press **Upload & Run** next time.
-5. **Upload & Run** shows a one-time safety prompt that reuses the wording in `docs/Challenge_*.md`: "The robot will start moving. Make sure it is on the floor with space around it (or its wheels are off the ground)." It then soft-resets the board, and the new `main.py` runs while still connected.
+5. **Upload & Run** soft-resets the board straight away (no confirmation), and the new `main.py` runs while still connected. The motors don't move because their battery is switched off while connected (§5).
 
 ### 6.3 Logs flow
 
@@ -131,7 +130,7 @@ All new modules follow the existing pattern: a plain browser script that defines
 | File | Type | Responsibility |
 |---|---|---|
 | `app/js/serial-link.js` | new | `SerialLink`: Web Serial transport. Handles request/open/reopen, the read loop, write, close, and the `onData`/`onLost` callbacks. Knows nothing about MicroPython. |
-| `app/js/micropython-board.js` | new | `MicroPythonBoard`: the raw REPL protocol (session queue, `exec`, interrupt, soft reset, marker parsing) and high-level operations: `identify()`, `writeFileAtomic()`, `readFile()`, `brake()`. |
+| `app/js/micropython-board.js` | new | `MicroPythonBoard`: the raw REPL protocol (session queue, `exec`, interrupt, soft reset, marker parsing) and high-level operations: `identify()`, `writeFileAtomic()`, `readFile()`. |
 | `app/js/robot-connection.js` | new | `RobotConnection`: the UI controller. Wires the toolbar to `MicroPythonBoard`, `Editor`, `Validator`, `PythonRunner.validateSyntax`, `DebugPanel` and `Logger`. Owns the connection state machine (§7.2). |
 | `app/log-viewer.html`, `app/js/log-viewer.js` | new | Stand-alone viewer page for the new tab (§8). |
 | `app/simulator.html` | changed | Robot toolbar markup and the new `<script>` tags (with `?v=` cache busting), placed after `editor.js` and before `app.js`. |
@@ -170,7 +169,7 @@ All new modules follow the existing pattern: a plain browser script that defines
    - On later visits, try `getPorts()` first.
    - Then `port.open({ baudRate: 115200 })` and `setSignals({ dataTerminalReady: true, requestToSend: false })`.
 2. Start the read loop. Bytes received outside a session are shown in the existing debug panel as `[Robot]` lines (Phase 3) and set `running` if a program is active.
-3. Run an `identify` session. This interrupts any running program and therefore brakes the motors (§7.4):
+3. Run an `identify` session. This interrupts any running program (§7.4):
 
    ```python
    # aid:identify
@@ -200,7 +199,7 @@ All new modules follow the existing pattern: a plain browser script that defines
    - **`has_boot_py`:** an informational note that `boot.py` runs before `main.py`.
    - **Status pill:** shows `Pico connected · MicroPython 1.30 · AIDriver ✓`.
 
-### 7.4 Stopping safely (interrupt plus brake)
+### 7.4 Stopping (interrupt)
 
 **Every** session starts with an interrupt, because the raw REPL can only be entered at a prompt:
 
@@ -209,21 +208,9 @@ All new modules follow the existing pattern: a plain browser script that defines
 3. If the banner doesn't arrive, repeat steps 1–2 up to **3 times**. This covers programs that catch the first `KeyboardInterrupt` or are in the middle of a sleep.
 4. If it still doesn't arrive, fail. If the board has never sent anything on this connection, the error is "didn't answer like MicroPython" (code `no-reply`); otherwise "The robot's program won't stop" (code `wont-stop`) (§10). A silent program that ignores Ctrl-C looks the same as a board without MicroPython, so the `no-reply` message also mentions GP4 recovery.
 
-Immediately after entering the raw REPL, run the brake snippet, because PWM keeps the motors running after an interrupt:
+No braking is needed: the motors have their own battery switch, which is off while the robot is plugged into a computer (§15). Interrupting the program is enough.
 
-```python
-# aid:brake
-try:
-    from aidriver import L298N
-    L298N(3, 12, 9)
-    L298N(11, 13, 8)
-except Exception:
-    pass
-```
-
-Each `L298N` constructor reconfigures one motor's default pins and brakes it (`L298N.__init__` calls `stop()`). This is used instead of `AIDriver().brake()`, which would also write a "Brake applied" line to the student's event log on every upload, log read and stop. All classes use the default pins (§15), so this always reaches the real motors. Without the AIDriver library the snippet does nothing.
-
-**Stop robot** runs only this interrupt-and-brake sequence, then exits the raw REPL. If an upload or log read is in progress, Stop robot first cancels it (`Board.abort()` fails whatever that session is sending or waiting for). A cancelled upload leaves the old `main.py`, because of the atomic write (§7.5).
+**Stop robot** runs only this interrupt sequence, then exits the raw REPL. If an upload or log read is in progress, Stop robot first cancels it (`Board.abort()` fails whatever that session is sending or waiting for). A cancelled upload leaves the old `main.py`, because of the atomic write (§7.5).
 
 ### 7.5 Upload algorithm
 
@@ -233,7 +220,7 @@ Each `L298N` constructor reconfigures one motor's default pins and brakes it (`L
    - `Validator.validate(code)`: its errors and warnings are simulator rules (for example only `aidriver`/`time` imports). They are shown as **warnings** with **Upload anyway**, never as blockers.
    - Size guard: refuse anything over 64 KB ("That's too big for main.py").
 2. **Session**, through the board queue:
-   1. Interrupt, enter the raw REPL and brake (§7.4).
+   1. Interrupt and enter the raw REPL (§7.4).
    2. For each 2048-byte chunk `i`, send this (the first chunk uses `wb`, later ones `ab`), reporting progress to the status pill:
 
       ```python
@@ -392,7 +379,7 @@ Following `docs/developer/testing.md`: test the real modules loaded through `tes
 1. **`tests/helpers/fake-micropython-board.js`:** a fake `SerialPort` with `readable`/`writable` streams that emulates the REPL:
    - Ctrl-C interrupts and returns a prompt; it can be configured to ignore N interrupts.
    - Ctrl-A replies with the raw REPL banner; Ctrl-B returns to the friendly REPL; Ctrl-D in the friendly REPL soft-resets and rotates the fake logs.
-   - Raw REPL `exec` dispatches on the `# aid:<op>` tag to JS implementations over an in-memory filesystem (`identify`, `brake`, `write`, `commit`, `read`). This is the same tagging LST uses (`# lst:mkdir`).
+   - Raw REPL `exec` dispatches on the `# aid:<op>` tag to JS implementations over an in-memory filesystem (`identify`, `write`, `commit`, `read`). This is the same tagging LST uses (`# lst:mkdir`).
    - Failures can be injected: drop mid-chunk, a hash mismatch, a disk-full `OSError`, disconnect, and slow replies.
 2. **Unit tests:**
    - `serial-link.test.js`: the request fallback without filters, open errors mapped to messages, the read loop and `onLost`, and reopen through `getPorts()`.
@@ -405,14 +392,14 @@ Following `docs/developer/testing.md`: test the real modules loaded through `tes
      - a successful upload leaves the editor text in the fake `/main.py`, with `main.py.bak` holding the old file;
      - a hash mismatch or mid-upload disconnect leaves the old `main.py` intact;
      - Upload doesn't reset the robot, while Upload & Run soft-resets it;
-     - Stop robot sends the brake snippet.
+     - Stop robot interrupts the running program.
    - `log-viewer.test.js`:
      - the handshake ordering, in both orders;
      - origin rejection;
      - HTML in logs is rendered as text;
      - missing files show "No log yet";
      - the modal fallback is used when `window.open` returns `null`.
-3. **Testing the helper code itself:** the Python helper snippets are exported from `micropython-board.js`. `micropython-snippets.test.js` runs each one under CPython in a temporary directory, through the real `writeFileAtomic`, `readFile` and `identify` functions, with a stand-in `aidriver` module that records which motors were braked. This checks the actual snippets: the base64 round trip, SHA-256, the atomic rename, and the missing-file case.
+3. **Testing the helper code itself:** the Python helper snippets are exported from `micropython-board.js`. `micropython-snippets.test.js` runs each one under CPython in a temporary directory, through the real `writeFileAtomic`, `readFile` and `identify` functions, with a stand-in `aidriver` module. This checks the actual snippets: the base64 round trip, SHA-256, the atomic rename, and the missing-file case.
 4. **Hardware checklist**, added to `real_world_test_plan.md` and run on a real AIDriver robot in Chrome and on a Chromebook:
    - connect with a fresh picker, and auto-reconnect after a reload;
    - upload while the default `main.py` hardware test is running, and confirm the motors stop;
@@ -426,7 +413,7 @@ Following `docs/developer/testing.md`: test the real modules loaded through `tes
 
 | Phase | Contents | Done when |
 |---|---|---|
-| **1. Transport and upload** | `serial-link.js`, `micropython-board.js`, `robot-connection.js`; Connect / Upload / Upload & Run / Stop robot; identify, brake and atomic write; the fake board and unit tests | A student can upload editor code to `/main.py` on a real robot, and every §10 error has a message |
+| **1. Transport and upload** | `serial-link.js`, `micropython-board.js`, `robot-connection.js`; Connect / Upload / Upload & Run / Stop robot; identify and atomic write; the fake board and unit tests | A student can upload editor code to `/main.py` on a real robot, and every §10 error has a message |
 | **2. Log viewer** | `log-viewer.html/js`; Logs button; handshake; modal fallback; tests | Both logs open in a new tab and can be downloaded |
 | **3. Robot output** | Robot output streamed to the existing debug panel (`[Robot]` lines, rate-limited to keep the page responsive); `running` state detection | A student can upload, run and watch `print()` output without MicroPython Lab |
 | **4. Docs and rollout** | Student docs (Challenge 1 upload step, Common Errors), developer doc `docs/developer/web-serial.md`, hardware checklist | The docs match the UI; hardware checklist passed |
@@ -445,7 +432,7 @@ Resolved 2026-11-26:
 |---|---|---|
 | 1 | Primary upload button | Two separate buttons: **Upload** (save only) and **Upload & Run** (save, then soft reset). No split button. |
 | 2 | Can teachers make simulator validator findings block uploads? | No. They are always warnings with **Upload anyway**. Only Python syntax errors block an upload. |
-| 3 | Custom motor pins | Not used. The brake snippet uses the default pins (§7.4). |
+| 3 | Custom motor pins / braking on stop | Not needed. The motors have a separate power supply that is switched off while connected, so Stop robot only interrupts the program and Upload & Run has no warning pop-up. |
 | 4 | Show **Restore previous upload**? | No. `main.py.bak` is kept silently as a safety net. |
 | 5 | Where the Robot toolbar appears | `simulator.html` only. |
 | 6 | Where robot output appears | The existing debug panel, as `[Robot]` lines. |

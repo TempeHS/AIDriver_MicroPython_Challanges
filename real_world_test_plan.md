@@ -25,9 +25,9 @@ Run on a real AIDriver robot with the latest firmware, in Chrome on a computer a
 | - | ----- | -------- | ------ | ---------- |
 | W1 | Fresh browser profile: **Connect robot**, pick the Pico | Picker lists the Pico; status shows `Pico connected`; debug shows MicroPython and AIDriver versions | | |
 | W2 | Reload the page, **Connect robot** again | Connects without showing the picker | | |
-| W3 | With the default `main.py` hardware test running (motors moving), press **Connect robot** | Program stops and the motors brake immediately | | |
+| W3 | With the default `main.py` hardware test running, press **Connect robot** | Program stops; debug panel shows the connection | | |
 | W4 | **Upload** the Challenge 1 starter | "Uploaded to robot as main.py (…, checked)"; robot doesn't move; unplug and power on runs the new code | | |
-| W5 | **Upload & Run** | Safety prompt (first time only); robot runs the new code; `print()` output appears as `[Robot]` lines; "Program finished" when it ends | | |
+| W5 | **Upload & Run** | No pop-up; robot runs the new code; `print()` output appears as `[Robot]` lines; "Program finished" when it ends | | |
 | W6 | **Logs** after a run | New tab shows This run / Previous run; Copy, Download and Refresh work | | |
 | W7 | **Logs** with pop-ups blocked | Logs open in a dialog on the simulator page | | |
 | W8 | Unplug the USB cable during **Upload** of a long program, plug back in | "Trying to reconnect…" then reconnects; the previous `main.py` still runs on power-up | | |

@@ -18,9 +18,8 @@ All are plain browser scripts loaded by `simulator.html` after `editor.js` and b
 Every board operation is a **session** (`Board.session(fn)`), queued so only one runs at a time:
 
 1. Interrupt: send `\r` + Ctrl-C Ctrl-C, wait 60 ms, then Ctrl-A and wait for `raw REPL; CTRL-B to exit\r\n>`. Up to three attempts for programs that catch `KeyboardInterrupt`. Error codes: `no-reply` (nothing ever received) or `wont-stop`.
-2. Brake (default): `L298N(3, 12, 9)` and `L298N(11, 13, 8)` from the frozen `aidriver` module. Their constructors brake the motors without writing to the event log, which `AIDriver().brake()` would.
-3. `fn(exec)`: `exec(code)` sends the code in 256-byte slices, then Ctrl-D, and parses `OK<stdout>\x04<stderr>\x04>`. A non-empty stderr throws `BoardError` with code `python`.
-4. Ctrl-B back to the friendly REPL, swallowing its banner up to `>>> `.
+2. `fn(exec)`: `exec(code)` sends the code in 256-byte slices, then Ctrl-D, and parses `OK<stdout>\x04<stderr>\x04>`. A non-empty stderr throws `BoardError` with code `python`.
+3. Ctrl-B back to the friendly REPL, swallowing its banner up to `>>> `.
 
 Helper scripts start with a `# aid:<op>` tag and print JSON between `<<AID` and `AID>>`.
 
@@ -28,7 +27,7 @@ Helper scripts start with a `# aid:<op>` tag and print JSON between `<<AID` and 
 
 **Upload & Run** then calls `softReset()` (Ctrl-C Ctrl-C, then Ctrl-D at the friendly prompt). USB stays connected; the program's output arrives outside a session and is shown as `[Robot]` lines (at most 50 per 100 ms). A `>>> ` prompt in the output means the program finished.
 
-**Stop robot** during an operation calls `Board.abort()`, which fails whatever the current session is sending or waiting for, then runs an empty session (interrupt + brake).
+**Stop robot** during an operation calls `Board.abort()`, which fails whatever the current session is sending or waiting for, then runs an empty session (interrupt only). No braking is needed: the motors' battery is switched off while the robot is connected.
 
 ## Log viewer messaging
 
