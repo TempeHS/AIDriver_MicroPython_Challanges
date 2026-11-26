@@ -87,16 +87,15 @@ You need **Chrome** or **Edge** on a computer or Chromebook (Firefox and Safari 
 
 ### Option B - Upload from Arduino MicroPython Lab
 
-1. Make sure your battery power switch is off.
-2. Navigate to [https://lab-micropython.arduino.cc/](https://lab-micropython.arduino.cc/).
-3. Sign in with Google (use your @education.nsw.gov.au account).
-4. Follow these instructions to connect:
+<details>
+<summary>Use this if you can't use the simulator (click to show the steps)</summary>
 
-![Animated connection instructions](images/instructions.gif "Animated connection instructions")
+1. With the battery off, open [Arduino MicroPython Lab](https://lab-micropython.arduino.cc/), sign in with your @education.nsw.gov.au Google account and connect your robot:
 
-5. Copy and paste the code below into `main.py`.
-6. Click <kbd>SAVE</kbd>.
-7. Disconnect your robot from your computer, put it on the floor and switch the battery on.
+   ![Animated connection instructions](images/instructions.gif "Animated connection instructions")
+
+2. Open `main.py`, replace its contents with the hardware test code below and click <kbd>SAVE</kbd>.
+3. Unplug the robot, put it on the floor and switch the battery on.
 
 ```python
 from aidriver import AIDriver, hold_state
@@ -158,6 +157,8 @@ for i in range(5):
 
 print("All hardware tests completed.")
 ```
+
+</details>
 
 ### What the robot should do
 
