@@ -23,6 +23,7 @@ The AIDriver simulator is a browser-hosted training environment that mirrors the
 - [Firmware Parity](firmware-parity.md) – simulator `aidriver` module coverage and known differences
 - [UI Customization](ui-customization.md) – extending panels, styling, and editor tweaks
 - [Testing Strategy](testing.md) – automated coverage and manual test workflows
+- [User Acceptance Testing](../UAT/AIDriver_UAT.pdf) – printable UAT script for teachers and students (source: `docs/UAT/AIDriver_UAT.html`, rebuild with `docs/UAT/build_pdf.sh`)
 
 ## Conventions
 

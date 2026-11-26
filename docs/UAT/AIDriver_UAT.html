@@ -1,0 +1,729 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>AIDriver User Acceptance Testing (UAT)</title>
+    <!-- Source for AIDriver_UAT.pdf. Rebuild the PDF with ./build_pdf.sh after editing. -->
+    <style>
+      @page {
+        size: A4 landscape;
+        margin: 14mm 12mm 16mm 12mm;
+        @bottom-left {
+          content: "AIDriver UAT · v1.0 · 26 Nov 2026";
+          font: 8pt "Segoe UI", Arial, sans-serif;
+          color: #666;
+        }
+        @bottom-right {
+          content: "Page " counter(page) " of " counter(pages);
+          font: 8pt "Segoe UI", Arial, sans-serif;
+          color: #666;
+        }
+      }
+      @page :first {
+        @bottom-left { content: none; }
+        @bottom-right { content: none; }
+      }
+      * { box-sizing: border-box; }
+      body {
+        font: 9.5pt/1.4 "Segoe UI", Arial, sans-serif;
+        color: #1d2430;
+        margin: 0;
+      }
+      h1, h2, h3 { color: #0b4f8a; margin: 0 0 6pt; }
+      h1 { font-size: 26pt; }
+      h2 {
+        font-size: 15pt;
+        border-bottom: 2px solid #0b4f8a;
+        padding-bottom: 3pt;
+        margin-top: 14pt;
+        break-after: avoid;
+      }
+      h3 { font-size: 11.5pt; margin-top: 12pt; break-after: avoid; }
+      p, ul, ol { margin: 0 0 6pt; }
+      ul, ol { padding-left: 16pt; }
+      code, pre { font-family: Consolas, "Courier New", monospace; font-size: 8.5pt; }
+      code { background: #eef2f6; padding: 0 2pt; border-radius: 2pt; }
+      pre {
+        background: #f4f6f8;
+        border: 1px solid #d5dbe1;
+        border-radius: 3pt;
+        padding: 6pt 8pt;
+        margin: 0 0 8pt;
+        white-space: pre-wrap;
+        break-inside: avoid;
+      }
+      table { width: 100%; border-collapse: collapse; margin: 0 0 8pt; }
+      th, td {
+        border: 1px solid #b9c2cc;
+        padding: 3pt 5pt;
+        vertical-align: top;
+        text-align: left;
+      }
+      th { background: #0b4f8a; color: #fff; font-weight: 600; }
+      thead { display: table-header-group; }
+      tr { break-inside: avoid; }
+      .kv th { background: #e7eef5; color: #1d2430; width: 22%; }
+      .tc td:nth-child(1) { width: 5%; font-weight: 600; white-space: nowrap; }
+      .tc td:nth-child(2) { width: 15%; }
+      .tc td:nth-child(3) { width: 31%; }
+      .tc td:nth-child(4) { width: 29%; }
+      .tc td:nth-child(5) { width: 7%; white-space: nowrap; font-size: 8.5pt; }
+      .tc td:nth-child(6) { width: 13%; }
+      .tc ol { margin: 0; padding-left: 12pt; }
+      .crit { color: #a4161a; font-weight: 600; }
+      .note {
+        background: #fff8e1;
+        border-left: 4px solid #f0ad00;
+        padding: 5pt 8pt;
+        margin: 0 0 8pt;
+      }
+      .blank td { height: 20pt; }
+      .cover {
+        height: 178mm;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        break-after: page;
+      }
+      .cover .sub { font-size: 14pt; color: #43566b; margin-bottom: 18pt; }
+      .cover table { width: 60%; }
+      .page-break { break-before: page; }
+      .section { break-before: page; }
+    </style>
+  </head>
+  <body>
+    <!-- ================================================================ COVER -->
+    <section class="cover">
+      <h1>AIDriver User Acceptance Testing</h1>
+      <div class="sub">
+        MicroPython robot kit: custom firmware, web simulator and “Upload to robot” (Web Serial)
+      </div>
+      <table class="kv">
+        <tr><th>Document version</th><td>1.0</td></tr>
+        <tr><th>Date</th><td>26 November 2026</td></tr>
+        <tr><th>Repository</th><td>TempeHS/AIDriver_MicroPython_Challanges</td></tr>
+        <tr><th>Software build under test</th><td>Commit <code>13603ea</code> (branch <code>main</code>)</td></tr>
+        <tr><th>Firmware under test</th><td><code>AI_Driver_RP2040.uf2</code>, AIDriver version <code>2026.11.26</code>, MicroPython v1.30.0-preview</td></tr>
+        <tr><th>Simulator URL</th><td>https://tempehs.github.io/AIDriver_MicroPython_Challanges/</td></tr>
+        <tr><th>Acceptance owner</th><td>&nbsp;</td></tr>
+        <tr><th>Testers</th><td>&nbsp;</td></tr>
+      </table>
+    </section>
+
+    <!-- ================================================================ 1-6 -->
+    <h2>1. Purpose</h2>
+    <p>
+      This document is the script for teachers and students to confirm that the AIDriver kit works as
+      intended in a real classroom before it is released to classes. It covers the changes delivered in
+      this release:
+    </p>
+    <ul>
+      <li><strong>Custom firmware</strong>: updated to the latest MicroPython, a more thorough GP4 recovery mode,
+        and a firmware version number.</li>
+      <li><strong>Upload to robot</strong>: the new Robot toolbar in the simulator’s code editor. It lets students
+        connect a robot over USB, upload code to <code>main.py</code>, run it, view its logs and stop it. It also
+        checks the robot’s firmware and sends students to their teacher if it is missing or out of date.</li>
+      <li><strong>Simulator fixes</strong>: speed slider, live step mode, steering direction, challenge success
+        messages, speed checks that match the robot, the maze challenge, code checks and saving.</li>
+    </ul>
+    <p>
+      Automated tests (433 Jest tests and the Python tests) already pass for this build. UAT checks what
+      automated tests can’t: real robots, real browsers and Chromebooks, and whether the kit makes sense to
+      students and teachers.
+    </p>
+
+    <h2>2. Scope</h2>
+    <table>
+      <thead><tr><th style="width:50%">In scope</th><th>Out of scope</th></tr></thead>
+      <tr>
+        <td>
+          <ul>
+            <li>Flashing the AIDriver firmware and its first boot</li>
+            <li>GP4 recovery mode</li>
+            <li>Robot toolbar: Connect, Upload, Upload &amp; Run, Logs, Stop robot</li>
+            <li>Firmware version check on connect</li>
+            <li>Error messages students see</li>
+            <li>Simulator behaviour changed in this release</li>
+            <li>Challenge documentation for the upload steps</li>
+          </ul>
+        </td>
+        <td>
+          <ul>
+            <li>Physical robot calibration (simulator scale, turning, sensor offset). Use the calibration table in
+              <code>real_world_test_plan.md</code>.</li>
+            <li>Robot clock accuracy (a known Pi Pico issue)</li>
+            <li>Gamepad / HM-10 Bluetooth control (Challenge 7)</li>
+            <li>Firefox and Safari upload support (not possible: these browsers have no Web Serial)</li>
+            <li>Robot assembly and hardware manufacturing</li>
+          </ul>
+        </td>
+      </tr>
+    </table>
+
+    <h2>3. Roles</h2>
+    <table>
+      <thead><tr><th style="width:20%">Role</th><th>Responsibility</th></tr></thead>
+      <tr><td>Acceptance owner (teacher)</td><td>Approves the plan, decides on failed tests, and signs off release (section 9).</td></tr>
+      <tr><td>Teacher testers</td><td>Run the firmware, recovery and firmware-check tests (sections 5.1, 5.4), and the rest as time allows.</td></tr>
+      <tr><td>Student testers</td><td>Run the toolbar, upload, logs and simulator tests as a student would, and note anything confusing.</td></tr>
+      <tr><td>Developer</td><td>Fixes defects logged in section 7 and supplies new builds for retesting.</td></tr>
+    </table>
+
+    <h2>4. Test environment and preparation</h2>
+    <table class="kv">
+      <tr><th>Computers</th><td>(a) Windows or Mac computer with Google Chrome or Microsoft Edge (current version); (b) a school Chromebook; (c) any computer with Firefox or Safari (for UT-T01 only).</td></tr>
+      <tr><th>Robots</th><td>Robot <strong>A</strong>: flashed with the new firmware (UT-F01). Robot <strong>B</strong>: still on older AIDriver firmware (flashed before this release), if available. Robot <strong>C</strong> (or a bare Pico): stock MicroPython from <em>Downloads → RP2040 Firmware</em>.</td></tr>
+      <tr><th>Cables and parts</th><td>USB data cable (not charge-only), a jumper wire for GP4 recovery, charged robot battery pack.</td></tr>
+      <tr><th>Other software</th><td>Arduino MicroPython Lab (for UT-C04 and to inspect files on the robot).</td></tr>
+      <tr><th>Space</th><td>A clear floor area of at least 2 m × 2 m for driving tests.</td></tr>
+      <tr><th>Test programs</th><td>Appendix A. Type or paste them into the simulator’s code editor when a step says “Program A1” etc.</td></tr>
+    </table>
+    <div class="note">
+      <strong>Safety:</strong> the motors run from the robot’s battery pack. Keep the battery switch <strong>off</strong>
+      while the robot is plugged into a computer (the toolbar relies on this; see UT-U05). Only switch it on after unplugging
+      the USB cable, with the robot on the floor.
+    </div>
+
+    <h3>How to record results</h3>
+    <ul>
+      <li>Run the steps in order. Tick <strong>Pass</strong> only if <em>everything</em> in “Expected result” happens.</li>
+      <li>On a failure, tick <strong>Fail</strong>, write what happened in Notes, and add a row to the defect log
+        (section 7) with the test ID. Screenshots of the debug panel help the developer.</li>
+      <li>Where a test is run on both a computer and a Chromebook, note which one(s) in Notes (e.g. “Chrome ✓, CB ✓”).</li>
+      <li>Tests marked <span class="crit">Critical</span> must pass for release (see section 8).</li>
+    </ul>
+
+    <!-- ================================================================ 5 -->
+    <h2 class="section">5. Test cases</h2>
+
+    <h3>5.1 Firmware and recovery (teacher)</h3>
+    <table class="tc">
+      <thead><tr><th>ID</th><th>Scenario</th><th>Steps</th><th>Expected result</th><th>Result</th><th>Notes</th></tr></thead>
+      <tr>
+        <td>UT-F01</td>
+        <td>Flash the firmware <span class="crit">Critical</span></td>
+        <td><ol><li>In the simulator, choose <em>Downloads → AIDriver Custom Firmware</em>.</li><li>Hold BOOTSEL on Robot A’s Pico and plug it in.</li><li>Copy <code>AI_Driver_RP2040.uf2</code> to the drive that appears.</li></ol></td>
+        <td>The file downloads. The drive disappears after copying and the Pico restarts without errors.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-F02</td>
+        <td>First boot runs the hardware test</td>
+        <td><ol><li>Unplug Robot A, put it on the floor and switch on the battery.</li></ol></td>
+        <td>After about 3 s the robot drives forward, backward and rotates (default <code>main.py</code> hardware test).</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-F03</td>
+        <td>Logs rotate on every start</td>
+        <td><ol><li>Restart Robot A twice.</li><li>Open it in MicroPython Lab and look at the files.</li></ol></td>
+        <td><code>event_log.txt</code> (this run) and <code>event_log_prev.txt</code> (previous run) both exist and start with a run separator.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-F04</td>
+        <td>GP4 recovery restores <code>main.py</code> <span class="crit">Critical</span></td>
+        <td><ol><li>In MicroPython Lab, change <code>main.py</code> to something broken (e.g. <code>x = </code>), and save a file called <code>aidriver.py</code> and a <code>boot.py</code> in the root folder.</li><li>Unplug. Connect GP4 to GND with the jumper wire. Plug in.</li><li>Remove the wire and restart.</li></ol></td>
+        <td>The console shows “RECOVERY MODE…”. Afterwards <code>main.py</code> is the default hardware test again, the event logs are cleared, and <code>aidriver.py</code> and <code>boot.py</code> are renamed to <code>aidriver.py.bak</code> and <code>boot.py.bak</code> (not deleted). The robot runs the hardware test.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-F05</td>
+        <td>Normal start doesn’t trigger recovery</td>
+        <td><ol><li>With GP4 <em>not</em> connected, edit <code>main.py</code> in MicroPython Lab and restart.</li></ol></td>
+        <td>The edited <code>main.py</code> is kept and runs.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+    </table>
+
+    <h3>5.2 Robot toolbar: availability and layout</h3>
+    <table class="tc">
+      <thead><tr><th>ID</th><th>Scenario</th><th>Steps</th><th>Expected result</th><th>Result</th><th>Notes</th></tr></thead>
+      <tr>
+        <td>UT-T01</td>
+        <td>Unsupported browser</td>
+        <td><ol><li>Open the simulator in Firefox or Safari.</li></ol></td>
+        <td>No Robot buttons. The code editor header shows “Upload needs Chrome or Edge”; hovering it explains why. The simulator still works.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-T02</td>
+        <td>Toolbar position <span class="crit">Critical</span></td>
+        <td><ol><li>Open the simulator in Chrome or Edge.</li></ol></td>
+        <td>The Robot toolbar is in the <strong>code editor’s header</strong> (next to Copy and Reset Code), separate from the simulator’s Run / Stop / Step / Reset buttons. Status shows “Not connected”.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-T03</td>
+        <td>Greyed out until connected <span class="crit">Critical</span></td>
+        <td><ol><li>Without a robot connected, look at the toolbar and try clicking Upload.</li></ol></td>
+        <td>Only <strong>Connect robot</strong> looks active. Upload, Upload &amp; Run, Logs and Stop robot are clearly greyed out and nothing happens when clicked.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-T04</td>
+        <td>Hover tooltips</td>
+        <td><ol><li>Hover over each Robot button and the status before connecting.</li><li>Connect Robot A (UT-C01) and hover again.</li></ol></td>
+        <td>Every button shows a tooltip. Before connecting, greyed-out buttons say what they do plus “Connect a robot first.” After connecting, the tooltips describe each action, and the status tooltip shows the board, MicroPython and AIDriver versions.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-T05</td>
+        <td>Narrow windows</td>
+        <td><ol><li>Make the browser window narrower (laptop / tablet width), then very narrow.</li></ol></td>
+        <td>Below about 1600 px the buttons show icons only (tooltips still name them) and stay on one line. At phone width the header wraps. All buttons stay visible and usable.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+    </table>
+
+    <h3>5.3 Connecting</h3>
+    <table class="tc">
+      <thead><tr><th>ID</th><th>Scenario</th><th>Steps</th><th>Expected result</th><th>Result</th><th>Notes</th></tr></thead>
+      <tr>
+        <td>UT-C01</td>
+        <td>First connection <span class="crit">Critical</span></td>
+        <td><ol><li>Plug in Robot A (battery off). Use a browser profile that has never connected it.</li><li>Press <strong>Connect robot</strong> and choose the Pico in the list.</li></ol></td>
+        <td>The picker lists the Pico. Status turns green “Pico connected”. The debug panel shows “Connected to robot: Raspberry Pi Pico · MicroPython … · AIDriver 2026.11.26”. All buttons become active and the button changes to <strong>Disconnect</strong>.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-C02</td>
+        <td>Reconnect without the picker</td>
+        <td><ol><li>Reload the page and press <strong>Connect robot</strong>.</li></ol></td>
+        <td>Connects straight away without showing the picker.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-C03</td>
+        <td>Connecting stops a running program</td>
+        <td><ol><li>Disconnect. Restart Robot A (unplug/plug) so its <code>main.py</code> is running.</li><li>Press <strong>Connect robot</strong>.</li></ol></td>
+        <td>The program stops and the robot connects normally.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-C04</td>
+        <td>Robot in use by another program</td>
+        <td><ol><li>Connect Robot A in MicroPython Lab.</li><li>In the simulator, press <strong>Connect robot</strong>.</li></ol></td>
+        <td>“The robot is being used by another program or tab. Close MicroPython Lab / Thonny / other simulator tabs, then press Connect.” Closing MicroPython Lab and retrying works.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-C05</td>
+        <td>Cancel the picker</td>
+        <td><ol><li>Press <strong>Connect robot</strong> with a fresh browser profile and close the picker without choosing.</li></ol></td>
+        <td>No error message. Status stays “Not connected”.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-C06</td>
+        <td>Disconnect</td>
+        <td><ol><li>While connected, press <strong>Disconnect</strong>.</li><li>Open Robot A in MicroPython Lab.</li></ol></td>
+        <td>“Disconnected from robot.” Buttons grey out. MicroPython Lab can now connect.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-C07</td>
+        <td>Cable unplugged</td>
+        <td><ol><li>While connected, unplug the USB cable and plug it back in within 10 s.</li><li>Repeat, but leave it unplugged.</li></ol></td>
+        <td>(1) “Trying to reconnect…”, then reconnects by itself. (2) After 10 s: “The robot was disconnected. Plug it back in and press Connect.”</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+    </table>
+
+    <h3>5.4 Firmware check (teacher)</h3>
+    <table class="tc">
+      <thead><tr><th>ID</th><th>Scenario</th><th>Steps</th><th>Expected result</th><th>Result</th><th>Notes</th></tr></thead>
+      <tr>
+        <td>UT-V01</td>
+        <td>Up-to-date firmware</td>
+        <td><ol><li>Connect Robot A.</li></ol></td>
+        <td>Green “Pico connected”. No message about the teacher or firmware.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-V02</td>
+        <td>Older AIDriver firmware <span class="crit">Critical</span></td>
+        <td><ol><li>Connect Robot B (older firmware).</li></ol></td>
+        <td>Amber status “Firmware update needed”. Debug panel: “This robot’s AIDriver firmware is out of date (it has an older version; the simulator needs version 2026.11.26). Give your robot to your teacher to update it.”, followed by flashing steps for teachers. Upload still works, and the message is repeated after uploading.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-V03</td>
+        <td>Stock MicroPython (no AIDriver) <span class="crit">Critical</span></td>
+        <td><ol><li>Connect Robot C.</li></ol></td>
+        <td>Amber “Firmware update needed”. “This robot doesn’t have the AIDriver firmware, so your code can’t use the aidriver library. Give your robot to your teacher to install it.” plus teacher steps.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-V04</td>
+        <td>Library copy on the robot</td>
+        <td><ol><li>Using MicroPython Lab, save an <code>aidriver.py</code> in Robot A’s root folder.</li><li>Connect in the simulator.</li></ol></td>
+        <td>The version shown is the built-in firmware’s (2026.11.26, no firmware warning), plus a warning that the robot has its own copy of <code>aidriver.py</code>. Delete the copy afterwards.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-V05</td>
+        <td>Pico in BOOTSEL mode / not a robot</td>
+        <td><ol><li>Hold BOOTSEL while plugging in, then press <strong>Connect robot</strong>.</li></ol></td>
+        <td>Either the Pico isn’t listed in the picker, or the simulator says it “didn’t answer like MicroPython… Give your robot to your teacher” and disconnects.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-V06</td>
+        <td>Firmware update clears the warning</td>
+        <td><ol><li>Flash Robot B with the new firmware (UT-F01) and connect again.</li></ol></td>
+        <td>Green “Pico connected” with AIDriver 2026.11.26.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+    </table>
+
+    <h3>5.5 Uploading</h3>
+    <table class="tc">
+      <thead><tr><th>ID</th><th>Scenario</th><th>Steps</th><th>Expected result</th><th>Result</th><th>Notes</th></tr></thead>
+      <tr>
+        <td>UT-U01</td>
+        <td>Upload <span class="crit">Critical</span></td>
+        <td><ol><li>Open Challenge 1. Paste Program A1. Connect Robot A.</li><li>Press <strong>Upload</strong>.</li></ol></td>
+        <td>Status shows progress. “✅ Uploaded to robot as main.py (…, checked). Unplug the USB cable and switch the robot on to run it…”. The robot doesn’t restart or move. No pop-ups.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-U02</td>
+        <td>Uploaded code runs on its own <span class="crit">Critical</span></td>
+        <td><ol><li>After UT-U01, unplug, put the robot on the floor and switch the battery on.</li></ol></td>
+        <td>The robot drives forward for 2 s and stops (Program A1).</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-U03</td>
+        <td>Upload &amp; Run <span class="crit">Critical</span></td>
+        <td><ol><li>Battery off, robot plugged in and connected. Paste Program A2.</li><li>Press <strong>Upload &amp; Run</strong>.</li></ol></td>
+        <td>No pop-up. The robot restarts and runs the program. Its output appears in the debug panel as <code>[Robot] count 1</code> … <code>[Robot] count 5</code>, then “[Robot] Program finished.” Status returns to “Pico connected”.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-U04</td>
+        <td>Syntax error is caught</td>
+        <td><ol><li>Paste Program A3 and press <strong>Upload</strong>.</li><li>Press Cancel.</li></ol></td>
+        <td>The error line is marked in the editor. “Fix the error on line 3 before uploading. Your robot would stop with this error.” Cancel uploads nothing.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-U05</td>
+        <td>Simulator-only warnings don’t block</td>
+        <td><ol><li>Paste Program A4 and press <strong>Upload</strong>.</li><li>Choose OK (Upload anyway).</li></ol></td>
+        <td>A message lists the simulator rules found (e.g. the <code>machine</code> import) and says the code may still work on the robot. OK uploads it.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-U06</td>
+        <td>Upload while a program runs</td>
+        <td><ol><li>Paste Program A5, press <strong>Upload &amp; Run</strong>.</li><li>While it is printing, press <strong>Upload</strong>.</li></ol></td>
+        <td>Status shows “Program running”. Upload asks “Uploading stops the program running on the robot. Continue?”. Continuing stops it and uploads.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-U07</td>
+        <td>Unplugged during upload</td>
+        <td><ol><li>Upload Program A1 so it is the robot’s <code>main.py</code>.</li><li>Paste a long program (e.g. Program A2 repeated 200 times), press <strong>Upload</strong> and unplug the cable immediately.</li><li>Plug back in; then run the robot from its battery.</li></ol></td>
+        <td>An error or reconnect message is shown. The robot still runs Program A1 (the old <code>main.py</code> was kept).</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-U08</td>
+        <td>Simulator keeps working while connected</td>
+        <td><ol><li>While connected, press the simulator’s <strong>Run</strong>.</li></ol></td>
+        <td>The simulated robot runs normally. The Robot toolbar is unaffected.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+    </table>
+
+    <h3>5.6 Logs and Stop robot</h3>
+    <table class="tc">
+      <thead><tr><th>ID</th><th>Scenario</th><th>Steps</th><th>Expected result</th><th>Result</th><th>Notes</th></tr></thead>
+      <tr>
+        <td>UT-L01</td>
+        <td>View logs <span class="crit">Critical</span></td>
+        <td><ol><li>After running a program (UT-U03), press <strong>Logs</strong>.</li></ol></td>
+        <td>A new tab opens showing “This run” (<code>event_log.txt</code>) and “Previous run” (<code>event_log_prev.txt</code>) with line numbers, the robot and read time.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-L02</td>
+        <td>Copy, Download, Refresh</td>
+        <td><ol><li>In the log tab use Copy, Download and Refresh.</li><li>Press Logs again in the simulator.</li></ol></td>
+        <td>Copy puts the log on the clipboard; Download saves a <code>.txt</code>; Refresh re-reads the robot. Pressing Logs again reuses the same tab.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-L03</td>
+        <td>Pop-ups blocked</td>
+        <td><ol><li>Block pop-ups for the simulator site (address bar settings) and press <strong>Logs</strong>.</li></ol></td>
+        <td>The logs open in a dialog on the simulator page instead.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-L04</td>
+        <td>Logs while a program runs</td>
+        <td><ol><li>Upload &amp; Run Program A5, then press <strong>Logs</strong>.</li></ol></td>
+        <td>Asks “Viewing logs stops the program running on the robot. Continue?”. The log ends with “— program stopped by the simulator to read this log —”.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-S01</td>
+        <td>Stop robot <span class="crit">Critical</span></td>
+        <td><ol><li>Upload &amp; Run Program A5.</li><li>Press <strong>Stop robot</strong>.</li></ol></td>
+        <td>The <code>[Robot]</code> output stops. “Robot program stopped.” Status returns to “Pico connected”.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-S02</td>
+        <td>Program that ignores Stop</td>
+        <td><ol><li>Upload &amp; Run Program A6.</li><li>Press <strong>Stop robot</strong>.</li><li>Follow the instructions shown.</li></ol></td>
+        <td>After a few tries the simulator says the program won’t stop and explains GP4 recovery. Following the instructions (UT-F04 steps) restores the robot.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+    </table>
+
+    <h3>5.7 Simulator</h3>
+    <table class="tc">
+      <thead><tr><th>ID</th><th>Scenario</th><th>Steps</th><th>Expected result</th><th>Result</th><th>Notes</th></tr></thead>
+      <tr>
+        <td>UT-M01</td>
+        <td>Site and challenges load <span class="crit">Critical</span></td>
+        <td><ol><li>Open the simulator URL.</li><li>Open each challenge from the challenge menu (Debug Script, 0–7).</li></ol></td>
+        <td>Each challenge loads its starter code, arena and instructions without errors.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-M02</td>
+        <td>Speed slider</td>
+        <td><ol><li>Reload. Without moving the slider, run Challenge 1.</li><li>Change the slider and run again.</li></ol></td>
+        <td>The robot moves at the speed the slider badge shows (2x by default) from the first run; changing the slider changes the speed.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-M03</td>
+        <td>Step mode</td>
+        <td><ol><li>Press <strong>Step</strong> repeatedly on Challenge 1.</li></ol></td>
+        <td>Each press runs the next line, highlighting it in the editor, and the robot moves for that line only.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-M04</td>
+        <td>Stop and Reset</td>
+        <td><ol><li>Run a long program, press <strong>Stop</strong>, then <strong>Reset</strong>, then Run again.</li></ol></td>
+        <td>Stop halts the robot immediately; Reset returns it to the start; the next run starts cleanly (the old run doesn’t continue).</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-M05</td>
+        <td>Turning direction matches the robot <span class="crit">Critical</span></td>
+        <td><ol><li>Run Program A7 in the simulator.</li><li>Upload &amp; run it on the robot (on the floor, from battery).</li></ol></td>
+        <td>Both turn the same way: with the left wheel faster than the right, the robot curves to the <strong>right</strong>.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-M06</td>
+        <td>Challenge success messages</td>
+        <td><ol><li>Solve Challenges 1 (drive to the zone), 3 (stop 100–200 mm from the wall) and 4 (drive a square back to the start) in the simulator.</li></ol></td>
+        <td>Each shows “SUCCESS!” in the challenge status when solved, and not when the goal is missed.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-M07</td>
+        <td>Maze challenge</td>
+        <td><ol><li>Open Challenge 6, then switch to Challenge 1.</li></ol></td>
+        <td>Challenge 6 shows the maze selector and the default maze. After switching away the maze walls are gone.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-M08</td>
+        <td>Speed checks match the robot</td>
+        <td><ol><li>Run Program A8 three times, using each of its three lines in turn.</li></ol></td>
+        <td>Speed 300: a warning that values above 255 are raw PWM and the robot will barely move. Speed −50: <code>ValueError</code>. Speed <code>"fast"</code>: <code>TypeError</code>. The robot (UT-U03) gives the same errors for −50 and “fast”.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-M09</td>
+        <td>Code checks don’t flag valid code</td>
+        <td><ol><li>Run the starter code of each challenge, and Programs A1, A2 and A5.</li></ol></td>
+        <td>No false error markers for valid code (e.g. colons inside strings or comments).</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-M10</td>
+        <td>Code is saved</td>
+        <td><ol><li>Edit Challenge 1’s code, immediately switch to Challenge 2, then back.</li><li>Reload the page.</li></ol></td>
+        <td>The edit is still there both times.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-M11</td>
+        <td>Ctrl+Enter</td>
+        <td><ol><li>Press Ctrl+Enter in the editor; press it again while the program is running.</li></ol></td>
+        <td>Ctrl+Enter runs the code, but does nothing while Run is disabled (no second run starts).</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+    </table>
+
+    <h3>5.8 Documentation and student experience</h3>
+    <table class="tc">
+      <thead><tr><th>ID</th><th>Scenario</th><th>Steps</th><th>Expected result</th><th>Result</th><th>Notes</th></tr></thead>
+      <tr>
+        <td>UT-D01</td>
+        <td>Challenge 1 upload instructions</td>
+        <td><ol><li>A student who hasn’t used the toolbar follows only the “Upload straight from the simulator” tip in Challenge 1.</li></ol></td>
+        <td>They can connect, upload and run their code without help.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-D02</td>
+        <td>Common Errors section 9</td>
+        <td><ol><li>For each error seen during testing, look it up in <em>Common Errors → Problems uploading from the simulator</em>.</li></ol></td>
+        <td>Every message seen is listed, and the advice fixes it.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-D03</td>
+        <td>Messages are student-friendly</td>
+        <td><ol><li>Student testers read every message they saw.</li></ol></td>
+        <td>Students understand what happened and what to do next (including “give your robot to your teacher”). Note any confusing wording.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+      <tr>
+        <td>UT-D04</td>
+        <td>Chromebook run-through <span class="crit">Critical</span></td>
+        <td><ol><li>On a school Chromebook, repeat UT-C01, UT-U01, UT-U03, UT-L01 and UT-S01.</li></ol></td>
+        <td>All pass on the Chromebook.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
+    </table>
+
+    <!-- ================================================================ 6-9 -->
+    <h2 class="section">6. Results summary</h2>
+    <table>
+      <thead><tr><th style="width:34%">Section</th><th>Tests</th><th>Passed</th><th>Failed</th><th>Not run</th><th style="width:30%">Comments</th></tr></thead>
+      <tr><td>5.1 Firmware and recovery</td><td>5</td><td></td><td></td><td></td><td></td></tr>
+      <tr><td>5.2 Toolbar availability and layout</td><td>5</td><td></td><td></td><td></td><td></td></tr>
+      <tr><td>5.3 Connecting</td><td>7</td><td></td><td></td><td></td><td></td></tr>
+      <tr><td>5.4 Firmware check</td><td>6</td><td></td><td></td><td></td><td></td></tr>
+      <tr><td>5.5 Uploading</td><td>8</td><td></td><td></td><td></td><td></td></tr>
+      <tr><td>5.6 Logs and Stop robot</td><td>6</td><td></td><td></td><td></td><td></td></tr>
+      <tr><td>5.7 Simulator</td><td>11</td><td></td><td></td><td></td><td></td></tr>
+      <tr><td>5.8 Documentation and student experience</td><td>4</td><td></td><td></td><td></td><td></td></tr>
+      <tr><th>Total</th><th>52</th><th></th><th></th><th></th><th></th></tr>
+    </table>
+
+    <h2>7. Defect log</h2>
+    <p>Severity: <strong>High</strong> = blocks a class from using the feature; <strong>Medium</strong> = works with a workaround; <strong>Low</strong> = cosmetic or wording.</p>
+    <table class="blank">
+      <thead><tr><th style="width:6%">#</th><th style="width:9%">Test ID</th><th style="width:9%">Device / browser</th><th style="width:34%">What happened</th><th style="width:8%">Severity</th><th style="width:10%">Reported by</th><th style="width:12%">Fixed in (commit)</th><th>Retest result</th></tr></thead>
+      <tr><td>1</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+      <tr><td>2</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+      <tr><td>3</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+      <tr><td>4</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+      <tr><td>5</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+      <tr><td>6</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+      <tr><td>7</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+      <tr><td>8</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+    </table>
+
+    <h2>8. Acceptance criteria</h2>
+    <p>The release is accepted when:</p>
+    <ol>
+      <li>Every test marked <span class="crit">Critical</span> passes on a computer (Chrome or Edge) <strong>and</strong> a school Chromebook.</li>
+      <li>There are no open High severity defects.</li>
+      <li>At least 90% of all tests pass, and every remaining Medium or Low defect has an agreed workaround or fix date.</li>
+      <li>Student testers can upload and run code using only the Challenge 1 instructions (UT-D01).</li>
+    </ol>
+
+    <h2>9. Sign-off</h2>
+    <table class="blank">
+      <thead><tr><th style="width:20%">Role</th><th style="width:22%">Name</th><th style="width:16%">Decision</th><th style="width:22%">Signature</th><th>Date</th></tr></thead>
+      <tr><td>Acceptance owner</td><td></td><td>☐ Accept<br />☐ Reject</td><td></td><td></td></tr>
+      <tr><td>Teacher tester</td><td></td><td>☐ Accept<br />☐ Reject</td><td></td><td></td></tr>
+      <tr><td>Student tester</td><td></td><td>☐ Accept<br />☐ Reject</td><td></td><td></td></tr>
+      <tr><td>Developer</td><td></td><td>☐ Accept<br />☐ Reject</td><td></td><td></td></tr>
+    </table>
+    <p>Conditions or comments:</p>
+    <table class="blank"><tr><td style="height:50pt"></td></tr></table>
+
+    <!-- ================================================================ APPENDIX -->
+    <h2 class="section">Appendix A. Test programs</h2>
+    <p>Type or paste into the simulator’s code editor. Keep the robot’s battery off while it is plugged in.</p>
+
+    <h3>A1 – Drive forward (UT-U01, UT-U02)</h3>
+<pre>from aidriver import AIDriver, hold_state
+
+my_robot = AIDriver()
+my_robot.drive_forward(200, 200)
+hold_state(2)
+my_robot.brake()</pre>
+
+    <h3>A2 – Print output (UT-U03)</h3>
+<pre>from aidriver import hold_state
+
+for i in range(1, 6):
+    print("count", i)
+    hold_state(1)</pre>
+
+    <h3>A3 – Syntax error on line 3: missing colon (UT-U04)</h3>
+<pre>from aidriver import AIDriver
+my_robot = AIDriver()
+if my_robot
+    my_robot.brake()</pre>
+
+    <h3>A4 – Simulator-only warning (UT-U05)</h3>
+<pre>from aidriver import AIDriver
+import machine
+
+print("frequency", machine.freq())
+my_robot = AIDriver()
+my_robot.brake()</pre>
+
+    <h3>A5 – Runs until stopped (UT-U06, UT-L04, UT-S01)</h3>
+<pre>from aidriver import hold_state
+
+n = 0
+while True:
+    n = n + 1
+    print("still running", n)
+    hold_state(1)</pre>
+
+    <h3>A6 – Ignores Stop (UT-S02). Only use on a robot you can recover with GP4.</h3>
+<pre>while True:
+    try:
+        while True:
+            pass
+    except KeyboardInterrupt:
+        pass</pre>
+
+    <h3>A7 – Curve with the left wheel faster (UT-M05). Speeds are (right, left).</h3>
+<pre>from aidriver import AIDriver, hold_state
+
+my_robot = AIDriver()
+my_robot.drive_forward(120, 220)
+hold_state(3)
+my_robot.brake()</pre>
+
+    <h3>A8 – Speed checks (UT-M08). Use one of the three marked lines at a time.</h3>
+<pre>from aidriver import AIDriver, hold_state
+
+my_robot = AIDriver()
+my_robot.drive_forward(300, 300)       # 1: warning, barely moves
+# my_robot.drive_forward(-50, -50)     # 2: ValueError
+# my_robot.drive_forward("fast", 200)  # 3: TypeError
+hold_state(1)
+my_robot.brake()</pre>
+
+    <h2>Appendix B. References</h2>
+    <ul>
+      <li><code>docs/Challenge_1.md</code> – student upload instructions</li>
+      <li><code>docs/Common_Errors.md</code> §9 – upload problems and fixes</li>
+      <li><code>docs/Build_Custom_MicroPython_Firmware.md</code> – flashing, GP4 recovery and firmware versions</li>
+      <li><code>docs/developer/web-serial.md</code> – how the Robot toolbar works</li>
+      <li><code>real_world_test_plan.md</code> – robot calibration measurements and the developer hardware checklist</li>
+    </ul>
+  </body>
+</html>
