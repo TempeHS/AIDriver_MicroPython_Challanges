@@ -141,6 +141,17 @@ describe("Validator.validate - syntax heuristics", () => {
     ]);
   });
 
+  test("a string missing its closing quote is an error, and doesn't hide the next lines", () => {
+    const result = Validator.validate(
+      HEADER + 'print("Checking the sensor...)\n\nwhile x > 1\n    pass\nname = \'robot',
+    );
+    expect(result.errors).toEqual([
+      { line: 3, message: "String is missing its closing quote", type: "syntax" },
+      { line: 7, message: "String is missing its closing quote", type: "syntax" },
+      { line: 5, message: "Missing colon ':' at end of statement", type: "syntax" },
+    ]);
+  });
+
   test("text inside triple-quoted strings is not syntax checked", () => {
     const code = HEADER + '"""\nif this were code\nwhile it is not\n"""\nx = 1\n';
     expect(Validator.validate(code).errors).toEqual([]);
@@ -157,6 +168,8 @@ describe("Validator.validate - valid Python is not flagged", () => {
     ["a banned word in a comment", "# never use eval() here\nx = 1\n"],
     ["a banned word in a string", "print('open(file) is not allowed')\n"],
     ["a word containing 'ture'", "temperature = 5\n"],
+    ["quotes inside other strings", "a = \"it's\"\nb = 'say \"hi\"'\nc = \"a \\\" b\"\n"],
+    ["a triple-quoted string over lines", "s = \"\"\"one\ntwo 'three\n\"\"\"\n"],
   ])("%s", (_, body) => {
     const result = Validator.validate(HEADER + body);
     expect(result.errors).toEqual([]);
@@ -277,8 +290,10 @@ describe("Challenge starter code from app.js", () => {
       code.split("\n").findIndex((l) => l.startsWith("while my_robot.read_distance()")) + 1;
     const result = Validator.validate(code);
     expect(result.valid).toBe(false);
-    expect(result.errors).toEqual([
-      { line: whileLine, message: "Missing colon ':' at end of statement", type: "syntax" },
-    ]);
+    expect(result.errors).toContainEqual({
+      line: whileLine,
+      message: "Missing colon ':' at end of statement",
+      type: "syntax",
+    });
   });
 });

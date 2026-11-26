@@ -21,6 +21,16 @@ const AIDriverStub = {
   STOPPED_SPEED_MAX: 80,
 
   /**
+   * Does the program turn on AIDriver debug messages? Only a real assignment
+   * counts: not a comment, and not a comparison (DEBUG_AIDRIVER == True).
+   * @param {string} code Python source.
+   * @returns {boolean}
+   */
+  debugEnabledIn(code) {
+    return /^[ \t]*(?:\w+\.)?DEBUG_AIDRIVER[ \t]*=[ \t]*True\b/m.test(code);
+  },
+
+  /**
    * Reset the simulator command queue so pending actions are discarded.
    */
   clearQueue() {

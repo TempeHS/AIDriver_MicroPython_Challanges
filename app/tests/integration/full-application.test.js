@@ -167,8 +167,11 @@ describe("Startup", () => {
     boot();
     jest.advanceTimersByTime(500);
 
-    // Line 12 is the `while ... == -1` missing its colon
-    expect(markerRows("ace_error-line")).toContain(11);
+    const whileRow = Editor.getCode()
+      .split("\n")
+      .findIndex((line) => line.startsWith("while my_robot.read_distance()"));
+    // The `while ... == -1` line is missing its colon
+    expect(markerRows("ace_error-line")).toContain(whileRow);
     expect($("challengeStatus").textContent).toMatch(/^\d+ error\(s\)$/);
     expect($("btnRun").disabled).toBe(true);
   });

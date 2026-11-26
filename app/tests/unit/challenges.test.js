@@ -180,7 +180,7 @@ describe("checkSuccess", () => {
     test("moving exactly the minimum 100 mm passes", () => {
       const robot = makeRobot({ x: 1060, y: 1720 }); // 3-4-5 triangle: 100 mm
 
-      expect(Challenges.checkSuccess(id, robot, session())).toEqual({
+      expect(Challenges.checkSuccess(id, robot, session({ debugEnabled: true }))).toEqual({
         success: true,
         message: "Code runs correctly!",
       });
@@ -205,8 +205,20 @@ describe("checkSuccess", () => {
     });
   });
 
+  test("challenge 0 also needs AIDriver debug messages turned on", () => {
+    const robot = makeRobot({ y: 1000 });
+    const session = { startPosition: { x: 1000, y: 1800 }, hasError: false };
+
+    expect(Challenges.checkSuccess(0, robot, session)).toEqual({
+      success: false,
+      message:
+        "It runs, but the AIDriver debug messages are still off. One bug doesn't cause an error message - can you find it?",
+    });
+    expect(Challenges.checkSuccess("debug", robot, session).success).toBe(true);
+  });
+
   test("unknown challenge ids are judged by Challenge 0's rules", () => {
-    const session = { startPosition: { x: 1000, y: 1800 } };
+    const session = { startPosition: { x: 1000, y: 1800 }, debugEnabled: true };
 
     expect(Challenges.get(99)).toBe(Challenges.get(0));
     expect(Challenges.checkSuccess(99, makeRobot({ y: 1000 }), session).success).toBe(true);

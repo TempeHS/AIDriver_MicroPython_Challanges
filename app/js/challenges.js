@@ -52,17 +52,22 @@ const Challenges = (function () {
       icon: "bi-wrench",
       menuGroup: "basic",
       difficulty: DIFFICULTY.BEGINNER,
-      description: "Find and fix the syntax errors in the provided code.",
-      goal: "Make the code run without errors. The robot should drive forward.",
+      description: "Find and fix the 9 bugs in the provided code, one at a time.",
+      goal: "Make the code run without errors, with AIDriver debug messages on. The robot should drive forward.",
       hints: [
-        "Look for missing colons (:) after 'while' statements",
-        "Check variable names for typos (my_robot vs my_robt)",
-        "Python is case-sensitive!",
+        "Read the error's line number, then look at that line (and the line before it)",
+        "Every while, if, for and def line ends with a colon (:)",
+        "Strings and brackets must be closed: \"...\" and (...)",
+        "The code inside a while loop must be indented",
+        "Names must be spelled the same everywhere - and Python is case-sensitive",
+        "Check function names against the AIDriver list (drive_forward, brake, ...)",
+        "= stores a value; == only compares. Are the [AIDriver] debug messages showing?",
       ],
       startPosition: { x: 1000, y: 1800, heading: 0 },
       successCriteria: {
         type: "run_without_error",
         minDistance: 100, // Must move at least 100mm
+        requireDebug: true, // aidriver.DEBUG_AIDRIVER = True (one bug is == instead of =)
       },
       path: null, // No specific path required
       obstacles: [],
@@ -367,6 +372,14 @@ const Challenges = (function () {
       return {
         success: false,
         message: `Move at least ${criteria.minDistance}mm`,
+      };
+    }
+
+    if (criteria.requireDebug && !session.debugEnabled) {
+      return {
+        success: false,
+        message:
+          "It runs, but the AIDriver debug messages are still off. One bug doesn't cause an error message - can you find it?",
       };
     }
 

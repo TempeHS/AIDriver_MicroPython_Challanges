@@ -363,7 +363,7 @@ def ticks_diff(t1, t2):
     AIDriverStub.clearQueue();
 
     // Set DEBUG_AIDRIVER based on code
-    AIDriverStub.DEBUG_AIDRIVER = code.includes("DEBUG_AIDRIVER = True");
+    AIDriverStub.DEBUG_AIDRIVER = AIDriverStub.debugEnabledIn(code);
 
     if (typeof DebugPanel !== "undefined") {
       DebugPanel.log("[Python] Starting execution...", "info");
@@ -765,8 +765,8 @@ def ticks_diff(t1, t2):
             break;
 
           case "init":
-            // Robot initialized
-            if (typeof DebugPanel !== "undefined") {
+            // Like the real library, only announced with debug messages on
+            if (typeof DebugPanel !== "undefined" && AIDriverStub.DEBUG_AIDRIVER) {
               DebugPanel.info("[AIDriver] Robot initialized");
             }
             break;

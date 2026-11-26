@@ -149,9 +149,11 @@ const Validator = (function () {
    * comments.
    *
    * @param {string} code Python source.
+   * @param {number[]} [unclosed] Receives the (0-based) line index of each
+   *   single-line string that is missing its closing quote.
    * @returns {string} Masked source of the same length.
    */
-  function maskCode(code) {
+  function maskCode(code, unclosed) {
     let out = "";
     let i = 0;
     const n = code.length;
@@ -180,7 +182,10 @@ const Validator = (function () {
             break;
           }
           // Unterminated single-line string: stop at end of line
-          if (code[i] === "\n" && quote.length === 1) break;
+          if ((code[i] === "\n" || i === n - 1) && quote.length === 1) {
+            if (unclosed) unclosed.push(code.slice(0, i).split("\n").length - 1);
+            if (code[i] === "\n") break;
+          }
           out += code[i] === "\n" ? "\n" : " ";
           i++;
         }
@@ -367,8 +372,19 @@ const Validator = (function () {
   function checkBasicSyntax(code) {
     const errors = [];
     const warnings = [];
-    const lines = maskCode(code).split("\n");
+    const unclosed = [];
+    const lines = maskCode(code, unclosed).split("\n");
     let continuing = false;
+
+    for (const index of unclosed) {
+      errors.push({
+        line: index + 1,
+        message: "String is missing its closing quote",
+        type: "syntax",
+      });
+      // The rest of the line is inside the broken string, so its brackets don't count
+      lines[index] = lines[index].replace(/[([{]/g, " ");
+    }
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];

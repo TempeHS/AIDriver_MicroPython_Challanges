@@ -333,61 +333,81 @@ You must **not change what the robot is supposed to do**. Only fix the mistakes.
 
 ### 5.1 Broken starter code
 
-Copy this code into `main.py` in the Arduino MicroPython Lab:
+Open **Challenge 0** in the simulator: this code is already in the editor. (You can also copy it into `main.py` in the Arduino MicroPython Lab.)
 
 ```python
-from aidriver import AIDriver, hold_state
+# Challenge 0: Fix the Code
+# This program has 9 bugs. Fix them one at a time:
+# press Run, read the error and its line number, fix that line, run again.
+# One bug doesn't cause an error message: watch the debug output!
+#
+# When it's fixed, the robot turns on its debug messages, checks its
+# ultrasonic sensor, drives forward for 1 second and stops.
+
+form aidriver import AIDriver, hold_state
 
 import aidriver
 
-aidriver.DEBUG_AIDRIVER == True    # turn on debug (broken)
+aidriver.DEBUG_AIDRIVER == True
 
-my_robt = AIDriver()                # typo in variable name
+my_robt = AIDriver()
 
-while True                         # missing colon
-   my_robot.driveforward(200, 200)    # wrong function name
-   hold_state(0.5                   # missing a parenthesis
+print("Checking the sensor...)
+
+while my_robot.read_distance() == -1
+print("Sensor not ready - check the wiring")
+    hold_state(0.5)
+
+print("Driving forward")
+my_robot.driveforward(200, 200)
+hold_state(1
+My_robot.brake()
+print("Finished!")
 ```
 
-This code is **broken on purpose**. Do not change what it is trying to do:
+This code is **broken on purpose**. There are **9 bugs**, and between them they cover every mistake in sections 2 and 4. Do not change what the program is trying to do:
 
-- Turn on debug logging.
+- Turn on AIDriver debug messages.
 - Create a robot.
-- Drive forward in a loop.
-
-Your job is to fix the errors so that the loop runs and AIDriver prints debug messages.
+- Wait until the ultrasonic sensor gives a reading.
+- Drive forward for 1 second, then stop.
 
 ---
 
 ### 5.2 Steps to Complete Challenge 0
 
-1. **Run the broken code.**
+1. **Look for red lines first.**
 
-   - Read the error message.
-   - Note the **line number** and **error type**.
+   - The simulator's editor marks some mistakes as soon as the code loads. Hover over a red mark to read the message.
+   - While there are red marks, the **Run** button stays off. Fix those lines first.
 
-2. **Fix one error at a time.**
+2. **Run the code and read the error.**
 
-   - Start with the first error Python shows.
-   - Compare your code to the examples in this challenge.
-   - Fix colons, indentation, or spelling.
+   - Note the **line number** and **error type** (for example `SyntaxError`, `NameError`, `AttributeError`).
+   - If that line looks fine, check the line **before** it. A missing `)` is often reported on the next line.
 
-3. **Run again after each fix.**
+3. **Fix one error at a time, then run again.**
 
-   - Don’t try to fix everything at once.
-   - Let Python tell you where the next problem is.
+   - Compare the line with the examples in this challenge.
+   - Python stops at the first error it finds, so each run shows you the next bug.
+   - Keep a tally: how many of the 9 bugs have you fixed?
 
-4. **Check the AIDriver debug output and event log.**
+4. **Find the bug that doesn't cause an error.**
 
-   - When the program finally runs, you should see messages like:  
-      ` [AIDriver] AIDriver initialised - debug logging active`  
-      ` [AIDriver] AIDriver.drive_forward: R= 200 L= 200`
-   - In `event_log.txt`, you should also see lines such as:  
-      `Robot holding state for 0.50 second(s)` when `hold_state(0.5)` runs.
-   - If you see these, **you have completed Challenge 0**.
+   - When the program runs to `Finished!` with no errors, you're not quite done. The simulator will say the debug messages are still off.
+   - Look carefully at the line that turns on debugging. What is the difference between `=` and `==`?
 
-5. **Do not change the behaviour.**
-   - The robot should still just try to drive forward in a loop.
+5. **Check the AIDriver debug output and event log.**
+
+   - When everything is fixed, you should see `[AIDriver]` messages such as:  
+      ` [AIDriver] AIDriver initialized - debug logging active`  
+      ` [AIDriver] AIDriver.drive_forward: R= 200 L= 200`  
+     (the simulator shows similar `[AIDriver]` lines).
+   - On the robot, `event_log.txt` should contain lines such as `Robot holding state for 1 second`.
+   - The simulator shows **SUCCESS!** when all 9 bugs are fixed. **You have completed Challenge 0.**
+
+6. **Do not change the behaviour.**
+   - The robot should still check its sensor, drive forward for 1 second and stop.
    - Later challenges will change what the robot does.
 
 ---

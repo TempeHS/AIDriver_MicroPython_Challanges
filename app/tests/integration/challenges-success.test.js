@@ -130,29 +130,69 @@ def turn(rotate, seconds):
 QUARTER_TURN = 0.3
 `;
 
+/**
+ * The 9 deliberate bugs in Challenge 0's starter code, in the order a student
+ * meet them: [what is wrong, broken text, fixed text, error the run reports].
+ */
+const CHALLENGE_0_BUGS = [
+  // The editor marks these two as soon as the challenge loads
+  ["unclosed string", '"Checking the sensor...)', '"Checking the sensor...")', /Line 17: String is missing its closing quote/],
+  ["missing colon", "== -1\n", "== -1:\n", /Line 19: Missing colon/],
+  // Python reports the rest, one per run
+  ["misspelled keyword", "form aidriver", "from aidriver", /SyntaxError: bad input on line 9/],
+  ["missing indent", '\nprint("Sensor not ready', '\n    print("Sensor not ready', /SyntaxError: bad input on line 20/],
+  // Python reports an unclosed bracket on the line after it
+  ["unclosed bracket", "hold_state(1\n", "hold_state(1)\n", /SyntaxError: bad input on line 26/],
+  ["mistyped name", "my_robt =", "my_robot =", /NameError: name 'my_robot' is not defined on line 19/],
+  ["wrong function name", "driveforward", "drive_forward", /AttributeError: 'AIDriver' object has no attribute 'driveforward' on line 24/],
+  ["wrong capitals", "My_robot", "my_robot", /NameError: name 'My_robot' is not defined on line 26/],
+  ["== instead of =", "DEBUG_AIDRIVER == True", "DEBUG_AIDRIVER = True", null],
+];
+
+/** Starter code with the first `count` bugs fixed. */
+function challenge0With(count) {
+  let code = window.getStarterCodes()[0];
+  for (const [, broken, fixed] of CHALLENGE_0_BUGS.slice(0, count)) {
+    expect(code).toContain(broken);
+    code = code.replace(broken, fixed);
+  }
+  return code;
+}
+
 describe("Challenge 0: Fix the Code", () => {
-  test("the shipped starter code is rejected and the robot never moves", async () => {
-    const starter = window.getStarterCodes()[0];
-
-    const result = await runChallenge(0, starter);
-
-    expect(output).toContainEqual(
-      expect.stringMatching(/ERROR +Line 12: Missing colon/),
-    );
-    expect(App.robot.y).toBe(1800);
-    expect(result).toEqual({ success: false, message: "Move at least 100mm" });
+  test("the starter code says how many bugs there are", () => {
+    expect(window.getStarterCodes()[0]).toContain(`has ${CHALLENGE_0_BUGS.length} bugs`);
   });
 
-  test("fixing the colon and the my_robt typo makes it pass", async () => {
-    const fixed = window
-      .getStarterCodes()[0]
-      .replace("read_distance() == -1\n", "read_distance() == -1:\n")
-      .replace("my_robt.", "my_robot.");
+  test.each(CHALLENGE_0_BUGS.slice(0, -1).map((bug, i) => [i + 1, bug[0], bug[3]]))(
+    "bug %i (%s) is reported on its own, with a line number",
+    async (number, _name, error) => {
+      const result = await runChallenge(0, challenge0With(number - 1));
 
-    const result = await runChallenge(0, fixed);
+      expect(output).toContainEqual(expect.stringMatching(error));
+      expect(result.success).toBe(false);
+    },
+  );
+
+  test("with every error fixed, the == bug still leaves debug messages off", async () => {
+    const result = await runChallenge(0, challenge0With(CHALLENGE_0_BUGS.length - 1));
+
+    expect(output).toContain("Finished!");
+    expect(output).not.toContainEqual(expect.stringMatching(/\[AIDriver\]/));
+    expect(result).toEqual({
+      success: false,
+      message:
+        "It runs, but the AIDriver debug messages are still off. One bug doesn't cause an error message - can you find it?",
+    });
+    expect(output).toContainEqual(expect.stringMatching(/Challenge not complete yet: It runs, but/));
+  });
+
+  test("fixing all 9 bugs makes it pass, with debug messages", async () => {
+    const result = await runChallenge(0, challenge0With(CHALLENGE_0_BUGS.length));
 
     // hold_state(1) at speed 200 covers ~627 mm
     expect(1800 - App.robot.y).toBeCloseTo(627, -1);
+    expect(output).toContainEqual(expect.stringMatching(/\[AIDriver\] drive_forward/));
     expect(result).toEqual({ success: true, message: "Code runs correctly!" });
   });
 });
@@ -292,12 +332,7 @@ drive_until(125)
 
 describe("App success reporting", () => {
   test("the app announces SUCCESS! for a correct program", async () => {
-    const fixed = window
-      .getStarterCodes()[0]
-      .replace("read_distance() == -1\n", "read_distance() == -1:\n")
-      .replace("my_robt.", "my_robot.");
-
-    const result = await runChallenge(0, fixed);
+    const result = await runChallenge(0, challenge0With(CHALLENGE_0_BUGS.length));
 
     expect(result.success).toBe(true);
     expect(App.elements.challengeStatus.textContent).toBe("SUCCESS!");

@@ -28,7 +28,7 @@ Challenge metadata lives in `app/js/challenges.js`. Each entry describes how the
 
 `successCriteria.type` defines which evaluator runs inside `checkSuccess`:
 
-- `run_without_error`: Requires the code to finish without raising errors and travel at least `minDistance` millimetres.
+- `run_without_error`: Requires the code to finish without raising errors and travel at least `minDistance` millimetres. With `requireDebug: true` (Challenge 0) the program must also turn on AIDriver debug messages (`aidriver.DEBUG_AIDRIVER = True`, detected by `AIDriverStub.debugEnabledIn()`).
 - `reach_zone`: Passes when the robot is inside `zone` (axis-aligned rectangle). Optional `maxDeviation` restricts lateral drift.
 - `complete_circle`: Validates circular driving via `centerTolerance` and `minRotation` plus path alignment.
 - `stop_at_distance`: Ensures the robot stops within `[min, max]` millimetres of the wall at `wallPosition`, measured from the front of the robot (where the ultrasonic sensor is), so it matches `read_distance()`.
@@ -68,3 +68,21 @@ The maze module supplies helper methods:
 - `draw(ctx, scale, mazeId)`: Renders walls and exit zones on the simulator canvas.
 
 Any additional mazes should follow the documented shape so Challenge 6 can swap layouts without further code changes.
+
+## Challenge 0 bugs (teacher answer key)
+
+The Challenge 0 starter code in `app.js` (`getStarterCodes()[0]`) has 9 deliberate bugs, also shown in `docs/Challenge_0.md`. Students meet them in this order. `challenges-success.test.js` (`CHALLENGE_0_BUGS`) checks that each one is reported on its own.
+
+| # | Line | Bug | Fix | How it shows up |
+| --- | --- | --- | --- | --- |
+| 1 | 17 | Unclosed string `"Checking the sensor...)` | `"Checking the sensor...")` | Editor marks it on load: "String is missing its closing quote" |
+| 2 | 19 | `while ... == -1` has no colon | add `:` | Editor marks it on load: "Missing colon" |
+| 3 | 9 | `form aidriver import ...` | `from` | `SyntaxError` on line 9 |
+| 4 | 20 | `print(...)` in the loop isn't indented | indent it | `SyntaxError` on line 20 |
+| 5 | 25 | `hold_state(1` has no `)` | `hold_state(1)` | `SyntaxError` on line 26 (the next line) |
+| 6 | 15 | `my_robt = AIDriver()` | `my_robot` | `NameError: name 'my_robot'` on line 19 |
+| 7 | 24 | `driveforward` | `drive_forward` | `AttributeError` on line 24 |
+| 8 | 26 | `My_robot.brake()` | `my_robot` | `NameError: name 'My_robot'` on line 26 |
+| 9 | 13 | `aidriver.DEBUG_AIDRIVER == True` compares instead of assigning | `=` | No error; no `[AIDriver]` messages, and the simulator says the debug messages are still off |
+
+On the real robot the syntax errors are reported by MicroPython, so the wording differs (for example `SyntaxError: invalid syntax`) and bugs 1 and 2 aren't marked in advance.

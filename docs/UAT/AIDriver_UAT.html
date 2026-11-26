@@ -124,10 +124,10 @@
         connect a robot over USB, upload code to <code>main.py</code>, run it, view its logs and stop it. It also
         checks the robot’s firmware and sends students to their teacher if it is missing or out of date.</li>
       <li><strong>Simulator fixes</strong>: speed slider, live step mode, steering direction, challenge success
-        messages, speed checks that match the robot, the maze challenge, code checks and saving.</li>
+        messages, speed checks that match the robot, the maze challenge, code checks and saving, and a bigger Challenge 0 debugging exercise (9 bugs).</li>
     </ul>
     <p>
-      Automated tests (433 Jest tests and the Python tests) already pass for this build. UAT checks what
+      Automated tests (446 Jest tests and the Python tests) already pass for this build. UAT checks what
       automated tests can’t: real robots, real browsers and Chromebooks, and whether the kit makes sense to
       students and teachers.
     </p>
@@ -565,6 +565,13 @@
         <td>Ctrl+Enter runs the code, but does nothing while Run is disabled (no second run starts).</td>
         <td>☐ Pass<br />☐ Fail</td><td></td>
       </tr>
+      <tr>
+        <td>UT-M12</td>
+        <td>Challenge 0 debug practice</td>
+        <td><ol><li>Open Challenge 0 (Fix the Code). A student fixes the bugs using only the error messages, the hints and <code>docs/Challenge_0.md</code>.</li><li>Fix everything except <code>DEBUG_AIDRIVER == True</code>, run; then fix that too.</li></ol></td>
+        <td>The code says it has 9 bugs. Two lines are marked red on load and Run stays off until they're fixed; each run then reports the next bug with a line number. With only the <code>==</code> bug left, the program finishes but “Challenge not complete yet: It runs, but the AIDriver debug messages are still off…”. Fixing it shows <code>[AIDriver]</code> messages and “SUCCESS!”.</td>
+        <td>☐ Pass<br />☐ Fail</td><td></td>
+      </tr>
     </table>
 
     <h3>5.8 Documentation and student experience</h3>
@@ -610,9 +617,9 @@
       <tr><td>5.4 Firmware check</td><td>6</td><td></td><td></td><td></td><td></td></tr>
       <tr><td>5.5 Uploading</td><td>8</td><td></td><td></td><td></td><td></td></tr>
       <tr><td>5.6 Logs and Stop robot</td><td>6</td><td></td><td></td><td></td><td></td></tr>
-      <tr><td>5.7 Simulator</td><td>11</td><td></td><td></td><td></td><td></td></tr>
+      <tr><td>5.7 Simulator</td><td>12</td><td></td><td></td><td></td><td></td></tr>
       <tr><td>5.8 Documentation and student experience</td><td>4</td><td></td><td></td><td></td><td></td></tr>
-      <tr><th>Total</th><th>52</th><th></th><th></th><th></th><th></th></tr>
+      <tr><th>Total</th><th>53</th><th></th><th></th><th></th><th></th></tr>
     </table>
 
     <h2>7. Defect log</h2>

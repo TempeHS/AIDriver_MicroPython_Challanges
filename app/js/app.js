@@ -696,6 +696,7 @@ function runCode() {
 
   // Get code from editor
   const code = Editor.getCode();
+  App.session.debugEnabled = AIDriverStub.debugEnabledIn(code);
 
   // Run with PythonRunner
   const runSession = App.session;
@@ -903,6 +904,7 @@ async function stepCode() {
 
   App.session = createSession(App.robot);
   App.session.startTime = Date.now();
+  App.session.debugEnabled = AIDriverStub.debugEnabledIn(code);
 
   let result = null;
   try {
@@ -1980,22 +1982,32 @@ function getStarterCodes() {
   return {
     // debug: loaded dynamically from project/main.py
     0: `# Challenge 0: Fix the Code
-# This code has errors - can you find and fix them?
+# This program has 9 bugs. Fix them one at a time:
+# press Run, read the error and its line number, fix that line, run again.
+# One bug doesn't cause an error message: watch the debug output!
+#
+# When it's fixed, the robot turns on its debug messages, checks its
+# ultrasonic sensor, drives forward for 1 second and stops.
 
-from aidriver import AIDriver, hold_state
+form aidriver import AIDriver, hold_state
 
 import aidriver
 
-aidriver.DEBUG_AIDRIVER = True
-my_robot = AIDriver()
+aidriver.DEBUG_AIDRIVER == True
 
-# HINT: Check for missing colons and spelling errors
+my_robt = AIDriver()
+
+print("Checking the sensor...)
+
 while my_robot.read_distance() == -1
-   print("Robot too close, too far or sensor is in error state")
+print("Sensor not ready - check the wiring")
+    hold_state(0.5)
 
-my_robt.drive_forward(200, 200)
-hold_state(1)
-my_robot.brake()
+print("Driving forward")
+my_robot.driveforward(200, 200)
+hold_state(1
+My_robot.brake()
+print("Finished!")
 `,
     1: `# Challenge 1: Drive in a Straight Line
 # Balance the motor speeds so your robot drives straight
