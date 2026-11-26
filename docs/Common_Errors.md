@@ -257,7 +257,8 @@ The **Robot** buttons above the code editor (Connect robot, Upload, Upload & Run
 | --- | --- |
 | "Upload needs Chrome or Edge" (in the code editor's header) | Open the simulator in Chrome or Edge. Firefox, Safari and phones can't connect to the robot. |
 | "The robot is being used by another program or tab." | Close MicroPython Lab, Thonny or any other simulator tab that is connected, then press **Connect robot** again. |
-| "Connected, but the board didn't answer like MicroPython." | Check the AIDriver firmware is installed (**Downloads → AIDriver Custom Firmware** in the simulator). |
+| "Connected, but the robot didn't answer like MicroPython." | Give your robot to your teacher to install the AIDriver firmware. |
+| "This robot doesn't have the AIDriver firmware" or "This robot's AIDriver firmware is out of date" (the status shows **Firmware update needed**) | Give your robot to your teacher to install or update the firmware. You can still upload, but your code may not work properly until the firmware is updated. |
 | "The robot's program won't stop." | Your program is ignoring Stop (for example a `try`/`except` around `while True`). Unplug the robot, connect **GP4 to GND**, plug it back in to restore the default `main.py`, remove the wire, then upload again. |
 | "Fix the error on line … before uploading." | The simulator found a syntax error. Fix the marked line: the robot would stop at this error. |
 | "The simulator found: …" | These are simulator rules (for example only `aidriver` and `time` imports). Your code may still work on the robot, so you can choose **Upload anyway**. |

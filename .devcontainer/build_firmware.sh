@@ -174,6 +174,7 @@ package_firmware() {
         {
             echo "Build Date: $(date)"
             echo "MicroPython Version: $(get_micropython_version)"
+            echo "AIDriver Version: $(sed -n 's/^__version__ = "\(.*\)"/\1/p' "$PROJECT_BASE/project/lib/aidriver.py")"
             echo "Custom Modules: ${#CUSTOM_FILES[@]} files"
             echo "Build Host: $(hostname)"
         } > "$build_info"

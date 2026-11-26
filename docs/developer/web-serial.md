@@ -1,6 +1,6 @@
 # Web Serial Upload (Robot toolbar)
 
-The **Robot** toolbar lets students connect to their robot's Pico over USB from `simulator.html`, upload the editor code to `/main.py`, run it, view the robot's event logs and stop it, all without leaving the simulator. It uses the browser's [Web Serial API](https://developer.mozilla.org/docs/Web/API/Web_Serial_API) and only standard MicroPython features, so no firmware support is needed beyond `aidriver.__version__` (used to show the library version).
+The **Robot** toolbar lets students connect to their robot's Pico over USB from `simulator.html`, upload the editor code to `/main.py`, run it, view the robot's event logs and stop it, all without leaving the simulator. It uses the browser's [Web Serial API](https://developer.mozilla.org/docs/Web/API/Web_Serial_API) and only standard MicroPython features, so no firmware support is needed beyond `aidriver.__version__`, which is used to check the robot has up-to-date AIDriver firmware.
 
 The approach follows the [Learn Software Tools MicroPython page](https://tempehs.github.io/Learn-Software-Tools/micropython/) (queued raw REPL sessions, marker-framed JSON replies, base64 transfer checked with SHA-256). It adds an atomic write with a backup, AIDriver firmware checks and a log viewer tab.
 
@@ -10,7 +10,7 @@ The toolbar sits in the **code editor card's header**, next to Copy and Reset Co
 
 | Control | Enabled when | Action |
 | --- | --- | --- |
-| Status pill | Always | `Not connected`, `Connecting…`, `Pico connected`, `Uploading 45%…`, `Program running`, `Reconnecting…` |
+| Status pill | Always | `Not connected`, `Connecting…`, `Pico connected`, `Firmware update needed`, `Uploading 45%…`, `Program running`, `Reconnecting…` |
 | **Connect robot** / **Disconnect** | Not busy | Opens the port picker (or reuses a granted port), then identifies the board |
 | **Upload** | Connected and not busy | Writes the editor code to `/main.py` without running it |
 | **Upload & Run** | Connected and not busy | Uploads, then soft-resets the robot so the new `main.py` runs straight away (no confirmation) |
@@ -77,12 +77,29 @@ Helper scripts start with a `# aid:<op>` tag (`identify`, `write`, `commit`, `re
 
 ### Connect and identify
 
-`identify` reports `sys.implementation.name`, the MicroPython release and machine, whether `import aidriver` works (and its `__version__`), root-level copies of the built-in libraries (`aidriver`, `eventlog`, `hm10_controller`, `gamepad_driver_controller`, `gamepad_pico`), whether `boot.py` exists, and free space. `RobotConnection` then:
+`identify` reports `sys.implementation.name`, the MicroPython release and machine, whether the **built-in** `aidriver` can be imported and its `__version__`, root-level copies of the built-in libraries (`aidriver`, `eventlog`, `hm10_controller`, `gamepad_driver_controller`, `gamepad_pico`), whether `boot.py` exists, and free space. `RobotConnection` then:
 
-- refuses boards that aren't MicroPython;
-- warns if the AIDriver library is missing (upload is still allowed);
+- refuses boards that aren't MicroPython, telling the student to give the robot to their teacher;
+- checks the firmware (below);
 - warns that root-level library copies replace the built-in versions (`sys.path` is `['', '.frozen', '/lib']`);
 - notes that `boot.py` runs before `main.py`.
+
+To read the firmware's own version, `identify` temporarily sets `sys.path` to `['.frozen']` and drops any cached `aidriver` from `sys.modules`, then restores `sys.path`. A root-level `aidriver.py` or an already-imported copy therefore can't hide old firmware. On a board without `.frozen` (CPython in tests) it imports normally.
+
+### Firmware check
+
+`RobotConnection.firmwareProblem()` compares the reported version with `RobotConnection.FIRMWARE_VERSION` (dotted numbers, compared part by part by `compareVersions()`):
+
+| Robot has | Result |
+| --- | --- |
+| No MicroPython, or no reply | Not connected. "…Give your robot to your teacher to install the AIDriver firmware." |
+| MicroPython without the AIDriver library | **Missing:** "This robot doesn't have the AIDriver firmware… Give your robot to your teacher to install it." |
+| AIDriver older than `FIRMWARE_VERSION`, or with no `__version__` (built before versions were added) | **Out of date:** "This robot's AIDriver firmware is out of date (it has version X; the simulator needs version Y). Give your robot to your teacher to update it." |
+| `FIRMWARE_VERSION` or newer | OK |
+
+When there's a problem, the robot stays connected and uploads still work. The message is shown as an error in the debug panel, followed by a "Teachers: hold the robot's BOOTSEL button…" line with flashing steps. The status pill shows **Firmware update needed** in amber, and its tooltip repeats the message. After each upload the message is shown again as a reminder.
+
+`FIRMWARE_VERSION` must equal `__version__` in `project/lib/aidriver.py` and the `AIDriver Version` in `_Firmware/build_info.txt`; `robot-connection.test.js` checks this. See "Firmware Version" in `docs/Build_Custom_MicroPython_Firmware.md` for releasing a new version.
 
 ### Upload (`writeFileAtomic`)
 
@@ -113,7 +130,8 @@ The viewer shows **This run** (`event_log.txt`) and **Previous run** (`event_log
 | --- | --- |
 | Picker closed | None |
 | Port open elsewhere | "The robot is being used by another program or tab. Close MicroPython Lab / Thonny / other simulator tabs, then press Connect." |
-| No MicroPython reply (`no-reply`) | "Connected, but the board didn't answer like MicroPython. Check the AIDriver firmware is installed…", also mentioning GP4 recovery, because a silent program that ignores Ctrl-C looks the same |
+| No MicroPython reply (`no-reply`) | "Connected, but the robot didn't answer like MicroPython, so it may not have the AIDriver firmware. Give your robot to your teacher to install it.", also mentioning GP4 recovery, because a silent program that ignores Ctrl-C looks the same |
+| Missing or old AIDriver firmware | See [Firmware check](#firmware-check) |
 | Program won't stop (`wont-stop`) | GP4 recovery instructions (`RECOVERY_MESSAGE`) |
 | Hash mismatch | "The upload didn't save correctly, so your old main.py was kept. Try again." |
 | Storage full (`OSError: 28`) | "The robot's storage is full. Delete files with MicroPython Lab, or use GP4 recovery mode." |

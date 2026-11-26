@@ -117,6 +117,20 @@ Just copies modules without building firmware. Useful for testing module syntax.
 - **IDE connection:** `main.py` visible and editable in Thonny, VS Code, etc.
 - **Library access:** `from aidriver import AIDriver` works immediately (frozen modules)
 
+### **Firmware Version:**
+
+The firmware's version is `__version__` in `project/lib/aidriver.py` (a date such as `2026.11.26`). The build records it in `_Firmware/build_info.txt` as `AIDriver Version`.
+
+When a student connects a robot in the simulator, the simulator checks the version of the **built-in** library (ignoring any `aidriver.py` copy saved on the robot). If the AIDriver firmware is missing, or older than `RobotConnection.FIRMWARE_VERSION` in `app/js/robot-connection.js`, the student is told to give the robot to their teacher. The status shows **Firmware update needed**, and the debug panel explains how to flash it (the steps above). Uploading still works.
+
+To release firmware that every robot must be updated to:
+
+1. Set the new date in `__version__` in `project/lib/aidriver.py`.
+2. Set the same value in `FIRMWARE_VERSION` in `app/js/robot-connection.js`.
+3. Rebuild (`./.devcontainer/build_firmware.sh`) and commit `_Firmware/`.
+
+The app tests fail if these three don't match. Robots with newer firmware than the simulator expects are accepted.
+
 ---
 
 ## 🔍 Troubleshooting

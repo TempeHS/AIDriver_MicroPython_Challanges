@@ -77,12 +77,24 @@ import sys, os, json
 u = os.uname()
 info = {'impl': sys.implementation.name, 'release': u.release,
         'machine': u.machine, 'aidriver': False, 'version': None}
+# Check the firmware's built-in library, not a copy saved on the robot
+p = sys.path
+saved = list(p)
+if '.frozen' in saved:
+    while p:
+        p.pop()
+    p.append('.frozen')
+    sys.modules.pop('aidriver', None)
 try:
     import aidriver
     info['aidriver'] = True
     info['version'] = getattr(aidriver, '__version__', None)
 except ImportError:
     pass
+finally:
+    while p:
+        p.pop()
+    p.extend(saved)
 names = os.listdir('/')
 info['shadowing'] = [n for n in names if n.split('.')[0] in ${JSON.stringify(FROZEN_MODULES)}]
 info['has_boot_py'] = 'boot.py' in names

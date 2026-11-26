@@ -12,6 +12,7 @@ const {
   installFakeSerial,
   removeFakeSerial,
   waitFor,
+  CURRENT_FIRMWARE_VERSION,
 } = require("../helpers/fake-micropython-board");
 
 const ALL_MODULES = [
@@ -191,21 +192,83 @@ describe("Connect", () => {
     expect(fake.mode).toBe("friendly");
     expect(status()).toBe("Pico connected");
     expect(debugText()).toContain(
-      "Connected to robot: Raspberry Pi Pico · MicroPython 1.30.0-preview · AIDriver ✓",
+      `Connected to robot: Raspberry Pi Pico · MicroPython 1.30.0-preview · AIDriver ${CURRENT_FIRMWARE_VERSION}`,
     );
+    expect(debugText()).not.toMatch(/teacher/);
     expect($("btnRobotConnect").textContent).toContain("Disconnect");
     for (const id of ["btnRobotUpload", "btnRobotUploadRun", "btnRobotLogs", "btnRobotStop"]) {
       expect($(id).disabled).toBe(false);
     }
   });
 
-  test("warns about missing firmware, library copies and boot.py", async () => {
-    await connect({ aidriver: false, files: { "/aidriver.py": "", "/boot.py": "" } });
+  test("warns about library copies and boot.py", async () => {
+    await connect({ files: { "/aidriver.py": "", "/boot.py": "" } });
 
-    expect(debugText()).toMatch(/standard MicroPython without the AIDriver library/);
     expect(debugText()).toMatch(/own copy of aidriver\.py/);
     expect(debugText()).toMatch(/boot\.py, which runs before main\.py/);
   });
+
+  test("the simulator expects the firmware version in project/lib/aidriver.py and the published build", () => {
+    const buildInfo = require("fs").readFileSync(
+      require("path").join(__dirname, "../../../_Firmware/build_info.txt"),
+      "utf8",
+    );
+    boot();
+    expect(RobotConnection.FIRMWARE_VERSION).toBe(CURRENT_FIRMWARE_VERSION);
+    expect(buildInfo).toContain(`AIDriver Version: ${CURRENT_FIRMWARE_VERSION}\n`);
+  });
+
+  test.each([
+    [
+      "missing",
+      { aidriver: false },
+      /doesn't have the AIDriver firmware.*Give your robot to your teacher to install it\./,
+    ],
+    [
+      "older",
+      { version: "2025.1.5" },
+      new RegExp(
+        `out of date \\(it has version 2025\\.1\\.5; the simulator needs version ${CURRENT_FIRMWARE_VERSION.replace(/\./g, "\\.")}\\)\\. Give your robot to your teacher to update it\\.`,
+      ),
+    ],
+    ["unversioned (built before versions)", { version: null }, /out of date \(it has an older version;/],
+  ])("%s AIDriver firmware sends the student to their teacher", async (_name, options, message) => {
+    await connect(options);
+
+    expect(RobotConnection.state).toBe("ready");
+    expect(debugText()).toMatch(message);
+    expect(debugText()).toMatch(/Teachers: hold the robot's BOOTSEL button/);
+    expect(status()).toBe("Firmware update needed");
+    expect($("robotStatus").classList.contains("text-bg-warning")).toBe(true);
+    expect(bootstrap.Tooltip.getInstance($("robotStatus")).config.title()).toMatch(message);
+
+    // Uploading still works, with a reminder
+    click($("btnRobotUpload"));
+    await waitFor(() => debugText().includes("Uploaded to robot as main.py"));
+    expect(debugText().match(new RegExp(message.source, "g"))).toHaveLength(2);
+  });
+
+  test("newer firmware than the simulator expects is fine", async () => {
+    await connect({ version: "2099.1.1" });
+
+    expect(status()).toBe("Pico connected");
+    expect(debugText()).not.toMatch(/teacher/);
+  });
+
+  test.each([
+    ["no reply (no MicroPython)", { silent: true }, /didn't answer like MicroPython.*Give your robot to your teacher/],
+    ["another interpreter", { impl: "circuitpython" }, /isn't running MicroPython\. Give your robot to your teacher/],
+  ])("%s disconnects and sends the student to their teacher", async (_name, options, message) => {
+    fake = new FakeBoard(options);
+    installFakeSerial([fake], { granted: true });
+    boot();
+    click($("btnRobotConnect"));
+    await waitFor(() => /Teachers:/.test(debugText()), 10000);
+
+    expect(debugText()).toMatch(message);
+    expect(RobotConnection.state).toBe("idle");
+    expect(RobotConnection.board).toBeNull();
+  }, 15000);
 
   test("a port used by another program shows the busy message", async () => {
     fake = new FakeBoard();

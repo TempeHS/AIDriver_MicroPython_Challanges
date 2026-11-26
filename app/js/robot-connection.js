@@ -33,9 +33,16 @@ const RobotConnection = {
     "plug it back in to restore the default main.py, remove the wire, then upload again. " +
     "See 'Recovery Mode' in Build_Custom_MicroPython_Firmware.md.",
   FIRMWARE_MESSAGE:
-    "Connected, but the board didn't answer like MicroPython. Check the AIDriver firmware is installed " +
-    "(Downloads → AIDriver Custom Firmware). If it is, the robot's program may be ignoring Stop: use GP4 " +
-    "recovery mode (see 'Recovery Mode' in Build_Custom_MicroPython_Firmware.md).",
+    "Connected, but the robot didn't answer like MicroPython, so it may not have the AIDriver firmware. " +
+    "Give your robot to your teacher to install it. (If the robot was running a program that ignores Stop, " +
+    "GP4 recovery mode may fix this: see 'Recovery Mode' in Build_Custom_MicroPython_Firmware.md.)",
+  // The AIDriver firmware published under Downloads: aidriver.__version__ in
+  // project/lib/aidriver.py. Robots with no or older firmware are sent to their teacher.
+  FIRMWARE_VERSION: "2026.11.26",
+  TEACHER_FIRMWARE_HINT:
+    "Teachers: hold the robot's BOOTSEL button while plugging it in, then copy Downloads → AIDriver Custom " +
+    "Firmware (AI_Driver_RP2040.uf2) onto the drive that appears. See 'Flashing the Firmware' in " +
+    "Build_Custom_MicroPython_Firmware.md.",
   OUTPUT_IGNORE: [
     /^MPY: soft reboot/,
     /^MicroPython v\S+ on /,
@@ -144,6 +151,7 @@ const RobotConnection = {
       case "reconnecting":
         return "Reconnecting…";
       case "ready":
+        if (this.firmwareProblem()) return "Firmware update needed";
         return this.info ? `${this.shortBoardName()} connected` : "Connected";
       case "running":
         return "Program running";
@@ -159,7 +167,7 @@ const RobotConnection = {
     if (!status) return;
     status.textContent = text;
     const classes = {
-      ready: "bg-success",
+      ready: this.firmwareProblem() ? "text-bg-warning" : "bg-success",
       running: "bg-primary",
       busy: "bg-info",
       connecting: "bg-info",
@@ -171,7 +179,10 @@ const RobotConnection = {
 
   statusTip() {
     if (this.info && (this.state === "ready" || this.state === "running")) {
-      return this.connectionSummary();
+      const problem = this.firmwareProblem();
+      return problem
+        ? `${this.connectionSummary()}. ${problem.message}`
+        : this.connectionSummary();
     }
     switch (this.state) {
       case "connecting":
@@ -262,9 +273,55 @@ const RobotConnection = {
       `MicroPython ${info.release}`,
     ];
     if (info.aidriver) {
-      parts.push(info.version ? `AIDriver ${info.version}` : "AIDriver ✓");
+      parts.push(`AIDriver ${info.version || "(old version)"}`);
+    } else {
+      parts.push("no AIDriver firmware");
     }
     return parts.join(" · ");
+  },
+
+  /**
+   * Is the robot's AIDriver firmware missing or older than FIRMWARE_VERSION?
+   * @param {object} [info] identify() result; defaults to the connected robot.
+   * @returns {{kind: "missing"|"outdated", message: string}|null}
+   */
+  firmwareProblem(info = this.info) {
+    if (!info) return null;
+    if (!info.aidriver) {
+      return {
+        kind: "missing",
+        message:
+          "This robot doesn't have the AIDriver firmware, so your code can't use the aidriver library. " +
+          "Give your robot to your teacher to install it.",
+      };
+    }
+    if (!info.version || this.compareVersions(info.version, this.FIRMWARE_VERSION) < 0) {
+      const has = info.version ? `version ${info.version}` : "an older version";
+      return {
+        kind: "outdated",
+        message:
+          `This robot's AIDriver firmware is out of date (it has ${has}; the simulator needs version ` +
+          `${this.FIRMWARE_VERSION}). Give your robot to your teacher to update it.`,
+      };
+    }
+    return null;
+  },
+
+  /**
+   * Compare dotted versions such as "2026.11.26" part by part.
+   * @param {string} a
+   * @param {string} b
+   * @returns {number} Negative if a is older than b, 0 if equal, positive if newer.
+   */
+  compareVersions(a, b) {
+    const parts = (v) => String(v).split(/\D+/).filter(Boolean).map(Number);
+    const pa = parts(a);
+    const pb = parts(b);
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+      const diff = (pa[i] || 0) - (pb[i] || 0);
+      if (diff) return diff;
+    }
+    return 0;
   },
 
   log(message) {
@@ -324,25 +381,27 @@ const RobotConnection = {
             ? this.FIRMWARE_MESSAGE
             : `${this.FIRMWARE_MESSAGE} (${error.message})`,
       );
+      if (error.code !== "wont-stop") DebugPanel.info(this.TEACHER_FIRMWARE_HINT);
       await this.closeBoard();
       return;
     }
 
     if (info.impl !== "micropython") {
       DebugPanel.error(
-        "This board isn't running MicroPython. Install the AIDriver firmware (Downloads → AIDriver Custom Firmware).",
+        "This robot isn't running MicroPython. Give your robot to your teacher to install the AIDriver firmware.",
       );
+      DebugPanel.info(this.TEACHER_FIRMWARE_HINT);
       await this.closeBoard();
       return;
     }
 
     this.info = info;
     DebugPanel.success(`Connected to robot: ${this.connectionSummary()}`);
-    if (!info.aidriver) {
-      DebugPanel.warning(
-        "This robot has standard MicroPython without the AIDriver library. Install the AIDriver firmware " +
-          "(Downloads → AIDriver Custom Firmware). You can still upload, but your code won't find aidriver.",
-      );
+    const problem = this.firmwareProblem(info);
+    if (problem) {
+      DebugPanel.error(`⚠️ ${problem.message}`);
+      DebugPanel.info(this.TEACHER_FIRMWARE_HINT);
+      this.log(`Firmware ${problem.kind}: robot has ${info.version || "none"}, need ${this.FIRMWARE_VERSION}`);
     }
     if (info.shadowing && info.shadowing.length) {
       DebugPanel.warning(
@@ -557,6 +616,8 @@ const RobotConnection = {
     this.log(
       `Uploaded main.py (${bytes.length} bytes, verified) in ${Date.now() - started} ms`,
     );
+    const problem = this.firmwareProblem();
+    if (problem) DebugPanel.warning(`⚠️ ${problem.message}`);
 
     if (!run) {
       DebugPanel.success(

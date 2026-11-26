@@ -10,6 +10,8 @@
  * CPython (micropython-snippets.test.js).
  */
 
+const fs = require("fs");
+const path = require("path");
 const nodeCrypto = require("crypto");
 const util = require("util");
 const streams = require("stream/web");
@@ -38,6 +40,10 @@ function installWebApis() {
   }
 }
 
+const CURRENT_FIRMWARE_VERSION = fs
+  .readFileSync(path.join(__dirname, "../../../project/lib/aidriver.py"), "utf8")
+  .match(/^__version__ = "([^"]+)"/m)[1];
+
 const encoder = new util.TextEncoder();
 const decoder = new util.TextDecoder();
 
@@ -46,6 +52,8 @@ class FakeBoard {
    * @param {object} [options]
    * @param {Record<string, string>} [options.files] Initial filesystem.
    * @param {boolean} [options.aidriver=true] AIDriver library present.
+   * @param {string|null} [options.version] aidriver.__version__; defaults to
+   *   the version in project/lib/aidriver.py (up-to-date firmware).
    * @param {string} [options.impl="micropython"]
    * @param {boolean} [options.silent] Never answers (not MicroPython).
    * @param {number} [options.ignoreInterrupts=0] Ctrl-C presses ignored.
@@ -59,6 +67,7 @@ class FakeBoard {
       this.fs.set(path, encoder.encode(text));
     }
     this.aidriver = options.aidriver !== false;
+    this.version = "version" in options ? options.version : CURRENT_FIRMWARE_VERSION;
     this.impl = options.impl || "micropython";
     this.silent = Boolean(options.silent);
     this.ignoreInterrupts = options.ignoreInterrupts || 0;
@@ -185,7 +194,7 @@ class FakeBoard {
             release: "1.30.0-preview",
             machine: "Raspberry Pi Pico with RP2040",
             aidriver: this.aidriver,
-            version: null,
+            version: this.aidriver ? this.version : null,
             shadowing: names.filter((n) =>
               [
                 "aidriver",
@@ -386,4 +395,5 @@ module.exports = {
   waitFor,
   BANNER,
   RAW_BANNER,
+  CURRENT_FIRMWARE_VERSION,
 };

@@ -106,4 +106,19 @@ describeIfPython("helper scripts under CPython", () => {
     expect(Array.isArray(info.shadowing)).toBe(true);
     expect(typeof info.has_boot_py).toBe("boolean");
   });
+
+  test("identify reports the built-in (frozen) library's version, not a copy saved on the robot", async () => {
+    fs.mkdirSync(file(".frozen"));
+    fs.writeFileSync(file(path.join(".frozen", "aidriver.py")), '__version__ = "frozen-1"\n');
+    fs.writeFileSync(file("aidriver.py"), '__version__ = "copy-0"\n');
+    // Like the robot: sys.path is ['', '.frozen', ...] and the student's
+    // program has already imported the copy
+    const prelude =
+      "import sys\nsys.path.insert(1, '.frozen')\nimport aidriver\npath_before = list(sys.path)\n";
+    const check = "\nassert sys.path == path_before, sys.path\n";
+
+    const info = await MicroPythonBoard.identify((code) => exec(prelude + code + check));
+
+    expect(info).toMatchObject({ aidriver: true, version: "frozen-1" });
+  });
 });
