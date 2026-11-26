@@ -11,6 +11,7 @@ A browser-based robot simulator for the AIDriver MicroPython Challenges. This we
 - **Ultrasonic Sensor Simulation** - Distance readings update in real-time
 - **Gamepad Control** - Challenge 7 uses on-screen/keyboard controls
 - **5 Pre-built Mazes** - For Challenge 6 maze navigation practice
+- **Upload to Robot** - Connect a robot over USB (Chrome/Edge), upload the editor code to `main.py`, run it, view its event logs and stop it
 
 ## Challenges
 

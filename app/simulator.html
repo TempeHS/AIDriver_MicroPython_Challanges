@@ -17,7 +17,7 @@
       rel="stylesheet"
     />
     <!-- Custom CSS -->
-    <link href="css/style.css?v=7" rel="stylesheet" />
+    <link href="css/style.css?v=8" rel="stylesheet" />
   </head>
   <body class="bg-dark">
     <!-- Navbar -->
@@ -457,6 +457,73 @@
                   <span class="badge bg-primary ms-2" id="speedValue">2x</span>
                 </div>
               </div>
+
+              <!-- Robot toolbar: upload to a real robot over Web Serial -->
+              <div
+                class="d-flex flex-wrap gap-2 align-items-center mt-2 pt-2 border-top border-secondary"
+                id="robotToolbar"
+                role="group"
+                aria-label="Robot"
+              >
+                <button
+                  class="btn btn-sm btn-outline-light"
+                  id="btnRobotConnect"
+                  title="Connect to your robot with a USB cable"
+                  aria-label="Connect robot"
+                >
+                  <i class="bi bi-usb-symbol"></i> Connect robot
+                </button>
+                <div class="btn-group btn-group-sm">
+                  <button
+                    class="btn btn-outline-success"
+                    id="btnRobotUpload"
+                    disabled
+                    title="Save the code in the editor to the robot as main.py"
+                    aria-label="Upload to robot"
+                  >
+                    <i class="bi bi-upload"></i> Upload
+                  </button>
+                  <button
+                    class="btn btn-outline-success"
+                    id="btnRobotUploadRun"
+                    disabled
+                    title="Save the code to the robot as main.py and run it now"
+                    aria-label="Upload to robot and run"
+                  >
+                    <i class="bi bi-upload"></i><i class="bi bi-play-fill"></i>
+                    Upload &amp; Run
+                  </button>
+                </div>
+                <button
+                  class="btn btn-sm btn-outline-info"
+                  id="btnRobotLogs"
+                  disabled
+                  title="Open the robot's event logs in a new tab"
+                  aria-label="View robot logs"
+                >
+                  <i class="bi bi-file-earmark-text"></i> Logs
+                </button>
+                <button
+                  class="btn btn-sm btn-outline-danger"
+                  id="btnRobotStop"
+                  disabled
+                  title="Stop the program on the robot and brake the motors"
+                  aria-label="Stop robot"
+                >
+                  <i class="bi bi-stop-circle"></i> Stop robot
+                </button>
+                <span
+                  class="badge bg-secondary robot-status ms-auto"
+                  id="robotStatus"
+                  role="status"
+                  aria-live="polite"
+                  >Not connected</span
+                >
+              </div>
+              <p class="text-muted small mb-0 mt-2 d-none" id="robotUnsupported">
+                <i class="bi bi-info-circle me-1"></i>Uploading to a robot needs
+                Chrome or Edge on a computer.
+              </p>
             </div>
           </div>
 
@@ -649,6 +716,32 @@
       </div>
     </div>
 
+    <!-- Robot logs (used when the browser blocks the log viewer tab) -->
+    <div
+      class="modal fade"
+      id="robotLogsModal"
+      tabindex="-1"
+      aria-labelledby="robotLogsModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content bg-dark text-light">
+          <div class="modal-header border-secondary">
+            <h5 class="modal-title" id="robotLogsModalLabel">
+              <i class="bi bi-file-earmark-text me-2"></i>Robot logs
+            </h5>
+            <button
+              type="button"
+              class="btn-close btn-close-white"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <div class="modal-body" id="robotLogsModalBody"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- Loading Spinner (shown during initialization) -->
     <div id="loadingOverlay" class="loading-overlay">
       <div class="spinner-border text-primary" role="status">
@@ -681,6 +774,10 @@
     <script src="js/aidriver-stub.js?v=22"></script>
     <script src="js/python-runner.js?v=59"></script>
     <script src="js/editor.js?v=14"></script>
-    <script src="js/app.js?v=56"></script>
+    <script src="js/serial-link.js?v=1"></script>
+    <script src="js/micropython-board.js?v=1"></script>
+    <script src="js/log-viewer.js?v=1"></script>
+    <script src="js/robot-connection.js?v=1"></script>
+    <script src="js/app.js?v=57"></script>
   </body>
 </html>

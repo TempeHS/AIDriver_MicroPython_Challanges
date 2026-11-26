@@ -73,6 +73,11 @@ function init() {
     Gamepad.init();
   }
 
+  // Initialize the Robot toolbar (Web Serial upload)
+  if (typeof RobotConnection !== "undefined") {
+    RobotConnection.init();
+  }
+
   // Initialize ACE Editor
   initEditor();
 

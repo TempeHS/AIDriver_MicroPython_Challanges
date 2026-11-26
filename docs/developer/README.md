@@ -19,6 +19,7 @@ The AIDriver simulator is a browser-hosted training environment that mirrors the
 - [Validation Pipeline](validator.md) – static analysis safeguards applied to learner code
 - [Challenge Data](challenges.md) – challenge metadata fields, success criteria, and maze integration
 - [Hardware Integration](hardware-integration.md) – HM-10 control flow and telemetry handling
+- [Web Serial Upload](web-serial.md) – Robot toolbar: connect, upload to main.py, logs and stop over USB
 - [Firmware Parity](firmware-parity.md) – simulator `aidriver` module coverage and known differences
 - [UI Customization](ui-customization.md) – extending panels, styling, and editor tweaks
 - [Testing Strategy](testing.md) – automated coverage and manual test workflows

@@ -34,7 +34,10 @@ Browser globals provide loose coupling between modules. Each JavaScript file reg
    - `PythonRunner.runStepMode()` runs the program live with Skulpt debugging enabled, pausing before each line
    - Robot physics are frozen during each pause and advanced a small fixed time per line, so sensor loops behave like a normal run
 
-4. **Telemetry and gamepad**
+4. **Robot toolbar (Web Serial)**
+   - `robot-connection.js` uploads the editor code to the real robot's `/main.py`, shows its logs and output, and stops it, using `serial-link.js` and `micropython-board.js` (see [web-serial.md](web-serial.md))
+
+5. **Telemetry and gamepad**
    - `gamepad.js` synchronises HM-10 BLE input with the simulator robot state
    - `logger.js` and `debug-panel.js` surface progress, warnings, and errors
 

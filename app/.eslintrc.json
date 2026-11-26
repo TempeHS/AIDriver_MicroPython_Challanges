@@ -32,7 +32,11 @@
     "exports": "readonly",
     "runCode": "readonly",
     "stopExecution": "readonly",
-    "render": "readonly"
+    "render": "readonly",
+    "SerialLink": "readonly",
+    "MicroPythonBoard": "readonly",
+    "LogViewer": "readonly",
+    "RobotConnection": "readonly"
   },
   "overrides": [
     {

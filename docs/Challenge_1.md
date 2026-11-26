@@ -35,6 +35,16 @@ flowchart TD
 
 ![Animated connection instructions](images/instructions.gif "Animated connection instructions")
 
+> [!Tip]
+> **Upload straight from the simulator.** In Chrome or Edge on a computer, open the [simulator](https://tempehs.github.io/AIDriver_MicroPython_Challanges/simulator.html), plug in your robot with a USB cable and press **Connect robot**. Then:
+>
+> - **Upload** saves the code in the simulator's editor to your robot as `main.py`. Unplug the cable and switch the robot on to run it.
+> - **Upload & Run** saves it and runs it straight away (put the robot on the floor first). Anything your program prints appears in the debug panel as `[Robot]` lines.
+> - **Logs** opens your robot's `event_log.txt` (this run) and `event_log_prev.txt` (the previous run) in a new tab.
+> - **Stop robot** stops the program and brakes the motors.
+>
+> Only one program can use the robot at a time: close MicroPython Lab before you press Connect robot.
+
 ## Step 2
 
 Edit `main.py` so the top of your program imports the dependencies and instantiate (programming metalanguage for create) a copy of the AIDriver class (pre-written values and functions) that will be referred to as `my_robot` in your program.

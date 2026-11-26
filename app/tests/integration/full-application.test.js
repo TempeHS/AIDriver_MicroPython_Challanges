@@ -4,9 +4,8 @@
  * Skulpt) and drives it through the UI the way a learner would.
  */
 
-const fs = require("fs");
-const path = require("path");
 const { loadModules, loadSkulpt } = require("../helpers/load-app");
+const { SIMULATOR_BODY, createFakeAce } = require("../helpers/simulator-page");
 
 const ALL_MODULES = [
   "logger.js",
@@ -21,11 +20,6 @@ const ALL_MODULES = [
   "editor.js",
   "app.js",
 ];
-
-const SIMULATOR_BODY = fs
-  .readFileSync(path.join(__dirname, "..", "..", "simulator.html"), "utf8")
-  .match(/<body[^>]*>([\s\S]*)<\/body>/i)[1]
-  .replace(/<script\b[\s\S]*?<\/script>/gi, "");
 
 const DRIVE_PROGRAM = [
   "from aidriver import AIDriver, hold_state",
@@ -44,58 +38,6 @@ const LOOP_PROGRAM = [
   "    count = count + 1",
   "    r.drive_forward(200, 200)",
 ].join("\n");
-
-// Minimal in-memory stand-in for the ACE editor (a CDN global in the browser)
-function createFakeAce() {
-  class Range {
-    constructor(startRow, startCol, endRow, endCol) {
-      this.start = { row: startRow, column: startCol };
-      this.end = { row: endRow, column: endCol };
-    }
-  }
-  return {
-    require: () => ({ Range }),
-    edit() {
-      const changeListeners = [];
-      let value = "";
-      let nextMarkerId = 1;
-      return {
-        session: {
-          annotations: [],
-          markers: new Map(),
-          setMode() {},
-          getAnnotations() {
-            return this.annotations;
-          },
-          setAnnotations(a) {
-            this.annotations = a;
-          },
-          addMarker(range, clazz) {
-            const id = nextMarkerId++;
-            this.markers.set(id, { row: range.start.row, clazz });
-            return id;
-          },
-          removeMarker(id) {
-            this.markers.delete(id);
-          },
-        },
-        commands: { addCommand() {} },
-        setTheme() {},
-        setOptions() {},
-        scrollToLine() {},
-        resize() {},
-        on(event, fn) {
-          if (event === "change") changeListeners.push(fn);
-        },
-        getValue: () => value,
-        setValue(text) {
-          value = text;
-          changeListeners.forEach((fn) => fn({}));
-        },
-      };
-    },
-  };
-}
 
 let app;
 let rafEnabled;

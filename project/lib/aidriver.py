@@ -8,6 +8,9 @@ Original licenses maintained: GNU GPL for code, Creative Commons for content
 Dependencies: machine, time modules (built into MicroPython)
 """
 
+# Shown by the simulator's Robot toolbar when it connects
+__version__ = "2026.11.26"
+
 from machine import Pin, PWM, time_pulse_us
 from time import sleep_us, sleep_ms, sleep as _sleep, ticks_ms, ticks_diff
 

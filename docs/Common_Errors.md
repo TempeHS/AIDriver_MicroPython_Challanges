@@ -249,6 +249,24 @@ Python cannot find the `aidriver` library file.
 
 ---
 
+## 9. Problems uploading from the simulator
+
+The simulator's **Robot** buttons (Connect robot, Upload, Upload & Run, Logs, Stop robot) need **Chrome or Edge on a computer**.
+
+| Message | What to do |
+| --- | --- |
+| "Uploading to a robot needs Chrome or Edge on a computer." | Open the simulator in Chrome or Edge. Firefox, Safari and phones can't connect to the robot. |
+| "The robot is being used by another program or tab." | Close MicroPython Lab, Thonny or any other simulator tab that is connected, then press **Connect robot** again. |
+| "Connected, but the board didn't answer like MicroPython." | Check the AIDriver firmware is installed (**Downloads → AIDriver Custom Firmware** in the simulator). |
+| "The robot's program won't stop." | Your program is ignoring Stop (for example a `try`/`except` around `while True`). Unplug the robot, connect **GP4 to GND**, plug it back in to restore the default `main.py`, remove the wire, then upload again. |
+| "Fix the error on line … before uploading." | The simulator found a syntax error. Fix the marked line: the robot would stop at this error. |
+| "The simulator found: …" | These are simulator rules (for example only `aidriver` and `time` imports). Your code may still work on the robot, so you can choose **Upload anyway**. |
+| "The upload didn't save correctly, so your old main.py was kept." | Press **Upload** again. The robot still has its previous program. |
+| "The robot's storage is full." | Delete files you don't need with MicroPython Lab, or use GP4 recovery mode. |
+| "The robot was disconnected." | Plug the USB cable back in. The simulator reconnects by itself for 10 seconds; after that, press **Connect robot**. |
+
+---
+
 If you see an error that is not listed here, try to:
 
 1. Read the **first line** of the error message.

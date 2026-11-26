@@ -25,6 +25,10 @@ const MODULES = {
   "aidriver-stub.js": "AIDriverStub",
   "python-runner.js": "PythonRunner",
   "editor.js": "Editor",
+  "serial-link.js": "SerialLink",
+  "micropython-board.js": "MicroPythonBoard",
+  "log-viewer.js": "LogViewer",
+  "robot-connection.js": "RobotConnection",
   "app.js": "App",
 };
 
