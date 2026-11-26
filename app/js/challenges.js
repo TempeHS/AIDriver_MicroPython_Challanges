@@ -123,7 +123,8 @@ const Challenges = (function () {
       successCriteria: {
         type: "complete_circle",
         centerTolerance: 100, // Must finish inside the 100mm finish box
-        minRotation: 330, // Must rotate at least 330 degrees
+        minRotation: 330, // Must rotate, and go round the circle's centre, at least 330 degrees
+        maxPathDeviation: 100, // Robot centre must stay within 100mm of the drawn circle
       },
       path: {
         type: "circle",
@@ -331,7 +332,7 @@ const Challenges = (function () {
         return checkReachZone(robotState, criteria);
 
       case "complete_circle":
-        return checkCompleteCircle(robotState, sessionData, criteria);
+        return checkCompleteCircle(robotState, sessionData, criteria, challenge.path);
 
       case "stop_at_distance":
         return checkStopAtDistance(robotState, criteria);
@@ -411,15 +412,39 @@ const Challenges = (function () {
   }
 
   /**
-   * Confirm the robot completed sufficient rotation and returned near its start point.
+   * Confirm the robot drove round the drawn circle (staying on it and going
+   * round its centre), turned far enough, and returned near its start point.
    * @param {{x:number,y:number}} robot Current robot coordinates.
-   * @param {{startPosition:{x:number,y:number},totalRotation?:number}} session Session metrics.
-   * @param {{minRotation:number,centerTolerance:number}} criteria Circle completion bounds.
+   * @param {{startPosition:{x:number,y:number},totalRotation?:number,maxPathDeviation?:number,pathAngle?:number}} session Session metrics.
+   * @param {{minRotation:number,centerTolerance:number,maxPathDeviation:number}} criteria Circle completion bounds.
+   * @param {{center:{x:number,y:number},radius:number}} [path] The drawn circle.
    * @returns {{success:boolean,message:string}} Evaluation outcome.
    */
-  function checkCompleteCircle(robot, session, criteria) {
+  function checkCompleteCircle(robot, session, criteria, path) {
     const startPos = session.startPosition;
     const totalRotation = session.totalRotation || 0;
+
+    // The robot must follow the drawn circle, not just turn on the spot or
+    // drive a loop of its own (too small, or away from the green track)
+    if (path && typeof session.maxPathDeviation === "number") {
+      if (session.maxPathDeviation > criteria.maxPathDeviation) {
+        return {
+          success: false,
+          message: `Stay on the green circle (went ${session.maxPathDeviation.toFixed(
+            0
+          )}mm off it). Change speed_adjust to change the size of your circle.`,
+        };
+      }
+      const aroundCircle = Math.abs(session.pathAngle || 0);
+      if (aroundCircle < criteria.minRotation) {
+        return {
+          success: false,
+          message: `Drive all the way round the green circle (${aroundCircle.toFixed(
+            0
+          )}° / ${criteria.minRotation}°)`,
+        };
+      }
+    }
 
     if (Math.abs(totalRotation) < criteria.minRotation) {
       return {

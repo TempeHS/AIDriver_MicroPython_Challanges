@@ -271,6 +271,28 @@ describe("checkSuccess", () => {
       expect(Challenges.checkSuccess(2, atStart, { startPosition }).success).toBe(false);
     });
 
+    test("a run that wanders off the drawn circle fails", () => {
+      const session = { startPosition, totalRotation: 360, maxPathDeviation: 101, pathAngle: 360 };
+
+      expect(Challenges.checkSuccess(2, atStart, session)).toEqual({
+        success: false,
+        message:
+          "Stay on the green circle (went 101mm off it). Change speed_adjust to change the size of your circle.",
+      });
+      expect(
+        Challenges.checkSuccess(2, atStart, { ...session, maxPathDeviation: 100 }).success,
+      ).toBe(true);
+    });
+
+    test("turning without going round the circle's centre fails", () => {
+      const session = { startPosition, totalRotation: 360, maxPathDeviation: 20, pathAngle: -40 };
+
+      expect(Challenges.checkSuccess(2, atStart, session)).toEqual({
+        success: false,
+        message: "Drive all the way round the green circle (40° / 330°)",
+      });
+    });
+
     test("finishing exactly 100 mm from the start passes, 101 mm fails", () => {
       const session = { startPosition, totalRotation: 360 };
 

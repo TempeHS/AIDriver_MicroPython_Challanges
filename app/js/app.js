@@ -742,6 +742,11 @@ function createSession(pose) {
     crossoverCount: 0,
     nearCenter: false,
     startTime: null,
+    // Circle challenges: furthest distance from the drawn circle, and how far
+    // the robot has travelled round its centre (degrees)
+    maxPathDeviation: 0,
+    pathAngle: 0,
+    lastPathAngle: null,
   };
 }
 
@@ -2273,6 +2278,25 @@ function updateSessionTracking() {
   if (normalizedDelta < -180) normalizedDelta += 360;
   App.session.totalRotation += normalizedDelta;
   App.session.lastHeading = App.robot.heading;
+
+  // Track progress round a circular path (Challenge 2)
+  const path = App.currentChallengeConfig && App.currentChallengeConfig.path;
+  if (path && path.type === "circle") {
+    const dx = App.robot.x - path.center.x;
+    const dy = App.robot.y - path.center.y;
+    App.session.maxPathDeviation = Math.max(
+      App.session.maxPathDeviation || 0,
+      Math.abs(Math.hypot(dx, dy) - path.radius),
+    );
+    const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+    if (App.session.lastPathAngle !== null && App.session.lastPathAngle !== undefined) {
+      let delta = angle - App.session.lastPathAngle;
+      if (delta > 180) delta -= 360;
+      if (delta < -180) delta += 360;
+      App.session.pathAngle = (App.session.pathAngle || 0) + delta;
+    }
+    App.session.lastPathAngle = angle;
+  }
 
   // Track center crossovers (for figure-8)
   if (

@@ -244,7 +244,40 @@ describe("Challenge 2: Drive a Circle", () => {
     const result = await runChallenge(2, code);
 
     expect(result.success).toBe(false);
-    expect(result.message).toMatch(/^Complete more rotation \(1[78]\d° \/ 330°\)$/);
+    expect(result.message).toMatch(/^Drive all the way round the green circle \(1[78]\d° \/ 330°\)$/);
+  });
+
+  test.each([
+    ["a slightly wider circle", -25, 4.8],
+    ["a slightly tighter circle", -30, 4.1],
+    ["two laps", -27, 8.9],
+  ])("%s that follows the green track still passes", async (_name, adjust, time) => {
+    const code = starter()
+      .replace("speed_adjust = 0", `speed_adjust = ${adjust}`)
+      .replace("move_time = 0 ", `move_time = ${time} `);
+
+    const result = await runChallenge(2, code, { maxSeconds: 15 });
+
+    expect(result).toEqual({ success: true, message: "Circle completed!" });
+  });
+
+  test.each([
+    // Small loops pass through the finish box after a full turn of the robot
+    ["small loops (speed_adjust 50)", 50, 10],
+    ["small loops (speed_adjust -50)", -50, 10],
+    // Same size as the green circle but curving the other way, below the start
+    ["a loop below the start, off the track", 27, 4.45],
+  ])("%s fail, even passing back through the finish box", async (_name, adjust, time) => {
+    const code = starter()
+      .replace("speed_adjust = 0", `speed_adjust = ${adjust}`)
+      .replace("move_time = 0 ", `move_time = ${time} `);
+
+    const result = await runChallenge(2, code, { maxSeconds: 15 });
+
+    expect(Math.abs(App.session.totalRotation)).toBeGreaterThan(330);
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/^Stay on the green circle \(went \d+mm off it\)/);
+    expect(App.elements.challengeStatus.textContent).not.toBe("SUCCESS!");
   });
 });
 

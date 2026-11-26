@@ -6,6 +6,9 @@ In this challenge, students will modify their existing code so that their robot 
 
 My robot moves in circle and comes to a stop.
 
+> [!Note]
+> In the simulator, your robot must drive all the way round the **green circle** (staying within 100 mm of it) and stop back in the finish box where it started. Small loops, or loops that leave the green track, don't count.
+
 ## Before You Begin
 
 1. Complete [Module 2: Calculations and Turtle!](https://groklearning.com/learn/python-for-beginners/2/0/) to learn about mathematical calculations in the Python language.
