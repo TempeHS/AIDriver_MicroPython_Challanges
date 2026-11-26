@@ -61,12 +61,12 @@
 
 ## Step 8 - Test the Hardware
 
-Upload the hardware test program to your robot as `main.py`, then run it. You can do this from the **AIDriver Simulator** (Option A, recommended) or from **Arduino MicroPython Lab** (Option B).
+Upload the hardware test program to your robot as `main.py`, then run it. If you can't use the simulator, see [Upload from Arduino MicroPython Lab](#upload-from-arduino-micropython-lab) at the bottom of this page.
 
 > [!Caution]
 > Keep the battery power switch **off** while the robot is plugged into a computer. To avoid damaging your computer or robot, unplug the USB cable and place the robot on the floor, in an area with enough space for it to move safely, before switching the battery on.
 
-### Option A - Upload from the AIDriver Simulator
+### Upload from the AIDriver Simulator
 
 You need **Chrome** or **Edge** on a computer or Chromebook (Firefox and Safari can't connect to the robot).
 
@@ -85,7 +85,19 @@ You need **Chrome** or **Edge** on a computer or Chromebook (Firefox and Safari 
 > [!Note]
 > If the status says **Firmware update needed**, or the robot won't connect, give your robot to your teacher to install the AIDriver firmware. For other messages see [Common Errors - Problems uploading from the simulator](Common_Errors.md#9-problems-uploading-from-the-simulator).
 
-### Option B - Upload from Arduino MicroPython Lab
+### What the robot should do
+
+After you switch the battery on, the robot waits 3 seconds, then:
+
+1. Drives forward for 2 seconds.
+2. Drives backward for 2 seconds.
+3. Rotates right for 2 seconds.
+4. Rotates left for 2 seconds.
+5. Takes five distance readings with the ultrasonic sensor.
+
+Each test is recorded in the robot's `event_log.txt`. To read it, reconnect the robot (battery off) and press **Logs** in the simulator, or open the file in Arduino MicroPython Lab.
+
+### Upload from Arduino MicroPython Lab
 
 <details>
 <summary>Use this if you can't use the simulator (click to show the steps)</summary>
@@ -159,15 +171,3 @@ print("All hardware tests completed.")
 ```
 
 </details>
-
-### What the robot should do
-
-After you switch the battery on, the robot waits 3 seconds, then:
-
-1. Drives forward for 2 seconds.
-2. Drives backward for 2 seconds.
-3. Rotates right for 2 seconds.
-4. Rotates left for 2 seconds.
-5. Takes five distance readings with the ultrasonic sensor.
-
-Each test is recorded in the robot's `event_log.txt`. To read it, reconnect the robot (battery off) and press **Logs** in the simulator, or open the file in Arduino MicroPython Lab.
