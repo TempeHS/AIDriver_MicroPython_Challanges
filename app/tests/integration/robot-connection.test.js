@@ -117,10 +117,23 @@ describe("Robot toolbar availability", () => {
 
     expect($("robotToolbar").classList.contains("d-none")).toBe(true);
     expect($("robotUnsupported").classList.contains("d-none")).toBe(false);
-    expect($("robotUnsupported").textContent).toMatch(/needs\s+Chrome or Edge/);
+    expect($("robotUnsupported").textContent).toMatch(/Upload needs Chrome or\s+Edge/);
+    expect($("robotUnsupported").title).toBe(
+      "Uploading to a robot needs Chrome or Edge on a computer.",
+    );
   });
 
-  test("before connecting only Connect robot is enabled", () => {
+  test("the Robot toolbar is in the editor's header, separate from the simulator controls", () => {
+    installFakeSerial([new FakeBoard()]);
+    boot();
+
+    const editorHeader = $("editorCard").querySelector(".card-header");
+    expect(editorHeader.contains($("robotToolbar"))).toBe(true);
+    expect(editorHeader.contains($("robotUnsupported"))).toBe(true);
+    expect($("btnRun").closest(".card").contains($("robotToolbar"))).toBe(false);
+  });
+
+  test("before connecting only Connect robot is enabled; the rest are greyed out", () => {
     installFakeSerial([new FakeBoard()]);
     boot();
 
@@ -133,11 +146,11 @@ describe("Robot toolbar availability", () => {
 });
 
 describe("Connect", () => {
-  test("stops a running program, brakes, and reports the robot", async () => {
+  test("stops a running program and reports the robot", async () => {
     await connect({ running: true });
 
     expect(RobotConnection.state).toBe("ready");
-    expect(fake.brakeCount).toBe(1);
+    expect(fake.execLog).toEqual(["identify"]);
     expect(fake.mode).toBe("friendly");
     expect(status()).toBe("Pico connected");
     expect(debugText()).toContain(
@@ -248,15 +261,14 @@ describe("Upload", () => {
 });
 
 describe("Upload & Run", () => {
-  test("asks once about safety, restarts the robot and shows its output", async () => {
+  test("uploads, restarts the robot without asking, and shows its output", async () => {
     await connect();
     fake.program = { output: ["Hello from the robot <b>"] };
 
     click($("btnRobotUploadRun"));
     await waitFor(() => debugText().includes("[Robot] Program finished."));
 
-    expect(confirmSpy).toHaveBeenCalledTimes(1);
-    expect(confirmSpy.mock.calls[0][0]).toMatch(/The robot will start moving/);
+    expect(confirmSpy).not.toHaveBeenCalled();
     expect(fake.file("/main.py")).toBe(UPLOADED);
     expect(fake.softResets).toBe(1);
     expect(debugText()).toContain("[Robot] Restarted.");
@@ -265,9 +277,6 @@ describe("Upload & Run", () => {
     expect(debugText()).not.toContain('Type "help()"');
     expect(RobotConnection.state).toBe("ready");
 
-    click($("btnRobotUploadRun"));
-    await waitFor(() => fake.softResets === 2);
-    expect(confirmSpy).toHaveBeenCalledTimes(1);
   });
 
   test("a running program is reported and Upload asks before stopping it", async () => {
@@ -288,18 +297,16 @@ describe("Upload & Run", () => {
 });
 
 describe("Stop robot", () => {
-  test("stops the running program and brakes", async () => {
+  test("stops the running program", async () => {
     await connect();
     fake.program = { output: ["looping"], loop: true };
     click($("btnRobotUploadRun"));
     await waitFor(() => RobotConnection.state === "running");
-    const brakesBefore = fake.brakeCount;
 
     click($("btnRobotStop"));
-    await waitFor(() => debugText().includes("Robot program stopped and motors braked."));
+    await waitFor(() => debugText().includes("Robot program stopped."));
 
     expect(fake.mode).toBe("friendly");
-    expect(fake.brakeCount).toBe(brakesBefore + 1);
     expect(RobotConnection.state).toBe("ready");
   });
 
@@ -310,7 +317,7 @@ describe("Stop robot", () => {
     await waitFor(() => fake.execLog.includes("write"));
 
     click($("btnRobotStop"));
-    await waitFor(() => debugText().includes("Robot program stopped and motors braked."));
+    await waitFor(() => debugText().includes("Robot program stopped."));
 
     expect(debugText()).toContain("Upload cancelled. The robot still has its previous main.py.");
     expect(fake.file("/main.py")).toBe("old program\n");

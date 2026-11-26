@@ -1,6 +1,6 @@
 # Web Serial Upload (Robot toolbar)
 
-The simulator's **Robot** toolbar lets students connect to their robot's Pico over USB, upload the editor code to `/main.py`, view the robot's event logs and stop the robot. The full design and rationale are in [`Web_Serial_Upload_Design.md`](../../Web_Serial_Upload_Design.md). This page is the reference for the code.
+The **Robot** toolbar in the code editor's header on `simulator.html` (separate from the simulator's Run/Stop/Step controls) lets students connect to their robot's Pico over USB, upload the editor code to `/main.py`, view the robot's event logs and stop the robot. The full design and rationale are in [`Web_Serial_Upload_Design.md`](../../Web_Serial_Upload_Design.md). This page is the reference for the code.
 
 ## Modules
 

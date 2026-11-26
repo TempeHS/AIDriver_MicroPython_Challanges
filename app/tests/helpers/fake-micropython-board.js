@@ -65,7 +65,6 @@ class FakeBoard {
     this.program = options.program || { output: ["hello from main.py"] };
     this.mode = options.running ? "running" : "friendly";
     this.rawBuffer = "";
-    this.brakeCount = 0;
     this.softResets = 0;
     this.execLog = [];
     this.failures = {}; // diskFull, hashMismatch, unplugAfterWrites, pythonError
@@ -202,9 +201,6 @@ class FakeBoard {
           stderr: "",
         };
       }
-      case "brake":
-        this.brakeCount++;
-        return { stdout: "", stderr: "" };
       case "write": {
         if (this.failures.diskFull) return this.error("OSError: 28");
         const mode = code.match(/, '(wb|ab)'\)/)[1];

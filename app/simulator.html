@@ -17,7 +17,7 @@
       rel="stylesheet"
     />
     <!-- Custom CSS -->
-    <link href="css/style.css?v=8" rel="stylesheet" />
+    <link href="css/style.css?v=9" rel="stylesheet" />
   </head>
   <body class="bg-dark">
     <!-- Navbar -->
@@ -253,9 +253,84 @@
         <div class="col-lg-7">
           <div class="card bg-dark border-secondary" id="editorCard">
             <div
-              class="card-header bg-secondary text-white d-flex justify-content-between align-items-center"
+              class="card-header bg-secondary text-white d-flex gap-2 align-items-center"
             >
-              <span><i class="bi bi-code-slash me-2"></i>Python Code</span>
+              <span class="text-nowrap"
+                ><i class="bi bi-code-slash me-2"></i>Python Code</span
+              >
+              <!-- Robot toolbar: upload the editor code to a real robot over Web Serial -->
+              <div
+                class="d-flex gap-1 align-items-center justify-content-end ms-auto"
+                id="robotToolbar"
+                role="group"
+                aria-label="Robot"
+              >
+                <span
+                  class="badge bg-secondary robot-status"
+                  id="robotStatus"
+                  role="status"
+                  aria-live="polite"
+                  >Not connected</span
+                >
+                <button
+                  class="btn btn-sm btn-outline-light"
+                  id="btnRobotConnect"
+                  title="Connect to your robot with a USB cable"
+                  aria-label="Connect robot"
+                >
+                  <i class="bi bi-usb-symbol"></i>
+                  <span class="robot-label">Connect robot</span>
+                </button>
+                <div class="btn-group btn-group-sm">
+                  <button
+                    class="btn btn-outline-light"
+                    id="btnRobotUpload"
+                    disabled
+                    title="Save the code in the editor to the robot as main.py"
+                    aria-label="Upload to robot"
+                  >
+                    <i class="bi bi-upload"></i>
+                    <span class="robot-label">Upload</span>
+                  </button>
+                  <button
+                    class="btn btn-outline-light"
+                    id="btnRobotUploadRun"
+                    disabled
+                    title="Save the code to the robot as main.py and run it now"
+                    aria-label="Upload to robot and run"
+                  >
+                    <i class="bi bi-upload"></i><i class="bi bi-play-fill"></i>
+                    <span class="robot-label">Upload &amp; Run</span>
+                  </button>
+                  <button
+                    class="btn btn-outline-light"
+                    id="btnRobotLogs"
+                    disabled
+                    title="Open the robot's event logs in a new tab"
+                    aria-label="View robot logs"
+                  >
+                    <i class="bi bi-file-earmark-text"></i>
+                    <span class="robot-label">Logs</span>
+                  </button>
+                  <button
+                    class="btn btn-outline-light"
+                    id="btnRobotStop"
+                    disabled
+                    title="Stop the program running on the robot"
+                    aria-label="Stop robot"
+                  >
+                    <i class="bi bi-stop-circle"></i>
+                    <span class="robot-label">Stop robot</span>
+                  </button>
+                </div>
+              </div>
+              <span
+                class="small text-light ms-auto d-none"
+                id="robotUnsupported"
+                title="Uploading to a robot needs Chrome or Edge on a computer."
+                ><i class="bi bi-info-circle me-1"></i>Upload needs Chrome or
+                Edge</span
+              >
               <div class="btn-group btn-group-sm">
                 <button
                   class="btn btn-outline-light"
@@ -457,73 +532,6 @@
                   <span class="badge bg-primary ms-2" id="speedValue">2x</span>
                 </div>
               </div>
-
-              <!-- Robot toolbar: upload to a real robot over Web Serial -->
-              <div
-                class="d-flex flex-wrap gap-2 align-items-center mt-2 pt-2 border-top border-secondary"
-                id="robotToolbar"
-                role="group"
-                aria-label="Robot"
-              >
-                <button
-                  class="btn btn-sm btn-outline-light"
-                  id="btnRobotConnect"
-                  title="Connect to your robot with a USB cable"
-                  aria-label="Connect robot"
-                >
-                  <i class="bi bi-usb-symbol"></i> Connect robot
-                </button>
-                <div class="btn-group btn-group-sm">
-                  <button
-                    class="btn btn-outline-success"
-                    id="btnRobotUpload"
-                    disabled
-                    title="Save the code in the editor to the robot as main.py"
-                    aria-label="Upload to robot"
-                  >
-                    <i class="bi bi-upload"></i> Upload
-                  </button>
-                  <button
-                    class="btn btn-outline-success"
-                    id="btnRobotUploadRun"
-                    disabled
-                    title="Save the code to the robot as main.py and run it now"
-                    aria-label="Upload to robot and run"
-                  >
-                    <i class="bi bi-upload"></i><i class="bi bi-play-fill"></i>
-                    Upload &amp; Run
-                  </button>
-                </div>
-                <button
-                  class="btn btn-sm btn-outline-info"
-                  id="btnRobotLogs"
-                  disabled
-                  title="Open the robot's event logs in a new tab"
-                  aria-label="View robot logs"
-                >
-                  <i class="bi bi-file-earmark-text"></i> Logs
-                </button>
-                <button
-                  class="btn btn-sm btn-outline-danger"
-                  id="btnRobotStop"
-                  disabled
-                  title="Stop the program on the robot and brake the motors"
-                  aria-label="Stop robot"
-                >
-                  <i class="bi bi-stop-circle"></i> Stop robot
-                </button>
-                <span
-                  class="badge bg-secondary robot-status ms-auto"
-                  id="robotStatus"
-                  role="status"
-                  aria-live="polite"
-                  >Not connected</span
-                >
-              </div>
-              <p class="text-muted small mb-0 mt-2 d-none" id="robotUnsupported">
-                <i class="bi bi-info-circle me-1"></i>Uploading to a robot needs
-                Chrome or Edge on a computer.
-              </p>
             </div>
           </div>
 
@@ -777,7 +785,7 @@
     <script src="js/serial-link.js?v=1"></script>
     <script src="js/micropython-board.js?v=1"></script>
     <script src="js/log-viewer.js?v=1"></script>
-    <script src="js/robot-connection.js?v=1"></script>
+    <script src="js/robot-connection.js?v=2"></script>
     <script src="js/app.js?v=57"></script>
   </body>
 </html>

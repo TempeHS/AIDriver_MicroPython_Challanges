@@ -14,7 +14,6 @@ const RobotConnection = {
   info: null,
   elements: {},
   busyToken: 0,
-  runSafetyConfirmed: false,
 
   // Robot output buffering for the debug panel
   outputRest: "",
@@ -146,11 +145,15 @@ const RobotConnection = {
 
     connect.disabled = !["idle", "ready", "running"].includes(this.state);
     connect.innerHTML = connected
-      ? '<i class="bi bi-plug"></i> Disconnect'
-      : '<i class="bi bi-usb-symbol"></i> Connect robot';
+      ? '<i class="bi bi-plug"></i> <span class="robot-label">Disconnect</span>'
+      : '<i class="bi bi-usb-symbol"></i> <span class="robot-label">Connect robot</span>';
     connect.title = connected
       ? "Disconnect from the robot"
       : "Connect to your robot with a USB cable";
+    connect.setAttribute(
+      "aria-label",
+      connected ? "Disconnect robot" : "Connect robot",
+    );
     upload.disabled = !usable;
     uploadRun.disabled = !usable;
     logs.disabled = !usable;
@@ -454,18 +457,6 @@ const RobotConnection = {
     ) {
       return false;
     }
-    if (run && !this.runSafetyConfirmed) {
-      if (
-        !window.confirm(
-          "The robot will start moving. Make sure it is on the floor with space around it " +
-            "(or its wheels are off the ground).\n\nPress OK when it's safe.",
-        )
-      ) {
-        return false;
-      }
-      this.runSafetyConfirmed = true;
-    }
-
     if (typeof Logger !== "undefined") {
       Logger.userAction(run ? "Upload & Run to robot" : "Upload to robot");
     }
@@ -527,7 +518,7 @@ const RobotConnection = {
   // ---------------------------------------------------------------- stop
 
   /**
-   * Stop the robot's program (cancelling any operation) and brake.
+   * Stop the robot's program, cancelling any operation in progress.
    * @returns {Promise<void>}
    */
   async stopRobot() {
@@ -547,7 +538,7 @@ const RobotConnection = {
       this.endBusy(token);
       return;
     }
-    DebugPanel.info("Robot program stopped and motors braked.");
+    DebugPanel.info("Robot program stopped.");
     this.endBusy(token);
   },
 

@@ -36,7 +36,7 @@ flowchart TD
 ![Animated connection instructions](images/instructions.gif "Animated connection instructions")
 
 > [!Tip]
-> **Upload straight from the simulator.** In Chrome or Edge on a computer, open the [simulator](https://tempehs.github.io/AIDriver_MicroPython_Challanges/simulator.html), plug in your robot with a USB cable and press **Connect robot**. Then:
+> **Upload straight from the simulator.** In Chrome or Edge on a computer, open the [simulator](https://tempehs.github.io/AIDriver_MicroPython_Challanges/simulator.html), plug in your robot with a USB cable and press **Connect robot** (above the code editor). Then:
 >
 > - **Upload** saves the code in the simulator's editor to your robot as `main.py`. Unplug the cable and switch the robot on to run it.
 > - **Upload & Run** saves it and runs it straight away (put the robot on the floor first). Anything your program prints appears in the debug panel as `[Robot]` lines.

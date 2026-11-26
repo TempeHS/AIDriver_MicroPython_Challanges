@@ -60,7 +60,7 @@ What we add for AIDriver:
 
 ## 4. Platform constraints
 
-- **Browser support:** Web Serial is available in Chromium-based browsers on desktop: Chrome, Edge, Opera, and Chrome on ChromeOS, which covers school Chromebooks. Firefox and Safari don't support it. Android support is limited and not targeted. Feature-detect with `"serial" in navigator`. If it's missing, hide the Robot toolbar and show a one-line notice: "Uploading to a robot needs Chrome or Edge on a computer."
+- **Browser support:** Web Serial is available in Chromium-based browsers on desktop: Chrome, Edge, Opera, and Chrome on ChromeOS, which covers school Chromebooks. Firefox and Safari don't support it. Android support is limited and not targeted. Feature-detect with `"serial" in navigator`. If it's missing, hide the Robot toolbar and show a short notice in the editor header: "Upload needs Chrome or Edge" (its tooltip gives the full sentence: "Uploading to a robot needs Chrome or Edge on a computer.")
 - **Secure context:** Web Serial requires HTTPS. GitHub Pages is fine; local development needs `localhost`.
 - **User gesture:** `navigator.serial.requestPort()` must be called directly from a click handler.
 - **Permissions:** Chrome remembers granted ports per origin. `navigator.serial.getPorts()` therefore lets us reconnect silently on later visits, and after a reboot, without showing the picker again.
@@ -87,10 +87,10 @@ Verified against this repository's firmware and MicroPython v1.30-preview:
 
 ### 6.1 Toolbar
 
-A new **Robot** button group sits in the simulator's control bar, after Reset. It appears on `simulator.html` only. Labels are short, and every button has a tooltip and an `aria-label`.
+A new **Robot** button group sits in the **header of the code editor card** (the ACE editor's banner), next to the Copy and Reset Code buttons. It is kept separate from the simulator's Run / Stop / Step / Reset controls, because uploading works on the editor's code, not the simulated robot. It appears on `simulator.html` only. Labels are short, and every button has a tooltip and an `aria-label`. On narrow screens the header wraps onto a second line.
 
 ```
-[ ▶ Run ] [ ■ Stop ] [ ⏭ Step ]  [ ↻ Reset ]   ⎮  🔌 Connect robot  |  ⬆ Upload  |  ⬆▶ Upload & Run  |  📄 Logs  |  ■ Stop robot   ●  Pico connected
+ </> Python Code    ● Pico connected  [🔌 Connect robot] [⬆ Upload | ⬆▶ Upload & Run | 📄 Logs | ■ Stop robot]   [📋][↺]
 ```
 
 | Control | When enabled | Action |

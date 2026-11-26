@@ -16,14 +16,9 @@ const { installWebApis } = require("../helpers/fake-micropython-board");
 const hasPython = spawnSync("python3", ["--version"]).status === 0;
 const describeIfPython = hasPython ? describe : describe.skip;
 
-// Stand-in for the frozen aidriver module: records which motors were braked
+// Stand-in for the frozen aidriver module
 const FAKE_AIDRIVER = `
 __version__ = "test-1"
-import os
-class L298N:
-    def __init__(self, pin_enable, pin_direction, pin_brake):
-        with open(os.environ["BRAKE_LOG"], "a") as f:
-            f.write("%d,%d,%d\\n" % (pin_enable, pin_direction, pin_brake))
 `;
 
 let dir;
@@ -36,7 +31,7 @@ let dir;
 async function exec(code) {
   const result = spawnSync("python3", ["-c", code], {
     cwd: dir,
-    env: { ...process.env, PYTHONPATH: dir, BRAKE_LOG: path.join(dir, "brakes.txt") },
+    env: { ...process.env, PYTHONPATH: dir },
     encoding: "utf8",
   });
   if (result.status !== 0) {
@@ -110,15 +105,5 @@ describeIfPython("helper scripts under CPython", () => {
     expect(info).toMatchObject({ impl: "cpython", aidriver: true, version: "test-1" });
     expect(Array.isArray(info.shadowing)).toBe(true);
     expect(typeof info.has_boot_py).toBe("boolean");
-  });
-
-  test("brake constructs L298N for both default motors", async () => {
-    await exec(MicroPythonBoard.snippets.brake());
-    expect(read("brakes.txt")).toBe("3,12,9\n11,13,8\n");
-  });
-
-  test("brake does nothing (and doesn't fail) without the AIDriver library", async () => {
-    fs.rmSync(file("aidriver.py"));
-    await expect(exec(MicroPythonBoard.snippets.brake())).resolves.toBe("");
   });
 });

@@ -251,11 +251,11 @@ Python cannot find the `aidriver` library file.
 
 ## 9. Problems uploading from the simulator
 
-The simulator's **Robot** buttons (Connect robot, Upload, Upload & Run, Logs, Stop robot) need **Chrome or Edge on a computer**.
+The **Robot** buttons above the code editor (Connect robot, Upload, Upload & Run, Logs, Stop robot) need **Chrome or Edge on a computer**.
 
 | Message | What to do |
 | --- | --- |
-| "Uploading to a robot needs Chrome or Edge on a computer." | Open the simulator in Chrome or Edge. Firefox, Safari and phones can't connect to the robot. |
+| "Upload needs Chrome or Edge" (in the code editor's header) | Open the simulator in Chrome or Edge. Firefox, Safari and phones can't connect to the robot. |
 | "The robot is being used by another program or tab." | Close MicroPython Lab, Thonny or any other simulator tab that is connected, then press **Connect robot** again. |
 | "Connected, but the board didn't answer like MicroPython." | Check the AIDriver firmware is installed (**Downloads → AIDriver Custom Firmware** in the simulator). |
 | "The robot's program won't stop." | Your program is ignoring Stop (for example a `try`/`except` around `while True`). Unplug the robot, connect **GP4 to GND**, plug it back in to restore the default `main.py`, remove the wire, then upload again. |

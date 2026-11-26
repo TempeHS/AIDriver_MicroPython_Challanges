@@ -544,3 +544,31 @@ body {
   color: #f85149;
   font-style: normal;
 }
+
+/* Robot toolbar sits in the editor header: keep it on one line by showing
+   icons only (with tooltips) when the editor column is narrow */
+#robotToolbar .robot-status {
+  max-width: 11rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 1399.98px) {
+  #robotToolbar .robot-label {
+    display: none;
+  }
+}
+
+@media (max-width: 575.98px) {
+  #editorCard > .card-header {
+    flex-wrap: wrap;
+  }
+}
+
+/* Robot controls are clearly greyed out until a robot is connected */
+#robotToolbar .btn:disabled {
+  color: #b1b7bd;
+  border-color: rgba(255, 255, 255, 0.2);
+  background-color: transparent;
+  opacity: 0.45;
+}

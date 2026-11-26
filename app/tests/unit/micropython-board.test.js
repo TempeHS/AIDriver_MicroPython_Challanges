@@ -41,7 +41,7 @@ afterEach(async () => {
 });
 
 describe("sessions", () => {
-  test("interrupt a running program, brake the motors and identify the board", async () => {
+  test("interrupt a running program and identify the board, without braking", async () => {
     await connect({ running: true, files: { "/boot.py": "", "/aidriver.py": "" } });
 
     const info = await board.session(MicroPythonBoard.identify);
@@ -53,7 +53,7 @@ describe("sessions", () => {
       has_boot_py: true,
       shadowing: ["aidriver.py"],
     });
-    expect(fake.execLog).toEqual(["brake", "identify"]);
+    expect(fake.execLog).toEqual(["identify"]);
     expect(fake.mode).toBe("friendly");
     // The raw REPL exchange and banner are not shown as program output
     expect(output.join("")).toBe("");
@@ -64,7 +64,7 @@ describe("sessions", () => {
 
     await board.stopProgram();
 
-    expect(fake.brakeCount).toBe(1);
+    expect(fake.execLog).toEqual([]);
     expect(fake.mode).toBe("friendly");
   });
 
@@ -96,7 +96,7 @@ describe("sessions", () => {
     await Promise.all([
       board.session(async (exec) => {
         order.push("a-start");
-        await exec("# aid:brake");
+        await exec("# aid:identify");
         order.push("a-end");
       }),
       board.session(async () => {
@@ -140,11 +140,15 @@ describe("sessions", () => {
 
   test("losing the board fails the waiting operation", async () => {
     await connect();
-    const pending = board.session(() => new Promise(() => {}));
-    await waitFor(() => fake.execLog.includes("brake"));
+    let started = false;
+    const pending = board.session(() => {
+      started = true;
+      return new Promise(() => {});
+    });
+    await waitFor(() => started);
 
     board.lost();
-    const stuck = board.session((exec) => exec("# aid:brake"));
+    const stuck = board.session((exec) => exec("# aid:identify"));
     fake.silent = true;
 
     await expect(Promise.race([stuck, new Promise((r) => setTimeout(() => r("waiting"), 50))]))
@@ -248,12 +252,5 @@ describe("helpers", () => {
     expect(() => MicroPythonBoard.parseMarked("Traceback")).toThrow(
       "The robot sent an unexpected reply.",
     );
-  });
-
-  test("the brake snippet brakes both default motors without AIDriver()", () => {
-    const code = MicroPythonBoard.snippets.brake();
-    expect(code).toContain("L298N(3, 12, 9)");
-    expect(code).toContain("L298N(11, 13, 8)");
-    expect(code).not.toContain("AIDriver(");
   });
 });

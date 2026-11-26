@@ -33,4 +33,5 @@ Run on a real AIDriver robot with the latest firmware, in Chrome on a computer a
 | W8 | Unplug the USB cable during **Upload** of a long program, plug back in | "Trying to reconnect…" then reconnects; the previous `main.py` still runs on power-up | | |
 | W9 | Upload a program with `try: … except: pass` around `while True`, run it, press **Stop robot** | Stops after retries, or shows the GP4 recovery message | | |
 | W10 | Open the Pico in MicroPython Lab, then press **Connect robot** | "The robot is being used by another program or tab" | | |
-| W11 | Open the simulator in Firefox | Toolbar replaced by "Uploading to a robot needs Chrome or Edge on a computer." | | |
+| W11 | Open the simulator in Firefox | Robot toolbar in the editor header replaced by "Upload needs Chrome or Edge" | | |
+| W12 | Narrow the window to tablet width | Editor header wraps; all Robot buttons stay visible and usable | | |

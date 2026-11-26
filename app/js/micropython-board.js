@@ -1,7 +1,7 @@
 /**
  * AIDriver Simulator - MicroPython Board Module
  * MicroPython raw REPL protocol over a SerialLink, plus the operations the
- * Robot toolbar needs: identify, stop + brake, atomic upload of main.py and
+ * Robot toolbar needs: identify, stop, atomic upload of main.py and
  * reading files. See Web_Serial_Upload_Design.md §7.4-§7.7.
  */
 
@@ -21,11 +21,6 @@ const MicroPythonBoard = (function () {
   const INTERRUPT_ATTEMPTS = 3;
   const MAX_UPLOAD_BYTES = 64 * 1024;
 
-  // Default AIDriver motor pins: (speed PWM, direction, brake) per motor
-  const MOTOR_PINS = [
-    [3, 12, 9],
-    [11, 13, 8],
-  ];
   // Frozen modules that a root-level copy on the robot would replace
   const FROZEN_MODULES = [
     "aidriver",
@@ -97,20 +92,6 @@ try:
 except Exception:
     info['free'] = None
 print('${MARK_START}' + json.dumps(info) + '${MARK_END}')`;
-    },
-
-    brake() {
-      // L298N() brakes its motor when constructed, without writing to the
-      // event log (AIDriver().brake() would add a log line)
-      const motors = MOTOR_PINS.map((p) => `    L298N(${p.join(", ")})`).join(
-        "\n",
-      );
-      return `# aid:brake
-try:
-    from aidriver import L298N
-${motors}
-except Exception:
-    pass`;
     },
 
     writeChunk(path, base64, first) {
@@ -393,19 +374,18 @@ except OSError:
     /**
      * Run `fn` inside a raw REPL session. Sessions are queued so only one
      * conversation with the board happens at a time. Any running program is
-     * interrupted and, unless `brake` is false, the motors are braked.
+     * interrupted first. (The motors have their own power switch, which is
+     * off while the robot is plugged in, so no braking is needed.)
      * @template T
      * @param {(exec: (code: string, timeoutMs?: number) => Promise<string>) => Promise<T>} fn
-     * @param {{brake?: boolean}} [options]
      * @returns {Promise<T>}
      */
-    session(fn, { brake = true } = {}) {
+    session(fn) {
       const run = async () => {
         this.raw = true;
         this.pending = "";
         try {
           await this.enterRawRepl();
-          if (brake) await this.exec(snippets.brake());
           return await fn((code, timeoutMs) => this.exec(code, timeoutMs));
         } finally {
           this.abortError = null;
@@ -426,7 +406,7 @@ except OSError:
     }
 
     /**
-     * Stop the running program and brake the motors.
+     * Stop the running program.
      * @returns {Promise<void>}
      */
     stopProgram() {
@@ -537,7 +517,6 @@ except OSError:
     FRIENDLY_PROMPT,
     MAX_UPLOAD_BYTES,
     WRITE_CHUNK,
-    MOTOR_PINS,
     FROZEN_MODULES,
     BoardError,
     Board,
