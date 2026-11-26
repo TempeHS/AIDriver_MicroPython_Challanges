@@ -171,6 +171,13 @@ describe("checkSuccess", () => {
         "Finish back at the starting corner",
       );
     });
+
+    test("driving through the start corner without stopping fails", () => {
+      const moving = makeRobot({ ...start, leftSpeed: 200, rightSpeed: 200, isMoving: true });
+      expect(Challenges.checkSuccess(4, moving, square()).message).toBe(
+        "Brake so the robot stops inside the FINISH box",
+      );
+    });
   });
 
   describe.each(["debug", 0])("run_without_error (challenge %s)", (id) => {
@@ -299,7 +306,24 @@ describe("checkSuccess", () => {
       expect(Challenges.checkSuccess(2, makeRobot({ x: 1100, y: 1400 }), session).success).toBe(true);
       expect(Challenges.checkSuccess(2, makeRobot({ x: 1000, y: 1501 }), session)).toEqual({
         success: false,
-        message: "Return closer to start (101mm away)",
+        message: "Stop inside the FINISH box (101mm from the start)",
+      });
+    });
+
+    test("the FINISH box is the drawn square, so its corners count", () => {
+      const session = { startPosition, totalRotation: 360 };
+
+      expect(Challenges.checkSuccess(2, makeRobot({ x: 1100, y: 1500 }), session).success).toBe(true);
+      expect(Challenges.checkSuccess(2, makeRobot({ x: 1101, y: 1500 }), session).success).toBe(false);
+    });
+
+    test("driving through the FINISH box without stopping fails", () => {
+      const session = { startPosition, totalRotation: 360 };
+      const moving = makeRobot({ ...startPosition, leftSpeed: 180, rightSpeed: 150, isMoving: true });
+
+      expect(Challenges.checkSuccess(2, moving, session)).toEqual({
+        success: false,
+        message: "Brake so the robot stops inside the FINISH box",
       });
     });
   });

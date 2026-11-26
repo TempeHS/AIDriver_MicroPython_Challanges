@@ -247,6 +247,18 @@ describe("Challenge 2: Drive a Circle", () => {
     expect(result.message).toMatch(/^Drive all the way round the green circle \(1[78]\d° \/ 330°\)$/);
   });
 
+  test("driving on past the FINISH box fails, even though it passed through it", async () => {
+    const code = starter()
+      .replace("speed_adjust = 0", "speed_adjust = -27")
+      .replace("move_time = 0 ", "move_time = 5.5 ");
+
+    const result = await runChallenge(2, code);
+
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/^Stop inside the FINISH box \(\d+mm from the start\)$/);
+    expect(App.elements.challengeStatus.textContent).not.toBe("SUCCESS!");
+  });
+
   test.each([
     ["a slightly wider circle", -25, 4.8],
     ["a slightly tighter circle", -30, 4.1],

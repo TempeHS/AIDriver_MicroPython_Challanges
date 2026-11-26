@@ -122,7 +122,7 @@ const Challenges = (function () {
       startPosition: { x: 1000, y: 1400, heading: 90 },
       successCriteria: {
         type: "complete_circle",
-        centerTolerance: 100, // Must finish inside the 100mm finish box
+        centerTolerance: 100, // Must stop inside the FINISH box (start ±100mm)
         minRotation: 330, // Must rotate, and go round the circle's centre, at least 330 degrees
         maxPathDeviation: 100, // Robot centre must stay within 100mm of the drawn circle
       },
@@ -413,7 +413,7 @@ const Challenges = (function () {
 
   /**
    * Confirm the robot drove round the drawn circle (staying on it and going
-   * round its centre), turned far enough, and returned near its start point.
+   * round its centre), turned far enough, and stopped in the FINISH box.
    * @param {{x:number,y:number}} robot Current robot coordinates.
    * @param {{startPosition:{x:number,y:number},totalRotation?:number,maxPathDeviation?:number,pathAngle?:number}} session Session metrics.
    * @param {{minRotation:number,centerTolerance:number,maxPathDeviation:number}} criteria Circle completion bounds.
@@ -455,17 +455,21 @@ const Challenges = (function () {
       };
     }
 
-    const distanceFromStart = Math.hypot(
-      robot.x - startPos.x,
-      robot.y - startPos.y
-    );
-    if (distanceFromStart > criteria.centerTolerance) {
+    // The FINISH box is drawn as a square, centreTolerance either side of the start
+    const inBox =
+      Math.abs(robot.x - startPos.x) <= criteria.centerTolerance &&
+      Math.abs(robot.y - startPos.y) <= criteria.centerTolerance;
+    if (!inBox) {
+      const distanceFromStart = Math.hypot(robot.x - startPos.x, robot.y - startPos.y);
       return {
         success: false,
-        message: `Return closer to start (${distanceFromStart.toFixed(
-          0
-        )}mm away)`,
+        message: `Stop inside the FINISH box (${distanceFromStart.toFixed(0)}mm from the start)`,
       };
+    }
+
+    // Driving through the box doesn't count: the robot must stop in it
+    if (robot.leftSpeed !== 0 || robot.rightSpeed !== 0) {
+      return { success: false, message: "Brake so the robot stops inside the FINISH box" };
     }
 
     return { success: true, message: "Circle completed!" };
@@ -545,6 +549,11 @@ const Challenges = (function () {
       robot.y <= zone.y + zone.height;
     if (!inStartZone) {
       return { success: false, message: "Finish back at the starting corner" };
+    }
+
+    // Driving through the box doesn't count: the robot must stop in it
+    if (robot.leftSpeed !== 0 || robot.rightSpeed !== 0) {
+      return { success: false, message: "Brake so the robot stops inside the FINISH box" };
     }
 
     return { success: true, message: "Square complete!" };

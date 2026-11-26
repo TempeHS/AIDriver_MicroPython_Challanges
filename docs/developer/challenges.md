@@ -30,9 +30,9 @@ Challenge metadata lives in `app/js/challenges.js`. Each entry describes how the
 
 - `run_without_error`: Requires the code to finish without raising errors and travel at least `minDistance` millimetres. With `requireDebug: true` (Challenge 0) the program must also turn on AIDriver debug messages (`aidriver.DEBUG_AIDRIVER = True`, detected by `AIDriverStub.debugEnabledIn()`).
 - `reach_zone`: Passes when the robot is inside `zone` (axis-aligned rectangle). Optional `maxDeviation` restricts lateral drift.
-- `complete_circle`: The robot must stay within `maxPathDeviation` mm of the drawn circle (`path.center`, `path.radius`), go at least `minRotation` degrees round the circle's centre and turn at least `minRotation` degrees itself, then finish within `centerTolerance` mm of the start. `updateSessionTracking()` records `maxPathDeviation` and `pathAngle` (unwrapped angle round the centre) for circle paths, so small loops, loops off the track and spinning on the spot fail even if they pass back through the finish box.
+- `complete_circle`: The robot must stay within `maxPathDeviation` mm of the drawn circle (`path.center`, `path.radius`), go at least `minRotation` degrees round the circle's centre and turn at least `minRotation` degrees itself, then stop (wheel speeds 0) inside the FINISH box, a square `centerTolerance` mm either side of the start. `updateSessionTracking()` records `maxPathDeviation` and `pathAngle` (unwrapped angle round the centre) for circle paths, so small loops, loops off the track and spinning on the spot fail even if they pass back through the finish box.
 - `stop_at_distance`: Ensures the robot stops within `[min, max]` millimetres of the wall at `wallPosition`, measured from the front of the robot (where the ultrasonic sensor is), so it matches `read_distance()`.
-- `complete_square`: Requires roughly `corners` × 90° of turning, a covered area of at least `minSideLength` in both directions, and finishing in `startZone`.
+- `complete_square`: Requires roughly `corners` × 90° of turning, a covered area of at least `minSideLength` in both directions, and stopping (wheel speeds 0) in `startZone`.
 - `figure_eight`, `return_to_start`: Use geometric heuristics baked into their respective helpers.
 - `manual`: Marks gamepad activities as unscored (`noAutoCheck`).
 
